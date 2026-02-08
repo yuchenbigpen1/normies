@@ -1,0 +1,3 @@
+# normies
+
+A placeholder project.
