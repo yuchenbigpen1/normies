@@ -1,0 +1,4 @@
+# Limit Mintlify docs-root projects to files inside this docs directory.
+*
+!docs.json
+!*.mdx

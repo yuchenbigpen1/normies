@@ -11,31 +11,7 @@
     "groups": [
       {
         "group": "Getting Started",
-        "pages": [
-          "docs/index",
-          "docs/release-checklist"
-        ]
-      },
-      {
-        "group": "Core Concepts",
-        "pages": [
-          "docs/projects-and-tasks",
-          "docs/threads",
-          "docs/sources",
-          "docs/skills",
-          "docs/permissions"
-        ]
-      },
-      {
-        "group": "More",
-        "pages": [
-          "docs/statuses",
-          "docs/labels",
-          "docs/workspaces",
-          "docs/themes",
-          "docs/app-settings",
-          "docs/preferences"
-        ]
+        "pages": ["docs/index"]
       }
     ]
   }
