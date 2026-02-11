@@ -9,13 +9,17 @@
  */
 
 import * as React from 'react'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useAtomValue } from 'jotai'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { PanelHeader } from '../app-shell/PanelHeader'
 import { useSession as useSessionData, useAppShellContext } from '@/context/AppShellContext'
 import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { HorizontalResizeHandle } from '../ui/horizontal-resize-handle'
 import { SessionFilesSection } from './SessionFilesSection'
+import { sessionMetaMapAtom, type SessionMeta } from '@/atoms/sessions'
+import { getStateIcon, getStateLabel } from '@/config/todo-states'
 import * as storage from '@/lib/local-storage'
 
 export interface SessionMetadataPanelProps {
@@ -70,7 +74,7 @@ function useDebouncedCallback<T extends (...args: any[]) => void>(
  * Panel displaying session metadata with minimal styling
  */
 export function SessionMetadataPanel({ sessionId, closeButton }: SessionMetadataPanelProps) {
-  const { onRenameSession } = useAppShellContext()
+  const { onRenameSession, todoStates = [] } = useAppShellContext()
   const containerRef = useRef<HTMLDivElement>(null)
 
   // State for editable fields
@@ -85,6 +89,38 @@ export function SessionMetadataPanel({ sessionId, closeButton }: SessionMetadata
 
   // Get session data
   const session = useSessionData(sessionId || '')
+
+  // Check if this is a task session (Normies)
+  const isTaskSession = session?.projectId != null && session?.taskIndex != null
+
+  // Get sibling task sessions for dependency status display
+  const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
+  const siblingTasks = useMemo(() => {
+    if (!isTaskSession || !session?.projectId) return []
+    const siblings: SessionMeta[] = []
+    for (const meta of sessionMetaMap.values()) {
+      if (meta.projectId === session.projectId && meta.taskIndex != null) {
+        siblings.push(meta)
+      }
+    }
+    return siblings.sort((a, b) => (a.taskIndex ?? 0) - (b.taskIndex ?? 0))
+  }, [isTaskSession, session?.projectId, sessionMetaMap])
+
+  // Resolve dependency info
+  const dependencies = useMemo(() => {
+    if (!isTaskSession || !session?.taskDependencies?.length) return []
+    return session.taskDependencies.map(depIndex => {
+      const dep = siblingTasks.find(s => s.taskIndex === depIndex)
+      return {
+        taskIndex: depIndex,
+        name: dep?.name || `Task ${depIndex}`,
+        todoState: (dep?.todoState || 'todo') as string,
+      }
+    })
+  }, [isTaskSession, session?.taskDependencies, siblingTasks])
+
+  // State for collapsible sections
+  const [showDeps, setShowDeps] = useState(true)
 
   // Initialize name from session
   useEffect(() => {
@@ -182,7 +218,7 @@ export function SessionMetadataPanel({ sessionId, closeButton }: SessionMetadata
 
   return (
     <div ref={containerRef} className="h-full flex flex-col">
-      <PanelHeader title="Chat Info" actions={closeButton} />
+      <PanelHeader title={isTaskSession ? 'Task Info' : 'Chat Info'} actions={closeButton} />
 
       {/* Metadata section (Name + Notes) - fixed height based on state */}
       <div
@@ -220,6 +256,48 @@ export function SessionMetadataPanel({ sessionId, closeButton }: SessionMetadata
             />
           </div>
         </div>
+
+        {/* Task info sections (Normies) — only shown for task sessions */}
+        {isTaskSession && (
+          <>
+            {/* Completion summary */}
+            {session?.completionSummary && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5 select-none">
+                  Completion Summary
+                </label>
+                <p className="text-sm text-foreground/80">{session.completionSummary}</p>
+              </div>
+            )}
+
+            {/* Dependencies */}
+            {dependencies.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowDeps(!showDeps)}
+                  className="flex items-center gap-1 text-xs font-medium text-muted-foreground mb-1.5 select-none hover:text-foreground transition-colors"
+                >
+                  {showDeps ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  Dependencies ({dependencies.length})
+                </button>
+                {showDeps && (
+                  <div className="space-y-1.5">
+                    {dependencies.map(dep => {
+                      const stateLabel = getStateLabel(dep.todoState, todoStates)
+                      return (
+                        <div key={dep.taskIndex} className="flex items-center gap-2 text-sm">
+                          <span className="shrink-0">{getStateIcon(dep.todoState, todoStates)}</span>
+                          <span className="truncate">{dep.name}</span>
+                          <span className="text-xs text-muted-foreground ml-auto shrink-0">{stateLabel}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Horizontal resize handle */}

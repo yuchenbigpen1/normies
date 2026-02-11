@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
 import { X } from 'lucide-react'
-import { Spinner, FullscreenOverlayBase } from '@craft-agent/ui'
+import { Spinner, FullscreenOverlayBase } from '@normies/ui'
 import { useSetAtom } from 'jotai'
 import { fullscreenOverlayOpenAtom } from '@/atoms/overlay'
 import type { AuthType } from '../../../shared/types'
@@ -34,6 +34,7 @@ import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { OnboardingWizard } from '@/components/onboarding'
 import { useAppShellContext } from '@/context/AppShellContext'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 
 export const meta: DetailsPageMeta = {
   navigator: 'settings',
@@ -130,7 +131,7 @@ export default function AppSettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="App Settings" actions={<HeaderMenu route={routes.view.settings('app')} helpFeature="app-settings" />} />
+      <PanelHeader title="App Settings" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('app')} helpFeature="app-settings" />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto">

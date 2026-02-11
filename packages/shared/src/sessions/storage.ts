@@ -172,6 +172,24 @@ export async function createSession(
     todoState?: SessionConfig['todoState'];
     labels?: string[];
     isFlagged?: boolean;
+    // Project linking (Normies)
+    projectId?: string;
+    taskIndex?: number;
+    parentSessionId?: string;
+    taskDependencies?: number[];
+    // Thread linking (Normies)
+    threadParentSessionId?: string;
+    threadMessageId?: string;
+    // Task metadata (Normies)
+    taskDescription?: string;
+    taskTechnicalDetail?: string;
+    taskFiles?: string[];
+    // Plan reference (Normies)
+    planPath?: string;
+    // Architecture diagram (Normies)
+    diagramPath?: string;
+    // System prompt preset (Normies)
+    systemPromptPreset?: SessionConfig['systemPromptPreset'];
   }
 ): Promise<SessionConfig> {
   ensureSessionsDir(workspaceRootPath);
@@ -202,6 +220,24 @@ export async function createSession(
     todoState: options?.todoState,
     labels: options?.labels,
     isFlagged: options?.isFlagged,
+    // Project linking (Normies)
+    projectId: options?.projectId,
+    taskIndex: options?.taskIndex,
+    parentSessionId: options?.parentSessionId,
+    taskDependencies: options?.taskDependencies,
+    // Task metadata (Normies)
+    taskDescription: options?.taskDescription,
+    taskTechnicalDetail: options?.taskTechnicalDetail,
+    taskFiles: options?.taskFiles,
+    // Thread linking (Normies)
+    threadParentSessionId: options?.threadParentSessionId,
+    threadMessageId: options?.threadMessageId,
+    // Plan reference (Normies)
+    planPath: options?.planPath,
+    // Architecture diagram (Normies)
+    diagramPath: options?.diagramPath,
+    // System prompt preset (Normies)
+    systemPromptPreset: options?.systemPromptPreset,
   };
 
   // Save empty session
@@ -415,6 +451,26 @@ function headerToMetadata(header: SessionHeader, workspaceRootPath: string): Ses
       hasUnread: header.hasUnread,
       // Hidden flag for mini-agent sessions (not shown in session list)
       hidden: header.hidden,
+      // Project linking (Normies)
+      projectId: header.projectId,
+      taskIndex: header.taskIndex,
+      parentSessionId: header.parentSessionId,
+      taskDependencies: header.taskDependencies,
+      // Task metadata (Normies)
+      taskDescription: header.taskDescription,
+      taskTechnicalDetail: header.taskTechnicalDetail,
+      taskFiles: header.taskFiles,
+      // Thread linking (Normies)
+      threadParentSessionId: header.threadParentSessionId,
+      threadMessageId: header.threadMessageId,
+      // Task completion (Normies)
+      completionSummary: header.completionSummary,
+      // Plan reference (Normies)
+      planPath: header.planPath,
+      // Architecture diagram (Normies)
+      diagramPath: header.diagramPath,
+      // System prompt preset (Normies)
+      systemPromptPreset: header.systemPromptPreset,
     };
   } catch {
     return null;

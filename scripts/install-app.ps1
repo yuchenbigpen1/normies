@@ -1,11 +1,11 @@
-# Craft Agents Windows Installer
-# Usage: irm https://agents.craft.do/install-app.ps1 | iex
+# Normies Windows Installer
+# Usage: irm https://updates.normies.ai/install-app.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$VERSIONS_URL = "https://agents.craft.do/electron"
-$DOWNLOAD_DIR = "$env:TEMP\craft-agent-install"
-$APP_NAME = "Craft Agents"
+$VERSIONS_URL = if ($env:NORMIES_VERSIONS_URL) { $env:NORMIES_VERSIONS_URL } else { "https://updates.normies.ai/electron" }
+$DOWNLOAD_DIR = "$env:TEMP\normies-install"
+$APP_NAME = "Normies"
 
 # Colors for output
 function Write-Info { Write-Host "> $args" -ForegroundColor Blue }
@@ -66,7 +66,7 @@ if (-not $checksum -or $checksum.Length -ne 64) {
 
 # Use default filename if not in manifest
 if (-not $filename) {
-    $filename = "Craft-Agent-$arch.exe"
+    $filename = "Normies-$arch.exe"
 }
 
 # Use default URL if not in manifest
@@ -149,9 +149,9 @@ if ($actualHash -ne $checksum) {
 Write-Success "Checksum verified!"
 
 # Close the app if it's running
-$process = Get-Process -Name "Craft Agents" -ErrorAction SilentlyContinue
+$process = Get-Process -Name "Normies" -ErrorAction SilentlyContinue
 if ($process) {
-    Write-Info "Closing Craft Agents..."
+    Write-Info "Closing Normies..."
     $process | Stop-Process -Force
     Start-Sleep -Seconds 2
 }
@@ -184,11 +184,11 @@ Write-Info "Cleaning up..."
 Remove-Item -Path $installerPath -Force -ErrorAction SilentlyContinue
 
 # Add command line shortcut
-Write-Info "Adding 'craft-agents' command to PATH..."
+Write-Info "Adding 'normies' command to PATH..."
 
-$binDir = "$env:LOCALAPPDATA\Craft Agents\bin"
-$cmdFile = "$binDir\craft-agents.cmd"
-$exePath = "$env:LOCALAPPDATA\Programs\Craft Agents\Craft Agents.exe"
+$binDir = "$env:LOCALAPPDATA\Normies\bin"
+$cmdFile = "$binDir\normies.cmd"
+$exePath = "$env:LOCALAPPDATA\Programs\Normies\Normies.exe"
 
 # Create bin directory
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
@@ -202,9 +202,9 @@ $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$binDir*") {
     $newPath = "$userPath;$binDir"
     [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    Write-Success "Added to PATH (restart terminal to use 'craft-agents' command)"
+    Write-Success "Added to PATH (restart terminal to use 'normies' command)"
 } else {
-    Write-Success "Command 'craft-agents' is ready"
+    Write-Success "Command 'normies' is ready"
 }
 
 Write-Host ""
@@ -212,9 +212,9 @@ Write-Host "--------------------------------------------------------------------
 Write-Host ""
 Write-Success "Installation complete!"
 Write-Host ""
-Write-Host "  Craft Agents has been installed."
+Write-Host "  Normies has been installed."
 Write-Host ""
 Write-Host "  Launch from:"
 Write-Host "    - Start Menu or desktop shortcut"
-Write-Host "    - Command line: craft-agents (restart terminal first)"
+Write-Host "    - Command line: normies (restart terminal first)"
 Write-Host ""

@@ -40,7 +40,7 @@ export function AddWorkspaceStep_CreateNew({
   }, [])
 
   const slug = slugify(name)
-  const defaultBasePath = homeDir ? `${homeDir}/.craft-agent/workspaces` : '~/.craft-agent/workspaces'
+  const defaultBasePath = homeDir ? `${homeDir}/.normies/workspaces` : '~/.normies/workspaces'
   const finalPath = locationOption === 'default'
     ? `${defaultBasePath}/${slug}`
     : customPath

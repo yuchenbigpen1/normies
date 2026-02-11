@@ -318,8 +318,8 @@ describe('renderMermaid – state diagrams', () => {
       Running --> Stopped : stop
       Stopped --> [*]`)
 
-    // Extract all label pill <rect> elements (rx="2" distinguishes them from node rects)
-    const pillPattern = /<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)" rx="2"/g
+    // Extract all label pill <rect> elements (rx="4" distinguishes them from node rects)
+    const pillPattern = /<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)" rx="4"/g
     const pills: { x: number; y: number; w: number; h: number; label?: string }[] = []
     let match: RegExpExecArray | null
     while ((match = pillPattern.exec(svg)) !== null) {

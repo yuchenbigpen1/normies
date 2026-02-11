@@ -1,4 +1,4 @@
-import { CraftAgentsSymbol } from "@/components/icons/CraftAgentsSymbol"
+import { NormiesSymbol } from "@/components/icons/NormiesSymbol"
 import { StepFormLayout, ContinueButton } from "./primitives"
 
 interface WelcomeStepProps {
@@ -13,7 +13,7 @@ interface WelcomeStepProps {
  * WelcomeStep - Initial welcome screen for onboarding
  *
  * Shows different messaging for new vs existing users:
- * - New users: Welcome to Craft Agents
+ * - New users: Welcome to Normies
  * - Existing users: Update your API connection settings
  */
 export function WelcomeStep({
@@ -25,10 +25,10 @@ export function WelcomeStep({
     <StepFormLayout
       iconElement={
         <div className="flex size-16 items-center justify-center">
-          <CraftAgentsSymbol className="size-10 text-accent" />
+          <NormiesSymbol className="size-10 text-accent" />
         </div>
       }
-      title={isExistingUser ? 'Update Settings' : 'Welcome to Craft Agents'}
+      title={isExistingUser ? 'Update Settings' : 'Welcome to Normies'}
       description={
         isExistingUser
           ? 'Update your API connection or change your setup.'

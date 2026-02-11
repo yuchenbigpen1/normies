@@ -21,6 +21,9 @@ export const KEYS = {
   expandedFolders: 'expanded-folders',
   collapsedSidebarItems: 'collapsed-sidebar-items',
 
+  // Session list visibility (middle panel)
+  sessionListVisible: 'session-list-visible',
+
   // Focus mode
   focusModeEnabled: 'focus-mode-enabled',
 

@@ -19,3 +19,4 @@ export { DocumentFormattedMarkdownOverlay, type DocumentFormattedMarkdownOverlay
 export { ImagePreviewOverlay, type ImagePreviewOverlayProps } from './ImagePreviewOverlay'
 export { PDFPreviewOverlay, type PDFPreviewOverlayProps } from './PDFPreviewOverlay'
 export { MermaidPreviewOverlay, type MermaidPreviewOverlayProps } from './MermaidPreviewOverlay'
+export { ThreadOverlay, type ThreadOverlayProps, type ThreadMessage } from './ThreadOverlay'

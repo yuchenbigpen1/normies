@@ -20,7 +20,8 @@ type HeadersInitType = Headers | Record<string, string> | string[][];
 const DEBUG = process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1';
 
 // Log file for debug output (avoids console spam)
-const LOG_DIR = join(homedir(), '.craft-agent', 'logs');
+import { CONFIG_DIR } from './config/paths.ts';
+const LOG_DIR = join(CONFIG_DIR, 'logs');
 const LOG_FILE = join(LOG_DIR, 'interceptor.log');
 
 // Ensure log directory exists at module load
@@ -48,7 +49,7 @@ export interface LastApiError {
 }
 
 // File-based storage for cross-process sharing
-const ERROR_FILE = join(homedir(), '.craft-agent', 'api-error.json');
+const ERROR_FILE = join(CONFIG_DIR, 'api-error.json');
 const MAX_ERROR_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
 function getStoredError(): LastApiError | null {

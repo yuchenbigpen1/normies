@@ -9,6 +9,7 @@ import * as React from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { AlertCircle, Globe, Copy, RefreshCw, Link2Off, Info } from 'lucide-react'
 import { ChatDisplay, type ChatDisplayHandle } from '@/components/app-shell/ChatDisplay'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { SessionMenu } from '@/components/app-shell/SessionMenu'
 import { RenameDialog } from '@/components/ui/rename-dialog'
@@ -63,6 +64,9 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     isSearchModeActive,
     chatDisplayRef,
     onChatMatchInfoChange,
+    isSidebarVisible,
+    isSessionListVisible,
+    onToggleSidebar,
   } = useAppShellContext()
 
   // Use the unified session options hook for clean access
@@ -268,7 +272,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   const handleOpenInNewWindow = React.useCallback(async () => {
     const route = routes.view.allChats(sessionId)
     const separator = route.includes('?') ? '&' : '?'
-    const url = `craftagents://${route}${separator}window=focused`
+    const url = `normies://${route}${separator}window=focused`
     try {
       await window.electronAPI?.openUrl(url)
     } catch (error) {
@@ -319,6 +323,17 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     }
   }, [sessionId])
 
+  // Show sidebar toggle in chat header when both sidebar and session list are hidden
+  const showSidebarToggle = !isSidebarVisible && !isSessionListVisible
+
+  // Navigation buttons (back/forward) for PanelHeader leftActions
+  const leftActions = React.useMemo(() => (
+    <NavigationButtons
+      showSidebarToggle={showSidebarToggle}
+      onToggleSidebar={onToggleSidebar}
+    />
+  ), [showSidebarToggle, onToggleSidebar])
+
   // Share button with dropdown menu rendered in PanelHeader actions slot
   const shareButton = React.useMemo(() => (
     <DropdownMenu>
@@ -356,7 +371,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
               <span className="flex-1">Stop Sharing</span>
             </StyledDropdownMenuItem>
             <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://agents.craft.do/docs/go-further/sharing')}>
+            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yuchenzhang/normies#readme')}>
               <Info className="h-3.5 w-3.5" />
               <span className="flex-1">Learn More</span>
             </StyledDropdownMenuItem>
@@ -370,7 +385,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
               <span className="flex-1">Share Online</span>
             </StyledDropdownMenuItem>
             <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://agents.craft.do/docs/go-further/sharing')}>
+            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yuchenzhang/normies#readme')}>
               <Info className="h-3.5 w-3.5" />
               <span className="flex-1">Learn More</span>
             </StyledDropdownMenuItem>
@@ -445,7 +460,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
       return (
         <>
           <div className="h-full flex flex-col">
-            <PanelHeader  title={displayTitle} titleMenu={titleMenu} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
+            <PanelHeader  title={displayTitle} titleMenu={titleMenu} leftActions={leftActions} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
             <div className="flex-1 flex flex-col min-h-0">
               <ChatDisplay
                 ref={chatDisplayRef}
@@ -500,7 +515,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     // Session truly doesn't exist
     return (
       <div className="h-full flex flex-col">
-        <PanelHeader  title="Chat" rightSidebarButton={rightSidebarButton} />
+        <PanelHeader  title="Chat" leftActions={leftActions} rightSidebarButton={rightSidebarButton} />
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
           <AlertCircle className="h-10 w-10" />
           <p className="text-sm">This session no longer exists</p>
@@ -512,7 +527,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   return (
     <>
       <div className="h-full flex flex-col">
-        <PanelHeader  title={displayTitle} titleMenu={titleMenu} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
+        <PanelHeader  title={displayTitle} titleMenu={titleMenu} leftActions={leftActions} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
         <div className="flex-1 flex flex-col min-h-0">
           <ChatDisplay
             ref={chatDisplayRef}

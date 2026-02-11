@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { Loader2 } from 'lucide-react'
 import { useAppShellContext, useActiveWorkspace } from '@/context/AppShellContext'
-import { type PermissionsConfigFile } from '@craft-agent/shared/agent/modes'
+import { type PermissionsConfigFile } from '@normies/shared/agent/modes'
 import {
   PermissionsDataTable,
   type PermissionRow,
@@ -26,9 +26,10 @@ import {
   SettingsCard,
 } from '@/components/settings'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
-import { getDocUrl } from '@craft-agent/shared/docs/doc-links'
+import { getDocUrl } from '@normies/shared/docs/doc-links'
 import { routes } from '@/lib/navigate'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 
 export const meta: DetailsPageMeta = {
   navigator: 'settings',
@@ -193,7 +194,7 @@ export default function PermissionsSettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="Permissions" actions={<HeaderMenu route={routes.view.settings('permissions')} helpFeature="permissions" />} />
+      <PanelHeader title="Permissions" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('permissions')} helpFeature="permissions" />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto">
@@ -258,7 +259,7 @@ export default function PermissionsSettingsPage() {
                         <div className="p-8 text-center text-muted-foreground">
                           <p className="text-sm">No default permissions found.</p>
                           <p className="text-xs mt-1 text-foreground/40">
-                            Default permissions should be at <code className="bg-foreground/5 px-1 rounded">~/.craft-agent/permissions/default.json</code>
+                            Default permissions should be at <code className="bg-foreground/5 px-1 rounded">~/.normies/permissions/default.json</code>
                           </p>
                         </div>
                       )}

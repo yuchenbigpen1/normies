@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { routes, navigate } from '@/lib/navigate'
 import { useNavigation } from '@/contexts/NavigationContext'
 import { toast } from 'sonner'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 import {
   Info_Page,
   Info_Section,
@@ -27,7 +28,7 @@ import {
   type ToolRow,
 } from '@/components/info'
 import type { LoadedSource, McpToolWithPermission } from '../../shared/types'
-import type { PermissionsConfigFile } from '@craft-agent/shared/agent/modes'
+import type { PermissionsConfigFile } from '@normies/shared/agent/modes'
 
 interface SourceInfoPageProps {
   sourceSlug: string
@@ -349,7 +350,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
 
   // Handle opening in new window
   const handleOpenInNewWindow = useCallback(() => {
-    window.electronAPI.openUrl(`craftagents://sources/source/${sourceSlug}?window=focused`)
+    window.electronAPI.openUrl(`normies://sources/source/${sourceSlug}?window=focused`)
   }, [sourceSlug])
 
   // Get source name for header
@@ -362,6 +363,7 @@ export default function SourceInfoPage({ sourceSlug, workspaceId, onDelete }: So
       empty={!source && !loading && !error ? 'Source not found' : undefined}
     >
       <Info_Page.Header
+        leftActions={<NavigationButtons />}
         title={sourceName}
         titleMenu={
           <SourceMenu

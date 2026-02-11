@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/styled-context-menu'
 import { ContextMenuProvider } from '@/components/ui/menu-context'
 import { SidebarMenu, type SidebarMenuType } from './SidebarMenu'
+import { ProjectMenu } from './ProjectMenu'
 import { SortableList, type SortableItemData } from '@/components/ui/sortable-list'
 
 /** Context menu configuration for sidebar items */
@@ -43,6 +44,14 @@ export interface SidebarContextMenuConfig {
   onDeleteView?: (id: string) => void
 }
 
+/** Context menu configuration for project items (session-level actions) */
+export interface ProjectContextMenuConfig {
+  sessionId: string
+  onRename: () => void
+  onOpenInNewWindow: () => void
+  onDelete: () => void
+}
+
 /**
  * Sortable configuration for expandable sidebar items.
  * When present on an expandable LinkItem, its children become drag-sortable.
@@ -56,7 +65,7 @@ export interface LinkItem {
   id: string            // Unique ID for navigation (e.g., 'nav:allChats')
   title: string
   label?: string        // Optional badge (e.g., count)
-  icon: LucideIcon | React.ReactNode  // LucideIcon or custom React element
+  icon?: LucideIcon | React.ReactNode  // LucideIcon or custom React element (optional for text-only sub-items)
   iconColor?: string    // Optional color class for the icon
   /** Whether the icon responds to color (uses currentColor). Default true for Lucide icons. */
   iconColorable?: boolean
@@ -73,6 +82,8 @@ export interface LinkItem {
   dataTutorial?: string // data-tutorial attribute for tutorial targeting
   // Context menu configuration (optional - if provided, right-click shows context menu)
   contextMenu?: SidebarContextMenuConfig
+  // Project-specific context menu (session-level actions: Rename, Delete, etc.)
+  projectContextMenu?: ProjectContextMenuConfig
   // Drag-and-drop: flat list reorder (e.g., statuses)
   sortable?: SortableConfig
   // Optional element rendered after the title (e.g., label type icon), revealed on hover
@@ -82,6 +93,8 @@ export interface LinkItem {
 export interface SeparatorItem {
   id: string
   type: 'separator'
+  /** Optional label shown inline with the divider line (e.g. "Projects") */
+  label?: string
 }
 
 export type SidebarItem = LinkItem | SeparatorItem
@@ -175,8 +188,8 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
     <div className={cn("flex flex-col select-none", !isNested && "py-1")}>
       <NavWrapper
         className={cn(
-          "grid gap-0.5",
-          isNested ? "pl-5 pr-0 relative" : "px-2"
+          "grid grid-cols-1 gap-0.5",
+          isNested ? "pl-1 pr-0 relative" : "px-2"
         )}
         role="navigation"
         aria-label={isNested ? "Sub navigation" : "Main navigation"}
@@ -185,17 +198,19 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
         {/* Vertical line for nested items - 4px left of chevron center */}
         {isNested && (
           <div
-            className="absolute left-[13px] top-1 bottom-1 w-px bg-foreground/10"
+            className="absolute left-[1px] top-1 bottom-1 w-px bg-foreground/10"
             aria-hidden="true"
           />
         )}
         {links.map((item) => {
           // Handle separator items
           if (isSeparatorItem(item)) {
-            return (
-              <div key={item.id} className="py-1 px-2" aria-hidden="true">
-                <div className="h-px bg-foreground/5" />
+            return item.label ? (
+              <div key={item.id} className="pt-4 pb-1 px-2.5" aria-hidden="true">
+                <span className="text-[11px] font-semibold tracking-wide text-foreground/35">{item.label}</span>
               </div>
+            ) : (
+              <div key={item.id} className="pt-2" aria-hidden="true" />
             )
           }
 
@@ -242,6 +257,22 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
                         onConfigureViews={link.contextMenu.onConfigureViews}
                         viewId={link.contextMenu.viewId}
                         onDeleteView={link.contextMenu.onDeleteView}
+                      />
+                    </ContextMenuProvider>
+                  </StyledContextMenuContent>
+                </ContextMenu>
+              ) : link.projectContextMenu ? (
+                <ContextMenu modal={true}>
+                  <ContextMenuTrigger asChild>
+                    {buttonElement}
+                  </ContextMenuTrigger>
+                  <StyledContextMenuContent>
+                    <ContextMenuProvider>
+                      <ProjectMenu
+                        sessionId={link.projectContextMenu.sessionId}
+                        onRename={link.projectContextMenu.onRename}
+                        onOpenInNewWindow={link.projectContextMenu.onOpenInNewWindow}
+                        onDelete={link.projectContextMenu.onDelete}
                       />
                     </ContextMenuProvider>
                   </StyledContextMenuContent>
@@ -450,11 +481,10 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         onClick={isOverlay ? undefined : link.onClick}
         data-tutorial={link.dataTutorial}
         className={cn(
-          "group flex w-full items-center gap-2 rounded-[6px] text-[13px] select-none outline-none",
+          "group flex w-full items-center gap-2.5 rounded-[8px] text-[14px] font-medium text-left select-none outline-none",
           "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-          // Compact mode: 4px less total height (py-[3px] vs py-[5px])
-          link.compact ? "py-[3px]" : "py-[5px]",
-          "px-2",
+          link.compact ? "py-[5px]" : "py-[7px]",
+          "px-5",
           link.variant === "default"
             ? "bg-foreground/[0.07]"
             // Highlight on hover, context menu open (data-state), or EditPopover active (data-edit-active)
@@ -462,36 +492,38 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
           extraClassName,
         )}
       >
-        {/* Icon container with hover toggle for expandable items */}
-        <span className="relative h-3.5 w-3.5 shrink-0 flex items-center justify-center">
-          {link.expandable && !isOverlay ? (
-            <>
-              {/* Main icon - hidden on hover */}
-              <span className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity duration-150">
-                {renderIcon(link)}
-              </span>
-              {/* Toggle chevron - shown on hover. data-no-dnd prevents drag activation on click. */}
-              <span
-                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer"
-                data-no-dnd="true"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  link.onToggle?.()
-                }}
-              >
-                <ChevronRight
-                  className={cn(
-                    "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
-                    link.expanded && "rotate-90"
-                  )}
-                />
-              </span>
-            </>
-          ) : (
-            renderIcon(link)
-          )}
-        </span>
-        {link.title}
+        {/* Icon container with hover toggle for expandable items — skip entirely when no icon */}
+        {link.icon ? (
+          <span className="relative h-[18px] w-[18px] shrink-0 flex items-center justify-center">
+            {link.expandable && !isOverlay ? (
+              <>
+                {/* Main icon - hidden on hover */}
+                <span className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity duration-150">
+                  {renderIcon(link)}
+                </span>
+                {/* Toggle chevron - shown on hover. data-no-dnd prevents drag activation on click. */}
+                <span
+                  className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer"
+                  data-no-dnd="true"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    link.onToggle?.()
+                  }}
+                >
+                  <ChevronRight
+                    className={cn(
+                      "h-[18px] w-[18px] text-muted-foreground transition-transform duration-200",
+                      link.expanded && "rotate-90"
+                    )}
+                  />
+                </span>
+              </>
+            ) : (
+              renderIcon(link)
+            )}
+          </span>
+        ) : null}
+        <span className="flex-1 truncate min-w-0">{link.title}</span>
         {/* After-title element: type indicator icon, right-aligned before count badge, revealed on hover */}
         {link.afterTitle && (
           <span className="ml-auto opacity-0 group-hover/section:opacity-100 group-data-[state=open]:opacity-100 group-data-[edit-active=true]:opacity-100 transition-opacity">
@@ -528,7 +560,7 @@ function renderIcon(link: LinkItem) {
     const Icon = link.icon as React.ComponentType<{ className?: string; style?: React.CSSProperties }>
     return (
       <Icon
-        className="h-3.5 w-3.5 shrink-0"
+        className="h-[18px] w-[18px] shrink-0"
         style={colorStyle}
       />
     )
@@ -545,7 +577,7 @@ function renderIcon(link: LinkItem) {
     : iconElement
   return (
     <span
-      className="h-3.5 w-3.5 shrink-0 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
+      className="h-[18px] w-[18px] shrink-0 flex items-center justify-center [&>svg]:!w-full [&>svg]:!h-full [&>*:first-child]:!w-full [&>*:first-child]:!h-full"
       style={colorStyle}
     >
       {bareIcon}

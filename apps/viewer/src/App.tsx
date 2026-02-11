@@ -1,7 +1,7 @@
 /**
- * Craft Agent Session Viewer
+ * Normies Session Viewer
  *
- * A minimal web app for viewing Craft Agent session transcripts.
+ * A minimal web app for viewing Normies session transcripts.
  * Users can upload session JSON files or view shared sessions via URL.
  *
  * Routes:
@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import type { StoredSession } from '@craft-agent/core'
+import type { StoredSession } from '@normies/core'
 import {
   SessionViewer,
   GenericOverlay,
@@ -26,7 +26,7 @@ import {
   type ActivityItem,
   type OverlayData,
   type FileChange,
-} from '@craft-agent/ui'
+} from '@normies/ui'
 import { SessionUpload } from './components/SessionUpload'
 import { Header } from './components/Header'
 

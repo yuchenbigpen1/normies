@@ -2,7 +2,7 @@
  * Auto-update module using electron-updater
  *
  * Handles checking for updates, downloading, and installing via the standard
- * electron-updater library. Updates are served from https://agents.craft.do/electron/latest
+ * electron-updater library. Updates are served from https://updates.normies.ai/electron/latest
  * using the generic provider (YAML manifests + binaries on R2/S3).
  *
  * Platform behavior:
@@ -20,11 +20,11 @@ import { platform } from 'os'
 import * as path from 'path'
 import * as fs from 'fs'
 import { mainLog } from './logger'
-import { getAppVersion } from '@craft-agent/shared/version'
+import { getAppVersion } from '@normies/shared/version'
 import {
   getDismissedUpdateVersion,
   clearDismissedUpdateVersion,
-} from '@craft-agent/shared/config'
+} from '@normies/shared/config'
 import type { UpdateInfo } from '../shared/types'
 import type { WindowManager } from './window-manager'
 

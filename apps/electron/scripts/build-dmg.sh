@@ -80,7 +80,7 @@ done
 # Configuration
 BUN_VERSION="bun-v1.3.5"  # Pinned version for reproducible builds
 
-echo "=== Building Craft Agents DMG (${ARCH}) using electron-builder ==="
+echo "=== Building Normies DMG (${ARCH}) using electron-builder ==="
 if [ "$UPLOAD" = true ]; then
     echo "Will upload to S3 after build"
 fi
@@ -177,8 +177,8 @@ fi
 npx electron-builder $BUILDER_ARGS
 
 # 8. Verify the DMG was built
-# electron-builder.yml uses artifactName to output: Craft-Agent-${arch}.dmg
-DMG_NAME="Craft-Agent-${ARCH}.dmg"
+# electron-builder.yml uses artifactName to output: Normies-${arch}.dmg
+DMG_NAME="Normies-${ARCH}.dmg"
 DMG_PATH="$ELECTRON_DIR/release/$DMG_NAME"
 
 if [ ! -f "$DMG_PATH" ]; then
@@ -206,10 +206,11 @@ if [ "$UPLOAD" = true ]; then
     echo "=== Uploading to S3 ==="
 
     # Check for S3 credentials
-    if [ -z "$S3_VERSIONS_BUCKET_ENDPOINT" ] || [ -z "$S3_VERSIONS_BUCKET_ACCESS_KEY_ID" ] || [ -z "$S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY" ]; then
+    if [ -z "$S3_VERSIONS_BUCKET_ENDPOINT" ] || [ -z "$S3_VERSIONS_BUCKET_NAME" ] || [ -z "$S3_VERSIONS_BUCKET_ACCESS_KEY_ID" ] || [ -z "$S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY" ]; then
         cat << EOF
 ERROR: Missing S3 credentials. Set these environment variables:
   S3_VERSIONS_BUCKET_ENDPOINT
+  S3_VERSIONS_BUCKET_NAME
   S3_VERSIONS_BUCKET_ACCESS_KEY_ID
   S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY
 

@@ -229,7 +229,7 @@ export function NavigationProvider({
           }
           // System prompt preset for mini agents (e.g., 'mini')
           if (parsed.params.systemPrompt) {
-            createOptions.systemPromptPreset = parsed.params.systemPrompt as 'default' | 'mini' | string
+            createOptions.systemPromptPreset = parsed.params.systemPrompt as 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
           }
           // Log mini agent deep link params
           if (parsed.params.model || parsed.params.systemPrompt) {
@@ -530,6 +530,7 @@ export function NavigationProvider({
   // Helper: Check if a route points to a valid session/source/skill
   // For sessions, also check that the session is not hidden (hidden sessions are not directly navigable)
   const isRouteValid = useCallback((route: Route): boolean => {
+    if (!route || typeof route !== 'string') return false // Guard against undefined/null entries
     const navState = parseRouteToNavigationState(route)
     if (!navState) return true // Non-navigation routes are always valid
 

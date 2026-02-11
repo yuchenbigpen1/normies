@@ -5,14 +5,14 @@
  */
 import { ipcMain } from 'electron'
 import { mainLog } from './logger'
-import { getAuthState, getSetupNeeds } from '@craft-agent/shared/auth'
-import { getCredentialManager } from '@craft-agent/shared/credentials'
-import { saveConfig, loadStoredConfig, generateWorkspaceId, type AuthType, type StoredConfig } from '@craft-agent/shared/config'
-import { getDefaultWorkspacesDir, generateUniqueWorkspacePath } from '@craft-agent/shared/workspaces'
-import { CraftOAuth } from '@craft-agent/shared/auth'
-import { validateMcpConnection } from '@craft-agent/shared/mcp'
-import { startClaudeOAuth, exchangeClaudeCode, hasValidOAuthState, clearOAuthState } from '@craft-agent/shared/auth'
-import { getCredentialManager as getCredentialManagerFn } from '@craft-agent/shared/credentials'
+import { getAuthState, getSetupNeeds } from '@normies/shared/auth'
+import { getCredentialManager } from '@normies/shared/credentials'
+import { saveConfig, loadStoredConfig, generateWorkspaceId, type AuthType, type StoredConfig } from '@normies/shared/config'
+import { getDefaultWorkspacesDir, generateUniqueWorkspacePath } from '@normies/shared/workspaces'
+import { CraftOAuth } from '@normies/shared/auth'
+import { validateMcpConnection } from '@normies/shared/mcp'
+import { startClaudeOAuth, exchangeClaudeCode, hasValidOAuthState, clearOAuthState } from '@normies/shared/auth'
+import { getCredentialManager as getCredentialManagerFn } from '@normies/shared/credentials'
 import {
   IPC_CHANNELS,
   type OnboardingSaveResult,

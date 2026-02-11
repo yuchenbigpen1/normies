@@ -1,6 +1,6 @@
 # CLAUDE.md - Core Package
 
-This file provides guidance to Claude Code when working with the `@craft-agent/core` package.
+This file provides guidance to Claude Code when working with the `@normies/core` package.
 
 **Important:** Keep this file and `README.md` up-to-date whenever functionality changes. After making changes to this package, update the documentation to reflect the current state.
 
@@ -71,13 +71,13 @@ import type {
   Session,
   Message,
   AgentEvent,
-} from '@craft-agent/core';
+} from '@normies/core';
 
 // Import utilities
-import { generateMessageId, debug } from '@craft-agent/core';
+import { generateMessageId, debug } from '@normies/core';
 
 // Or import from specific subpaths
-import type { Session } from '@craft-agent/core/types';
+import type { Session } from '@normies/core/types';
 ```
 
 ## Key Design Decisions
@@ -106,7 +106,7 @@ const id = generateMessageId(); // "msg-1702736400000-a1b2c3"
 This package is designed to eventually contain more than just types. The migration plan:
 
 1. **Current:** Types only, implementation in root `src/`
-2. **Phase 2:** Move storage logic to `@craft-agent/core`
+2. **Phase 2:** Move storage logic to `@normies/core`
 3. **Phase 3:** Move auth, credentials, MCP client
 4. **Phase 4:** Move agent logic, prompts
 

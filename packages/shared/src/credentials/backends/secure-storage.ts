@@ -40,8 +40,9 @@ import type { CredentialBackend } from './types.ts';
 import type { CredentialId, StoredCredential } from '../types.ts';
 import { credentialIdToAccount, accountToCredentialId } from '../types.ts';
 
-// File location
-const CREDENTIALS_DIR = join(homedir(), '.craft-agent');
+// File location — uses central CONFIG_DIR so Normies stores credentials separately
+import { CONFIG_DIR } from '../../config/paths.ts';
+const CREDENTIALS_DIR = CONFIG_DIR;
 const CREDENTIALS_FILE = join(CREDENTIALS_DIR, 'credentials.enc');
 
 // File format constants

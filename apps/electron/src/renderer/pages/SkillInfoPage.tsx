@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { SkillMenu } from '@/components/app-shell/SkillMenu'
 import { SkillAvatar } from '@/components/ui/skill-avatar'
 import { routes, navigate } from '@/lib/navigate'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 import {
   Info_Page,
   Info_Section,
@@ -103,7 +104,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
 
   // Handle opening in new window
   const handleOpenInNewWindow = useCallback(() => {
-    window.electronAPI.openUrl(`craftagents://skills/skill/${skillSlug}?window=focused`)
+    window.electronAPI.openUrl(`normies://skills/skill/${skillSlug}?window=focused`)
   }, [skillSlug])
 
   // Get skill name for header
@@ -132,6 +133,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
       empty={!skill && !loading && !error ? 'Skill not found' : undefined}
     >
       <Info_Page.Header
+        leftActions={<NavigationButtons />}
         title={skillName}
         titleMenu={
           <SkillMenu

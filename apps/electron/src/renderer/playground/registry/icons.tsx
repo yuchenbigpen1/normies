@@ -1,16 +1,16 @@
 import type { ComponentEntry } from './types'
-import { CraftAgentsLogo } from '@/components/icons/CraftAgentsLogo'
-import { CraftAgentsSymbol } from '@/components/icons/CraftAgentsSymbol'
+import { NormiesLogo } from '@/components/icons/NormiesLogo'
+import { NormiesSymbol } from '@/components/icons/NormiesSymbol'
 import { PanelLeftRounded } from '@/components/icons/PanelLeftRounded'
 import { SquarePenRounded } from '@/components/icons/SquarePenRounded'
 
 export const iconComponents: ComponentEntry[] = [
   {
-    id: 'craft-agents-logo',
-    name: 'CraftAgentsLogo',
+    id: 'normies-logo',
+    name: 'NormiesLogo',
     category: 'Icons',
-    description: 'Full Craft Agents branding logo with text',
-    component: CraftAgentsLogo,
+    description: 'Full Normies branding logo',
+    component: NormiesLogo,
     props: [
       {
         name: 'className',
@@ -26,11 +26,11 @@ export const iconComponents: ComponentEntry[] = [
     ],
   },
   {
-    id: 'craft-agents-symbol',
-    name: 'CraftAgentsSymbol',
+    id: 'normies-symbol',
+    name: 'NormiesSymbol',
     category: 'Icons',
-    description: 'Craft Agents "E" pixel art symbol icon (brand color: #9570BE)',
-    component: CraftAgentsSymbol,
+    description: 'Normies floppy disk symbol icon',
+    component: NormiesSymbol,
     props: [
       {
         name: 'className',

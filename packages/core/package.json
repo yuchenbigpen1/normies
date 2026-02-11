@@ -1,8 +1,8 @@
 {
-  "name": "@craft-agent/core",
+  "name": "@normies/core",
   "version": "0.3.5",
   "license": "Apache-2.0",
-  "description": "Core types, storage, and agent logic for Craft Agents",
+  "description": "Core types, storage, and agent logic for Normies",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",

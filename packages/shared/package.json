@@ -1,8 +1,8 @@
 {
-  "name": "@craft-agent/shared",
+  "name": "@normies/shared",
   "version": "0.3.5",
   "license": "Apache-2.0",
-  "description": "Shared business logic for Craft Agents - agent, auth, config, credentials, MCP integration",
+  "description": "Shared business logic for Normies - agent, auth, config, credentials, MCP integration",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -51,8 +51,8 @@
     "./search": "./src/search/index.ts"
   },
   "dependencies": {
-    "@craft-agent/core": "workspace:*",
-    "@craft-agent/mermaid": "workspace:*",
+    "@normies/core": "workspace:*",
+    "@normies/mermaid": "workspace:*",
     "@isaacs/ttlcache": "^2.1.4",
     "glob": "^11.0.0",
     "@leeoniya/ufuzzy": "^1.0.19",

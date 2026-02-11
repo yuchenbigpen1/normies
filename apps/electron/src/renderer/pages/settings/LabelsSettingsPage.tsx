@@ -16,7 +16,7 @@ import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
-import { getDocUrl } from '@craft-agent/shared/docs/doc-links'
+import { getDocUrl } from '@normies/shared/docs/doc-links'
 import { Loader2 } from 'lucide-react'
 import { useAppShellContext, useActiveWorkspace } from '@/context/AppShellContext'
 import { useLabels } from '@/hooks/useLabels'
@@ -30,6 +30,7 @@ import {
 } from '@/components/settings'
 import { routes } from '@/lib/navigate'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 
 export const meta: DetailsPageMeta = {
   navigator: 'settings',
@@ -54,7 +55,7 @@ export default function LabelsSettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="Labels" actions={<HeaderMenu route={routes.view.settings('labels')} />} />
+      <PanelHeader title="Labels" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('labels')} />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto">

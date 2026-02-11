@@ -70,15 +70,15 @@ import { registerIpcHandlers } from './ipc'
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
 import { loadWindowState, saveWindowState } from './window-state'
-import { getWorkspaces, loadStoredConfig } from '@craft-agent/shared/config'
-import { initializeDocs } from '@craft-agent/shared/docs'
-import { ensureDefaultPermissions } from '@craft-agent/shared/agent/permissions-config'
-import { ensureToolIcons } from '@craft-agent/shared/config'
-import { setBundledAssetsRoot } from '@craft-agent/shared/utils'
+import { getWorkspaces, loadStoredConfig } from '@normies/shared/config'
+import { initializeDocs } from '@normies/shared/docs'
+import { ensureDefaultPermissions } from '@normies/shared/agent/permissions-config'
+import { ensureToolIcons } from '@normies/shared/config'
+import { setBundledAssetsRoot } from '@normies/shared/utils'
 import { handleDeepLink } from './deep-link'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
 import log, { isDebugMode, mainLog, getLogFilePath } from './logger'
-import { setPerfEnabled, enableDebug } from '@craft-agent/shared/utils'
+import { setPerfEnabled, enableDebug } from '@normies/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
 
@@ -92,9 +92,9 @@ if (isDebugMode) {
   setPerfEnabled(true)
 }
 
-// Custom URL scheme for deeplinks (e.g., craftagents://auth-complete)
-// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (craftagents1, craftagents2, etc.)
-const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
+// Custom URL scheme for deeplinks (e.g., normies://auth-complete)
+// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (normies1, normies2, etc.)
+const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'normies'
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
@@ -103,10 +103,10 @@ let sessionManager: SessionManager | null = null
 let pendingDeepLink: string | null = null
 
 // Set app name early (before app.whenReady) to ensure correct macOS menu bar title
-// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Craft Agents [1]")
-app.setName(process.env.CRAFT_APP_NAME || 'Craft Agents')
+// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Normies [1]")
+app.setName(process.env.CRAFT_APP_NAME || 'Normies')
 
-// Register as default protocol client for craftagents:// URLs
+// Register as default protocol client for normies:// URLs
 // This must be done before app.whenReady() on some platforms
 if (process.defaultApp) {
   // Development mode: need to pass the app path

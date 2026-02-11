@@ -2,6 +2,7 @@ import * as React from "react"
 import { useEffect, useState, useMemo, useCallback } from "react"
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
   ExternalLink,
   Info,
   PenLine,
+  Square,
   X,
 } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
@@ -31,19 +33,23 @@ import {
   GenericOverlay,
   JSONPreviewOverlay,
   DocumentFormattedMarkdownOverlay,
+  ThreadOverlay,
   detectLanguage,
   type ActivityItem,
   type OverlayData,
   type FileChange,
   type DiffViewerSettings,
-} from "@craft-agent/ui"
+} from "@normies/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
 import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
-import type { PermissionMode } from "@craft-agent/shared/agent/modes"
-import type { ThinkingLevel } from "@craft-agent/shared/agent/thinking-levels"
-import { TurnCard, UserMessageBubble, groupMessagesByTurn, formatTurnAsMarkdown, formatActivityAsMarkdown, type Turn, type AssistantTurn, type UserTurn, type SystemTurn, type AuthRequestTurn } from "@craft-agent/ui"
+import type { PermissionMode } from "@normies/shared/agent/modes"
+import type { ThinkingLevel } from "@normies/shared/agent/thinking-levels"
+import { TurnCard, UserMessageBubble, ResponseCard, groupMessagesByTurn, formatTurnAsMarkdown, formatActivityAsMarkdown, type Turn, type AssistantTurn, type UserTurn, type SystemTurn, type AuthRequestTurn } from "@normies/ui"
 import { MemoizedAuthRequestCard } from "@/components/chat/AuthRequestCard"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
+import { MODELS, getModelShortName } from "@config/models"
 import { ActiveOptionBadges } from "./ActiveOptionBadges"
 import { InputContainer, type StructuredInputState, type StructuredResponse, type PermissionResponse } from "./input"
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
@@ -51,7 +57,7 @@ import { useBackgroundTasks } from "@/hooks/useBackgroundTasks"
 import { useTurnCardExpansion } from "@/hooks/useTurnCardExpansion"
 import type { SessionMeta } from "@/atoms/sessions"
 import { CHAT_LAYOUT } from "@/config/layout"
-import { flattenLabels } from "@craft-agent/shared/labels"
+import { flattenLabels } from "@normies/shared/labels"
 
 // ============================================================================
 // Overlay State Types
@@ -74,11 +80,21 @@ interface MarkdownOverlayState {
   forceCodeView?: boolean
 }
 
+/** State for thread overlay (Normies) */
+interface ThreadOverlayState {
+  type: 'thread'
+  parentSessionId: string
+  messageId: string
+  originalMessage: string
+  threadSessionId?: string
+}
+
 /** Union of all overlay states, or null for no overlay */
 type OverlayState =
   | { type: 'activity'; activity: ActivityItem }
   | MultiDiffOverlayState
   | MarkdownOverlayState
+  | ThreadOverlayState
   | null
 
 /**
@@ -140,7 +156,7 @@ interface ChatDisplayProps {
   skills?: LoadedSkill[]
   // Label selection (for #labels)
   /** Available label configs (tree) for label menu and badge display */
-  labels?: import('@craft-agent/shared/labels').LabelConfig[]
+  labels?: import('@normies/shared/labels').LabelConfig[]
   /** Callback when labels change */
   onLabelsChange?: (labels: string[]) => void
   // State/status selection (for # menu and ActiveOptionBadges)
@@ -947,6 +963,165 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   // Overlay state - controls which overlay is shown (if any)
   const [overlayState, setOverlayState] = useState<OverlayState>(null)
 
+  // ============================================================================
+  // Thread Overlay State (Normies)
+  // ============================================================================
+  // Persistent map: messageId → threadSessionId (survives overlay open/close)
+  const threadSessionMapRef = React.useRef<Map<string, string>>(new Map())
+  // Version counter — bumping this triggers re-renders so threadSessionMapRef.current.has() is re-evaluated
+  const [, setThreadMapVersion] = useState(0)
+  // Current thread session (set when overlay is open)
+  const threadSessionIdRef = React.useRef<string | null>(null)
+  const threadContextRef = React.useRef<string | null>(null)
+  const [threadMessages, setThreadMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp?: number }>>([])
+  const [isThreadStreaming, setIsThreadStreaming] = useState(false)
+  // Thread model — defaults to haiku, user can switch via model picker
+  const [threadModel, setThreadModel] = useState('claude-haiku-4-5-20251001')
+  // Accumulates streaming text for the current assistant response
+  const threadStreamingTextRef = React.useRef('')
+
+  // Populate thread map from existing sessions on mount (restores after app restart)
+  useEffect(() => {
+    if (!session) return
+    window.electronAPI.getSessions().then((allSessions) => {
+      let found = false
+      for (const s of allSessions) {
+        if (s.threadParentSessionId === session.id && s.threadMessageId) {
+          threadSessionMapRef.current.set(s.threadMessageId, s.id)
+          found = true
+        }
+      }
+      if (found) setThreadMapVersion(v => v + 1)
+    })
+  }, [session?.id])
+
+  // Derive the thread messageId for use in dependency arrays
+  const threadOverlayMessageId = overlayState?.type === 'thread' ? overlayState.messageId : null
+
+  // Load existing thread messages when overlay opens (or reset when it closes)
+  useEffect(() => {
+    if (!threadOverlayMessageId) {
+      // Overlay closing — clear transient state but keep the persistent map
+      threadSessionIdRef.current = null
+      threadContextRef.current = null
+      threadStreamingTextRef.current = ''
+      setThreadMessages([])
+      setIsThreadStreaming(false)
+      return
+    }
+
+    // Overlay opening — check for an existing thread session for this message
+    const existingSessionId = threadSessionMapRef.current.get(threadOverlayMessageId)
+    if (existingSessionId) {
+      threadSessionIdRef.current = existingSessionId
+      // Load previous thread messages and model from the stored session
+      window.electronAPI.getSessionMessages(existingSessionId).then((threadSession) => {
+        if (!threadSession) return
+        // Restore the model the thread was using
+        if (threadSession.model) setThreadModel(threadSession.model)
+        if (!threadSession.messages) return
+        // Convert stored messages to thread message format (skip the first user message
+        // which contains the injected context, and extract the actual user question from it)
+        const msgs: Array<{ id: string; role: 'user' | 'assistant'; content: string }> = []
+        for (const msg of threadSession.messages) {
+          if (msg.role === 'user') {
+            // First user message has injected context — extract the actual question
+            const content = typeof msg.content === 'string' ? msg.content : ''
+            const questionMatch = content.match(/\*\*User's question:\*\*\s*([\s\S]*)$/)
+            msgs.push({ id: msg.id, role: 'user', content: questionMatch ? questionMatch[1].trim() : content })
+          } else if (msg.role === 'assistant') {
+            const content = typeof msg.content === 'string' ? msg.content : ''
+            if (content) msgs.push({ id: msg.id, role: 'assistant', content })
+          }
+        }
+        setThreadMessages(msgs)
+      })
+    }
+  }, [threadOverlayMessageId])
+
+  // Subscribe to session events for the thread session
+  useEffect(() => {
+    if (overlayState?.type !== 'thread') return
+
+    const cleanup = window.electronAPI.onSessionEvent((event) => {
+      // Only handle events for the thread session
+      if (!threadSessionIdRef.current || event.sessionId !== threadSessionIdRef.current) return
+
+      switch (event.type) {
+        case 'text_delta': {
+          threadStreamingTextRef.current += event.delta
+          // Update the last assistant message in-place during streaming
+          setThreadMessages(prev => {
+            const last = prev[prev.length - 1]
+            if (last && last.role === 'assistant') {
+              return [...prev.slice(0, -1), { ...last, content: threadStreamingTextRef.current }]
+            }
+            // First delta — add a new assistant message
+            return [...prev, { id: `thread-${Date.now()}`, role: 'assistant', content: threadStreamingTextRef.current }]
+          })
+          break
+        }
+        case 'complete': {
+          setIsThreadStreaming(false)
+          threadStreamingTextRef.current = ''
+          break
+        }
+        case 'error': {
+          setIsThreadStreaming(false)
+          threadStreamingTextRef.current = ''
+          break
+        }
+      }
+    })
+    return cleanup
+  }, [overlayState?.type])
+
+  // Send a message in the thread overlay
+  const handleThreadSendMessage = useCallback(async (message: string) => {
+    if (!workspaceId || overlayState?.type !== 'thread') return
+    const { parentSessionId, messageId } = overlayState
+
+    // Add user message to the thread immediately
+    setThreadMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', content: message }])
+    setIsThreadStreaming(true)
+    threadStreamingTextRef.current = ''
+
+    try {
+      // Lazy thread session creation — first message creates the session
+      if (!threadSessionIdRef.current) {
+        const { session: threadSession, threadContext } = await window.electronAPI.createThreadSession(
+          workspaceId, parentSessionId, messageId, threadModel
+        )
+        threadSessionIdRef.current = threadSession.id
+        threadContextRef.current = threadContext
+        // Persist the mapping so we can restore on reopen
+        threadSessionMapRef.current.set(messageId, threadSession.id)
+        setThreadMapVersion(v => v + 1)
+
+        // Send context + user message together as the first message
+        const contextMessage = `${threadContext}\n\n---\n\n**User's question:** ${message}`
+        await window.electronAPI.sendMessage(threadSession.id, contextMessage)
+      } else {
+        // Subsequent messages — just send directly
+        await window.electronAPI.sendMessage(threadSessionIdRef.current, message)
+      }
+    } catch (err) {
+      setIsThreadStreaming(false)
+      setThreadMessages(prev => [
+        ...prev,
+        { id: `error-${Date.now()}`, role: 'assistant', content: 'Something went wrong. Please try again.' }
+      ])
+    }
+  }, [workspaceId, overlayState])
+
+  // Handle thread model change — update state and persist to session
+  const handleThreadModelChange = useCallback((model: string) => {
+    setThreadModel(model)
+    if (threadSessionIdRef.current && workspaceId) {
+      window.electronAPI.setSessionModel(threadSessionIdRef.current, workspaceId, model)
+    }
+  }, [workspaceId])
+
   // Diff viewer settings - loaded from user preferences on mount, persisted on change
   // These settings are stored in ~/.craft-agent/preferences.json (not localStorage)
   const [diffViewerSettings, setDiffViewerSettings] = useState<Partial<DiffViewerSettings>>({})
@@ -988,7 +1163,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   }, [])
 
   // Extract overlay data for activity-based overlays
-  // Uses the shared extractOverlayData parser from @craft-agent/ui
+  // Uses the shared extractOverlayData parser from @normies/ui
   const overlayData: OverlayData | null = useMemo(() => {
     if (!overlayState || overlayState.type !== 'activity') return null
     return extractOverlayData(overlayState.activity)
@@ -1186,8 +1361,10 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   // Memoize turn grouping - avoids O(n) iteration on every render/keystroke
   const allTurns = React.useMemo(() => {
     if (!session) return []
-    return groupMessagesByTurn(session.messages)
-  }, [session?.messages])
+    // Filter out hidden messages (e.g. silent "Plan approved" triggers) before grouping
+    const visibleMessages = session.messages.filter(m => !m.hidden)
+    return groupMessagesByTurn(visibleMessages, session?.isProcessing)
+  }, [session?.messages, session?.isProcessing])
 
   // Keep ref in sync for scroll handler
   totalTurnCountRef.current = allTurns.length
@@ -1269,6 +1446,71 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                       <span className="text-xs text-muted-foreground/50">Just describe it — I'll handle the rest</span>
                     </div>
                   )}
+                  {/* Task brief card - persistent header for task sessions (Normies) */}
+                  {/* Stays visible as context while agent works. Start Task button only shown in todo state. */}
+                  {!compactMode && session?.taskIndex != null && session?.projectId && (() => {
+                    const isTodo = (session?.todoState || 'todo') === 'todo'
+                    const isStarting = !isTodo && turns.length === 0 // in-progress but no turns yet
+                    const hasStarted = turns.length > 0 // agent has responded
+
+                    // User-facing card — plain language only (no technical detail, no file list)
+                    const displayParts: string[] = []
+                    displayParts.push(`## Task ${(session.taskIndex ?? 0) + 1}: ${session.name || 'Untitled Task'}`)
+                    if (session.taskDescription) {
+                      displayParts.push(`\n${session.taskDescription}`)
+                    }
+                    if (session.taskDependencies && session.taskDependencies.length > 0) {
+                      displayParts.push(`\n**Depends on:** ${session.taskDependencies.map((d: number) => `Task ${d + 1}`).join(', ')}`)
+                    }
+                    const displayBrief = displayParts.join('\n')
+
+                    // Full context sent to agent — includes technical detail, files, and instructions
+                    const buildExecutionContext = () => {
+                      const parts: string[] = []
+                      parts.push(`## Task ${(session.taskIndex ?? 0) + 1}: ${session.name || 'Untitled Task'}`)
+                      if (session.taskDescription) {
+                        parts.push(`\n### Description\n${session.taskDescription}`)
+                      }
+                      if (session.taskTechnicalDetail) {
+                        parts.push(`\n### Technical Detail\n${session.taskTechnicalDetail}`)
+                      }
+                      if (session.taskFiles && session.taskFiles.length > 0) {
+                        parts.push(`\n### Files\n${session.taskFiles.map((f: string) => `- \`${f}\``).join('\n')}`)
+                      }
+                      if (session.taskDependencies && session.taskDependencies.length > 0) {
+                        parts.push(`\n### Dependencies\nThis task depends on tasks: ${session.taskDependencies.map((d: number) => `Task ${d + 1}`).join(', ')}`)
+                      }
+                      if (session.planPath) {
+                        parts.push(`\n### Plan Reference\nThe full plan is at: ${session.planPath} — read it if you need broader context.`)
+                      }
+                      parts.push(`\n### Instructions\nExecute this task following TDD (red-green-refactor). After completion, write a 2-sentence summary. If you hit the same failure twice, stop and present options.`)
+                      return parts.join('\n')
+                    }
+
+                    return (
+                      <div className={`${hasStarted ? 'py-3' : 'py-6'} select-none transition-all duration-500 ${isStarting ? 'opacity-60' : 'opacity-100'}`}>
+                        <ResponseCard
+                          text={displayBrief}
+                          isStreaming={false}
+                          variant="plan"
+                          onOpenFile={onOpenFile}
+                          onOpenUrl={onOpenUrl}
+                          showAcceptPlan={isTodo && !isStarting}
+                          acceptPlanLabel="Start Task"
+                          acceptPlanHint="Ready when you are"
+                          isLastResponse={true}
+                          onAccept={() => {
+                            // 1. Change status to in-progress
+                            onTodoStateChange?.('in-progress')
+                            // 2. Switch to execute mode so the agent can work
+                            onPermissionModeChange?.('allow-all')
+                            // 3. Send full execution context to agent silently (hidden from chat UI)
+                            window.electronAPI.sendMessage(session.id, buildExecutionContext(), undefined, undefined, { silent: true })
+                          }}
+                        />
+                      </div>
+                    )
+                  })()}
                   {/* Load more indicator - shown when there are older messages */}
                   {hasMoreAbove && (
                     <div className="text-center text-muted-foreground/60 text-xs py-3 select-none">
@@ -1359,6 +1601,10 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
                     // Check if this is the last response (for Accept Plan button visibility)
                     const isLastResponse = index === turns.length - 1 || !turns.slice(index + 1).some(t => t.type === 'user')
+                    // Data-driven: hide Accept Plan button once there are ANY turns after this one
+                    // (meaning the plan was already accepted and the agent responded).
+                    // This survives component remounts — no local state needed.
+                    const hasTurnsAfter = index < turns.length - 1
 
                     // Assistant turns - render with TurnCard (buffered streaming)
                     return (
@@ -1389,12 +1635,35 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                         onOpenUrl={onOpenUrl}
                         isLastResponse={isLastResponse}
                         compactMode={compactMode}
-                        onAcceptPlan={() => {
-                          window.dispatchEvent(new CustomEvent('craft:approve-plan', {
-                            detail: { text: 'Plan approved, please execute.', sessionId: session?.id }
-                          }))
+                        onAcceptPlan={hasTurnsAfter ? undefined : () => {
+                          if (!session) return
+                          // Detect task sessions by projectId + taskIndex (reliable even for sessions
+                          // created before systemPromptPreset was persisted to JSONL)
+                          const isTaskSession = session.projectId != null && session.taskIndex != null
+                          if (isTaskSession) {
+                            // Normies: Task session follow-up — execute plan directly in same session.
+                            // Permission is already allow-all from initial task execution.
+                            onPermissionModeChange?.('allow-all')
+                            window.electronAPI.sendMessage(
+                              session.id,
+                              'Plan approved. Execute the plan now.',
+                              undefined,
+                              undefined,
+                              { silent: true },
+                            )
+                          } else {
+                            // Normies: Explore session — create project tasks from plan.
+                            onPermissionModeChange?.('allow-all')
+                            window.electronAPI.sendMessage(
+                              session.id,
+                              'Plan approved. Now use the CreateProjectTasks tool to create the task sessions from this plan. Do NOT execute the plan yourself — just create the tasks and confirm where to find them in the Projects sidebar.',
+                              undefined,
+                              undefined,
+                              { silent: true },
+                            )
+                          }
                         }}
-                        onAcceptPlanWithCompact={() => {
+                        onAcceptPlanWithCompact={hasTurnsAfter || (session?.projectId != null && session?.taskIndex != null) ? undefined : () => {
                           // Find the most recent plan message to get its path
                           // After compaction, Claude needs to know which plan file to read
                           const planMessage = session?.messages.findLast(m => m.role === 'plan')
@@ -1465,6 +1734,15 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                             })
                           }
                         }}
+                        onOpenThread={session ? (messageText) => {
+                          setOverlayState({
+                            type: 'thread',
+                            parentSessionId: session.id,
+                            messageId: turn.response?.messageId || turn.turnId,
+                            originalMessage: messageText,
+                          })
+                        } : undefined}
+                        hasExistingThread={threadSessionMapRef.current.has(turn.turnId)}
                       />
                       </div>
                     )
@@ -1708,9 +1986,127 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
           />
         )
       )}
+
+      {/* Thread overlay (Normies) — second opinion discussion on a specific message */}
+      {overlayState?.type === 'thread' && (
+        <ThreadOverlay
+          isOpen={true}
+          onClose={handleCloseOverlay}
+          theme={isDark ? 'dark' : 'light'}
+          originalMessage={overlayState.originalMessage}
+          threadMessages={threadMessages}
+          isStreaming={isThreadStreaming}
+          onSendMessage={handleThreadSendMessage}
+          renderInput={() => (
+            <ThreadInput onSend={handleThreadSendMessage} isStreaming={isThreadStreaming} currentModel={threadModel} onModelChange={handleThreadModelChange} />
+          )}
+        />
+      )}
     </div>
   )
 })
+
+/**
+ * ThreadInput - Text input for the thread overlay (Normies)
+ * Includes model picker, text area, and send/streaming indicator.
+ */
+function ThreadInput({ onSend, isStreaming, currentModel, onModelChange }: {
+  onSend: (message: string) => void
+  isStreaming: boolean
+  currentModel: string
+  onModelChange: (model: string) => void
+}) {
+  const [text, setText] = useState('')
+  const inputRef = React.useRef<HTMLTextAreaElement>(null)
+
+  const handleSubmit = useCallback(() => {
+    const trimmed = text.trim()
+    if (!trimmed || isStreaming) return
+    onSend(trimmed)
+    setText('')
+    // Re-focus the input after sending
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [text, isStreaming, onSend])
+
+  return (
+    <div className="bg-background/80 backdrop-blur-sm rounded-[16px] border border-border/40 px-3 py-2">
+      <textarea
+        ref={inputRef}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSubmit()
+          }
+        }}
+        placeholder="Ask a question, challenge this, or sanity check..."
+        className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none max-h-[120px] min-h-[36px] py-1.5"
+        rows={1}
+        disabled={isStreaming}
+        autoFocus
+      />
+      {/* Bottom row: spacer pushes model picker + send to the right (matches main chat layout) */}
+      <div className="flex items-center pt-1">
+        <div className="flex-1" />
+
+        {/* Right side: Model picker + Send — grouped together, never shrink */}
+        <div className="flex items-center shrink-0">
+        {/* Model picker — non-portaled content to stay inside the Radix Dialog overlay */}
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex items-center gap-0.5 h-7 px-1.5 text-[13px] shrink-0 rounded-[6px] hover:bg-foreground/5 transition-colors select-none"
+            >
+              {getModelShortName(currentModel)}
+              <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuPrimitive.Content
+            side="top"
+            align="end"
+            sideOffset={8}
+            className="popover-styled data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=top]:slide-in-from-bottom-2 z-dropdown min-w-[220px] overflow-hidden p-1"
+          >
+            {MODELS.map((model) => (
+              <DropdownMenuItem
+                key={model.id}
+                onSelect={() => onModelChange(model.id)}
+                className="flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer"
+              >
+                <div className="text-left">
+                  <div className="font-medium text-sm">{model.name}</div>
+                  <div className="text-xs text-muted-foreground">{model.description}</div>
+                </div>
+                {currentModel === model.id && (
+                  <Check className="h-4 w-4 text-foreground shrink-0 ml-3" />
+                )}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuPrimitive.Content>
+        </DropdownMenu>
+
+        {/* Send / streaming indicator */}
+        {isStreaming ? (
+          <div className="p-1.5 rounded-full bg-foreground/10 text-muted-foreground animate-pulse" aria-label="Generating...">
+            <Square className="w-3.5 h-3.5 fill-current" />
+          </div>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={!text.trim()}
+            className="p-1.5 rounded-full bg-foreground text-background disabled:opacity-30 hover:opacity-80 transition-opacity"
+            aria-label="Send"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </button>
+        )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /**
  * MessageBubble - Renders a single message based on its role

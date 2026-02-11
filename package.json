@@ -1,7 +1,7 @@
 {
-  "name": "craft-agent",
+  "name": "normies",
   "version": "0.3.5",
-  "description": "Claude Code-like agent for Craft documents",
+  "description": "Guided AI assistant for non-technical business operators",
   "type": "module",
   "private": true,
   "workspaces": [
@@ -28,7 +28,7 @@
     "electron:dev": "bun run scripts/electron-dev.ts",
     "electron:dev:terminal": "bun run scripts/electron-dev.ts --terminal",
     "electron:dev:menu": "bash scripts/electron-dev.sh",
-    "electron:dev:logs": "pgrep -f 'tail -f.*Craft Agents/main.log' > /dev/null || osascript -e \"tell application \\\"Terminal\\\" to do script \\\"$PWD/scripts/tail-electron-logs.sh\\\"\"",
+    "electron:dev:logs": "pgrep -f 'tail -f.*Normies/main.log' > /dev/null || osascript -e \"tell application \\\"Terminal\\\" to do script \\\"$PWD/scripts/tail-electron-logs.sh\\\"\"",
     "sync-secrets": "bash scripts/sync-secrets.sh",
     "fresh-start": "bun run scripts/fresh-start.ts",
     "fresh-start:token": "bun run scripts/fresh-start.ts --token-only",
@@ -43,11 +43,12 @@
     "marketing:dev": "vite dev --config apps/marketing/vite.config.ts",
     "marketing:build": "vite build --config apps/marketing/vite.config.ts",
     "marketing:preview": "vite preview --config apps/marketing/vite.config.ts",
-    "docs:dev": "cd apps/online-docs && npm install && npx mintlify dev",
+    "docs:dev": "npx mintlify dev",
     "build": "bun run scripts/build.ts",
     "release": "bun run scripts/release.ts",
     "check-version": "bun run scripts/check-version.ts",
     "oss:sync": "bun run scripts/oss-sync.ts",
+    "postinstall": "mkdir -p node_modules/@normies && ln -sf ../../packages/core node_modules/@normies/core && ln -sf ../../packages/shared node_modules/@normies/shared && ln -sf ../../packages/ui node_modules/@normies/ui && ln -sf ../../packages/mermaid node_modules/@normies/mermaid",
     "prepare": "husky"
   },
   "devDependencies": {

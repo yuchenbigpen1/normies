@@ -29,6 +29,24 @@ export interface Session {
   status?: SessionStatus;        // Workflow status (todo, in_progress, needs_review, done, cancelled)
   // Read/unread tracking
   lastReadMessageId?: string;    // ID of the last message the user has read
+  // Project linking (Normies)
+  projectId?: string;            // Groups tasks + parent Explore session
+  taskIndex?: number;            // Ordering within project (0, 1, 2...)
+  parentSessionId?: string;      // Points back to Explore chat
+  taskDependencies?: number[];   // Task indices this depends on
+  // Task metadata (Normies)
+  taskDescription?: string;      // Plain language task description
+  taskTechnicalDetail?: string;  // Full technical detail from plan
+  taskFiles?: string[];          // File paths involved
+  // Thread linking (Normies)
+  threadParentSessionId?: string; // Parent session this thread belongs to
+  threadMessageId?: string;       // Specific message being discussed
+  // Task completion (Normies)
+  completionSummary?: string;    // 2-sentence plain language summary
+  // Plan reference (Normies)
+  planPath?: string;
+  // Architecture diagram (Normies)
+  diagramPath?: string;          // Path to project's Mermaid diagram file
 }
 
 /**
@@ -57,4 +75,22 @@ export interface SessionMetadata {
   isFlagged?: boolean;     // Whether this session is flagged
   status?: SessionStatus;  // Workflow status
   hidden?: boolean;        // Whether this session is hidden from session list
+  // Project linking (Normies)
+  projectId?: string;
+  taskIndex?: number;
+  parentSessionId?: string;
+  taskDependencies?: number[];
+  // Task metadata (Normies)
+  taskDescription?: string;
+  taskTechnicalDetail?: string;
+  taskFiles?: string[];
+  // Thread linking (Normies)
+  threadParentSessionId?: string;
+  threadMessageId?: string;
+  // Task completion (Normies)
+  completionSummary?: string;
+  // Plan reference (Normies)
+  planPath?: string;
+  // Architecture diagram (Normies)
+  diagramPath?: string;
 }

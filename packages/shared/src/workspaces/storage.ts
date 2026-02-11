@@ -14,11 +14,12 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  cpSync,
 } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
-import { expandPath, toPortablePath } from '../utils/paths.ts';
+import { expandPath, toPortablePath, getBundledAssetsDir } from '../utils/paths.ts';
 import { atomicWriteFileSync } from '../utils/files.ts';
 import { getDefaultStatusConfig, saveStatusConfig, ensureDefaultIconFiles } from '../statuses/storage.ts';
 import { getDefaultLabelConfig, saveLabelConfig } from '../labels/storage.ts';
@@ -31,7 +32,7 @@ import type {
   WorkspaceSummary,
 } from './types.ts';
 
-const CONFIG_DIR = join(homedir(), '.craft-agent');
+import { CONFIG_DIR } from '../config/paths.ts';
 const DEFAULT_WORKSPACES_DIR = join(CONFIG_DIR, 'workspaces');
 
 // ============================================================
@@ -302,6 +303,16 @@ export function createWorkspaceAtPath(
   mkdirSync(getWorkspaceSourcesPath(rootPath), { recursive: true });
   mkdirSync(getWorkspaceSessionsPath(rootPath), { recursive: true });
   mkdirSync(getWorkspaceSkillsPath(rootPath), { recursive: true });
+
+  // Copy default skills from bundled template (prompt-improver, etc.)
+  const templateDir = getBundledAssetsDir('workspace-template');
+  const templateSkillsDir = templateDir ? join(templateDir, 'skills') : undefined;
+  if (templateSkillsDir && existsSync(templateSkillsDir)) {
+    cpSync(templateSkillsDir, getWorkspaceSkillsPath(rootPath), {
+      recursive: true,
+      force: false, // Don't overwrite if user already has custom versions
+    });
+  }
 
   // Save config
   saveWorkspaceConfig(rootPath, config);

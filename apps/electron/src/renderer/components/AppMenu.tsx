@@ -12,7 +12,7 @@ import {
   StyledDropdownMenuSubContent,
 } from "@/components/ui/styled-dropdown"
 import * as Icons from "lucide-react"
-import { CraftAgentsSymbol } from "./icons/CraftAgentsSymbol"
+import { NormiesSymbol } from "./icons/NormiesSymbol"
 import { SquarePenRounded } from "./icons/SquarePenRounded"
 import { TopBarButton } from "./ui/TopBarButton"
 import {
@@ -132,10 +132,6 @@ interface AppMenuProps {
   onOpenSettingsSubpage: (subpage: SettingsMenuItem['id']) => void
   onOpenKeyboardShortcuts: () => void
   onOpenStoredUserPreferences: () => void
-  onBack?: () => void
-  onForward?: () => void
-  canGoBack?: boolean
-  canGoForward?: boolean
   onToggleSidebar?: () => void
   onToggleFocusMode?: () => void
 }
@@ -143,7 +139,7 @@ interface AppMenuProps {
 /**
  * AppMenu - Main application dropdown menu and top bar navigation
  *
- * Contains the Craft logo dropdown with all menu functionality:
+ * Contains the Normies logo dropdown with all menu functionality:
  * - File actions (New Chat, New Window)
  * - Edit submenu (Undo, Redo, Cut, Copy, Paste, Select All)
  * - View submenu (Zoom In/Out, Reset)
@@ -163,10 +159,6 @@ export function AppMenu({
   onOpenSettingsSubpage,
   onOpenKeyboardShortcuts,
   onOpenStoredUserPreferences,
-  onBack,
-  onForward,
-  canGoBack = true,
-  canGoForward = true,
   onToggleSidebar,
   onToggleFocusMode,
 }: AppMenuProps) {
@@ -185,11 +177,11 @@ export function AppMenu({
 
   return (
     <div className="flex items-center gap-[5px] w-full">
-      {/* Craft Logo Menu */}
+      {/* Normies Logo Menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <TopBarButton aria-label="Craft menu">
-            <CraftAgentsSymbol className="h-4 text-accent" />
+          <TopBarButton aria-label="Normies menu" className="opacity-0 pointer-events-none w-0 h-0 overflow-hidden">
+            <Icons.Menu className="h-4 w-4 text-foreground/60" />
           </TopBarButton>
         </DropdownMenuTrigger>
         <StyledDropdownMenuContent align="start" minWidth="min-w-48">
@@ -253,7 +245,7 @@ export function AppMenu({
               Help
             </StyledDropdownMenuSubTrigger>
             <StyledDropdownMenuSubContent>
-              <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://agents.craft.do/docs')}>
+              <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yuchenzhang/normies#readme')}>
                 <Icons.HelpCircle className="h-3.5 w-3.5" />
                 Help & Documentation
                 <Icons.ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
@@ -299,32 +291,11 @@ export function AppMenu({
           {/* Quit */}
           <StyledDropdownMenuItem onClick={() => window.electronAPI.menuQuit()}>
             <Icons.LogOut className="h-3.5 w-3.5" />
-            Quit Craft Agents
+            Quit Normies
             <DropdownMenuShortcut className="pl-6">{modKey}Q</DropdownMenuShortcut>
           </StyledDropdownMenuItem>
         </StyledDropdownMenuContent>
       </DropdownMenu>
-
-      {/* Spacer to push nav buttons right */}
-      <div className="flex-1" />
-
-      {/* Back Navigation */}
-      <TopBarButton
-        onClick={onBack}
-        disabled={!canGoBack}
-        aria-label="Go back"
-      >
-        <Icons.ChevronLeft className="h-[22px] w-[22px] text-foreground/70" strokeWidth={1.5} />
-      </TopBarButton>
-
-      {/* Forward Navigation */}
-      <TopBarButton
-        onClick={onForward}
-        disabled={!canGoForward}
-        aria-label="Go forward"
-      >
-        <Icons.ChevronRight className="h-[22px] w-[22px] text-foreground/70" strokeWidth={1.5} />
-      </TopBarButton>
     </div>
   )
 }

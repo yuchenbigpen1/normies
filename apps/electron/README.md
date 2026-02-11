@@ -1,6 +1,6 @@
-# Craft Agents Electron App
+# Normies Electron App
 
-The primary desktop interface for Craft Agents, built with Electron + React. Provides a multi-session inbox with chat interface for interacting with Claude via Craft workspaces.
+The primary desktop interface for Normies, built with Electron + React. Provides a multi-session inbox with chat interface for interacting with Claude via configured workspaces.
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ apps/electron/
 │   │   ├── index.ts       # Window creation, app lifecycle
 │   │   ├── ipc.ts         # IPC handler registration
 │   │   ├── menu.ts        # Application menu (File, Edit, View, Help)
-│   │   ├── sessions.ts    # Session management, CraftAgent integration
+│   │   ├── sessions.ts    # Session management and agent integration
 │   │   ├── deep-link.ts   # Deep link URL parsing and handling
 │   │   ├── agent-service.ts # Agent listing, caching, auth checking
 │   │   └── sources-service.ts # Source and authentication service
@@ -88,7 +88,7 @@ if (billing.type === 'oauth_token' && billing.claudeOAuthToken) {
 
 ### 3. AgentEvent Type Mismatches
 
-The `AgentEvent` types from `CraftAgent` use different property names than you might expect:
+The `AgentEvent` types from the agent runtime use different property names than you might expect:
 
 | Event Type | Wrong | Correct |
 |------------|-------|---------|
@@ -111,9 +111,9 @@ const toolName = managed.pendingTools.get(event.toolUseId) || 'unknown'
 managed.pendingTools.delete(event.toolUseId)
 ```
 
-### 4. CraftAgent Constructor
+### 4. Agent Constructor
 
-`CraftAgent` expects the full `Workspace` object, not just the ID:
+The agent constructor expects the full `Workspace` object, not just the ID:
 
 ```typescript
 // Wrong:
@@ -156,7 +156,7 @@ bun run sync-secrets
 **That's it!** Now `bun run electron:dev` and `bun run electron:start` work without prompts.
 
 **How it works:**
-- `.env.1password` contains `op://` references to the `Dev_Craft_Agents` vault
+- `.env.1password` contains `op://` references to your configured dev vault
 - `bun run sync-secrets` resolves references → writes `.env` (gitignored)
 - Secrets are baked into the build at compile time via esbuild `--define` flags
 
@@ -211,7 +211,7 @@ DevTools opens automatically (configured in `index.ts`). Remove `mainWindow.webC
 - **Session persistence** - Sessions, messages, and names are saved to disk
 - **File attachments** - Attach images, PDFs, and code files to messages
 - **AI-generated titles** - Sessions get automatic titles after first exchange
-- **Subagent support** - Load and apply agent definitions from Craft documents
+- **Subagent support** - Load and apply agent definitions from workspace documents
 - **Shell integration** - Open URLs in browser, open files in default apps
 - **Permission modes** - Three-level permission system (Explore, Ask to Edit, Auto)
 - **Background tasks** - Run long-running tasks in background with progress tracking
@@ -248,14 +248,14 @@ navigate(routes.sidebar.flagged())        // Show flagged
 
 ### Deep Links
 
-External apps can navigate using `craftagents://` URLs:
+External apps can navigate using `normies://` URLs:
 
 ```
-craftagents://settings
-craftagents://allChats/chat/session123
-craftagents://sources/source/github
-craftagents://action/new-chat
-craftagents://workspace/{id}/allChats/chat/abc123
+normies://settings
+normies://allChats/chat/session123
+normies://sources/source/github
+normies://action/new-chat
+normies://workspace/{id}/allChats/chat/abc123
 ```
 
 See `CLAUDE.md` for complete route reference.
@@ -265,7 +265,7 @@ See `CLAUDE.md` for complete route reference.
 | File | Purpose |
 |------|---------|
 | `main/index.ts` | App entry, window creation |
-| `main/sessions.ts` | CraftAgent wrapper, event processing, source integration |
+| `main/sessions.ts` | Agent wrapper, event processing, source integration |
 | `main/ipc.ts` | IPC channel handlers (sessions, files, shell) |
 | `main/menu.ts` | Application menu (File, Edit, View, Help) |
 | `main/deep-link.ts` | Deep link URL parsing and handling |

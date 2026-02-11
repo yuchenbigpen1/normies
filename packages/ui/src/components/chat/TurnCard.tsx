@@ -1,13 +1,14 @@
 import * as React from 'react'
 import { useMemo, useEffect, useRef, useCallback, useState } from 'react'
-import type { ToolDisplayMeta } from '@craft-agent/core'
-import { normalizePath, pathStartsWith, stripPathPrefix } from '@craft-agent/core/utils'
+import type { ToolDisplayMeta } from '@normies/core'
+import { normalizePath, pathStartsWith, stripPathPrefix } from '@normies/core/utils'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ChevronRight,
   CheckCircle2,
   XCircle,
   Circle,
+  MessageCircle,
   MessageCircleDashed,
   ExternalLink,
   ArrowUpRight,
@@ -186,6 +187,8 @@ export interface ResponseContent {
   streamStartTime?: number
   /** Whether this response is a plan (renders with plan variant) */
   isPlan?: boolean
+  /** The actual message ID of this response (for thread context lookup) */
+  messageId?: string
 }
 
 // ============================================================================
@@ -249,6 +252,10 @@ export interface TurnCardProps {
   animateResponse?: boolean
   /** Hide footers for compact embedding (EditPopover) */
   compactMode?: boolean
+  /** Callback to open thread overlay for this turn's response (Normies) */
+  onOpenThread?: (messageText: string) => void
+  /** Whether an existing thread/second opinion exists for this turn (Normies) */
+  hasExistingThread?: boolean
 }
 
 // ============================================================================
@@ -1198,8 +1205,16 @@ export interface ResponseCardProps {
   isLastResponse?: boolean
   /** Whether to show the Accept Plan button (default: true) */
   showAcceptPlan?: boolean
+  /** Custom label for the Accept Plan button (default: "Accept Plan") */
+  acceptPlanLabel?: string
+  /** Custom hint text shown before the Accept Plan button (default: "Type your feedback in chat or") */
+  acceptPlanHint?: string
   /** Hide footer for compact embedding (EditPopover) */
   compactMode?: boolean
+  /** Callback to open thread/sanity check overlay */
+  onOpenThread?: (text: string) => void
+  /** Whether a thread already exists for this message */
+  hasExistingThread?: boolean
 }
 
 const MAX_HEIGHT = 540
@@ -1232,8 +1247,27 @@ export function ResponseCard({
   onAcceptWithCompact,
   isLastResponse = true,
   showAcceptPlan = true,
+  acceptPlanLabel,
+  acceptPlanHint,
   compactMode = false,
+  onOpenThread,
+  hasExistingThread,
 }: ResponseCardProps) {
+  // Accept Plan button loading state — shows spinner on click, disabled until hidden
+  const [isAccepting, setIsAccepting] = useState(false)
+  // Keep button mounted for 10s after click even if parent hides it (e.g. Start Task changes todoState)
+  const [stickyAccept, setStickyAccept] = useState(false)
+  // Delayed fade-out — hides the "Working..." button after 10s
+  const [hideAcceptButton, setHideAcceptButton] = useState(false)
+  useEffect(() => {
+    if (!isAccepting) return
+    const timer = setTimeout(() => {
+      setHideAcceptButton(true)
+      setStickyAccept(false)
+    }, 10000)
+    return () => clearTimeout(timer)
+  }, [isAccepting])
+  // Delayed fade-out — keeps spinner visible for a minimum duration before hiding
   // Throttled content for display - updates every CONTENT_THROTTLE_MS during streaming
   const [displayedText, setDisplayedText] = useState(text)
   const lastUpdateRef = useRef(Date.now())
@@ -1405,25 +1439,69 @@ export function ResponseCard({
                 )}
               </div>
 
-              {/* Right side - Accept Plan dropdown (only shown for plan variant when it's the last response) */}
-              {isPlan && showAcceptPlan && onAccept && onAcceptWithCompact && (
-                <div
+              {/* Right side */}
+              <div className="flex items-center gap-3">
+              {/* Sanity Check button — opens thread overlay */}
+              {onOpenThread && !isStreaming && (
+                <button
+                  type="button"
+                  onClick={() => onOpenThread(text)}
                   className={cn(
-                    "flex items-center gap-3 transition-all duration-200",
-                    isLastResponse
-                      ? "opacity-100 translate-x-0"
-                      : "opacity-0 translate-x-2 pointer-events-none"
+                    "flex items-center gap-1.5 transition-colors select-none",
+                    hasExistingThread
+                      ? "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground/60 hover:text-muted-foreground hover:text-foreground",
+                    "focus:outline-none focus-visible:underline"
                   )}
                 >
-                  <span className="text-xs text-muted-foreground">
-                    Type your feedback in chat or
-                  </span>
-                  <AcceptPlanDropdown
-                    onAccept={onAccept}
-                    onAcceptWithCompact={onAcceptWithCompact}
-                  />
+                  <MessageCircle className={cn(SIZE_CONFIG.iconSize, hasExistingThread && "fill-current")} />
+                  <span>Sanity Check</span>
+                </button>
+              )}
+              {/* Accept Plan button (only shown for plan variant when it's the last response) */}
+              {/* stickyAccept keeps button mounted for 5s after click even if showAcceptPlan becomes false */}
+              {isPlan && ((showAcceptPlan && onAccept) || stickyAccept) && (
+                <div
+                  className={cn(
+                    "flex items-center gap-3 transition-all duration-300",
+                    hideAcceptButton
+                      ? "opacity-0 translate-x-2 pointer-events-none"
+                      : "opacity-100 translate-x-0"
+                  )}
+                >
+                  {!isAccepting && (
+                    <span className="text-xs text-muted-foreground">
+                      {acceptPlanHint || 'Type your feedback in chat or'}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    disabled={isAccepting}
+                    onClick={() => {
+                      setIsAccepting(true)
+                      setStickyAccept(true)
+                      onAccept?.()
+                    }}
+                    className={cn(
+                      "h-[28px] pl-2.5 pr-2 text-xs font-medium rounded-[6px] inline-flex items-center gap-1.5 transition-all shadow-tinted",
+                      isAccepting
+                        ? "bg-success/10 text-success/60 cursor-default"
+                        : "bg-success/5 text-success hover:bg-success/10"
+                    )}
+                    style={{ '--shadow-color': '34, 136, 82' } as React.CSSProperties}
+                  >
+                    {isAccepting ? (
+                      <>
+                        <Spinner className="h-3 w-3" />
+                        <span>Working...</span>
+                      </>
+                    ) : (
+                      acceptPlanLabel || 'Accept Plan'
+                    )}
+                  </button>
                 </div>
               )}
+              </div>
             </div>
           )}
         </div>
@@ -1598,6 +1676,8 @@ export const TurnCard = React.memo(function TurnCard({
   displayMode = 'detailed',
   animateResponse = false,
   compactMode = false,
+  onOpenThread,
+  hasExistingThread,
 }: TurnCardProps) {
   // Derive the turn phase from props using the state machine.
   // This provides a single source of truth for lifecycle state,
@@ -1942,6 +2022,8 @@ export const TurnCard = React.memo(function TurnCard({
                 onAcceptWithCompact={onAcceptPlanWithCompact}
                 isLastResponse={isLastResponse}
                 compactMode={compactMode}
+                onOpenThread={onOpenThread ? (text) => onOpenThread(text) : undefined}
+                hasExistingThread={hasExistingThread}
               />
             </motion.div>
           )}
@@ -1962,6 +2044,8 @@ export const TurnCard = React.memo(function TurnCard({
             onAcceptWithCompact={onAcceptPlanWithCompact}
             isLastResponse={isLastResponse}
             compactMode={compactMode}
+            onOpenThread={onOpenThread ? (text) => onOpenThread(text) : undefined}
+            hasExistingThread={hasExistingThread}
           />
         </div>
       )}
@@ -1989,6 +2073,9 @@ export const TurnCard = React.memo(function TurnCard({
 
   // Re-render if activities changed (important for playground/testing scenarios)
   if (prev.activities !== next.activities) return false
+
+  // Re-render if thread indicator changed
+  if (prev.hasExistingThread !== next.hasExistingThread) return false
 
   // For complete, non-streaming turns: skip re-render if same turn
   // These are static and safe to cache

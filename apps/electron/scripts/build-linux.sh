@@ -33,10 +33,10 @@ UPLOAD_SCRIPT=false
 
 show_help() {
     cat << EOF
-Usage: build-linux.sh [x64|arm64] [--upload] [--latest] [--script]
+Usage: build-linux.sh [x64] [--upload] [--latest] [--script]
 
 Arguments:
-  x64|arm64    Target architecture (default: x64)
+  x64          Target architecture (default: x64)
   --upload     Upload AppImage to S3 after building
   --latest     Also update electron/latest (requires --upload)
   --script     Also upload install-app.sh (requires --upload)
@@ -49,7 +49,7 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        x64|arm64)     ARCH="$1"; shift ;;
+        x64)     ARCH="$1"; shift ;;
         --upload)      UPLOAD=true; shift ;;
         --latest)      UPLOAD_LATEST=true; shift ;;
         --script)      UPLOAD_SCRIPT=true; shift ;;
@@ -65,7 +65,7 @@ done
 # Configuration
 BUN_VERSION="bun-v1.3.5"  # Pinned version for reproducible builds
 
-echo "=== Building Craft Agents AppImage (${ARCH}) using electron-builder ==="
+echo "=== Building Normies AppImage (${ARCH}) using electron-builder ==="
 if [ "$UPLOAD" = true ]; then
     echo "Will upload to S3 after build"
 fi
@@ -150,8 +150,8 @@ else
     LINUX_ARCH="aarch64"
 fi
 
-# electron-builder outputs: Craft-Agent-x86_64.AppImage or Craft-Agent-aarch64.AppImage
-BUILT_APPIMAGE_NAME="Craft-Agent-${LINUX_ARCH}.AppImage"
+# electron-builder outputs: Normies-x86_64.AppImage or Normies-aarch64.AppImage
+BUILT_APPIMAGE_NAME="Normies-${LINUX_ARCH}.AppImage"
 BUILT_APPIMAGE_PATH="$ELECTRON_DIR/release/$BUILT_APPIMAGE_NAME"
 
 if [ ! -f "$BUILT_APPIMAGE_PATH" ]; then
@@ -161,8 +161,8 @@ if [ ! -f "$BUILT_APPIMAGE_PATH" ]; then
     exit 1
 fi
 
-# Rename to our standard naming convention: Craft-Agent-x64.AppImage, Craft-Agent-arm64.AppImage
-APPIMAGE_NAME="Craft-Agent-${ARCH}.AppImage"
+# Rename to our standard naming convention: Normies-x64.AppImage, Normies-arm64.AppImage
+APPIMAGE_NAME="Normies-${ARCH}.AppImage"
 APPIMAGE_PATH="$ELECTRON_DIR/release/$APPIMAGE_NAME"
 mv "$BUILT_APPIMAGE_PATH" "$APPIMAGE_PATH"
 echo "Renamed $BUILT_APPIMAGE_NAME -> $APPIMAGE_NAME"
@@ -185,10 +185,11 @@ if [ "$UPLOAD" = true ]; then
     echo "=== Uploading to S3 ==="
 
     # Check for S3 credentials
-    if [ -z "$S3_VERSIONS_BUCKET_ENDPOINT" ] || [ -z "$S3_VERSIONS_BUCKET_ACCESS_KEY_ID" ] || [ -z "$S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY" ]; then
+    if [ -z "$S3_VERSIONS_BUCKET_ENDPOINT" ] || [ -z "$S3_VERSIONS_BUCKET_NAME" ] || [ -z "$S3_VERSIONS_BUCKET_ACCESS_KEY_ID" ] || [ -z "$S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY" ]; then
         cat << EOF
 ERROR: Missing S3 credentials. Set these environment variables:
   S3_VERSIONS_BUCKET_ENDPOINT
+  S3_VERSIONS_BUCKET_NAME
   S3_VERSIONS_BUCKET_ACCESS_KEY_ID
   S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY
 

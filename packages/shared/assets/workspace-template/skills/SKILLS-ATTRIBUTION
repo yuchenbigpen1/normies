@@ -1,0 +1,39 @@
+The following skill folders incorporate patterns, concepts, and best practices
+adapted from open-source projects. Each skill is original work written for
+Normies, but credits these sources for reference material and inspiration.
+
+================================================================================
+
+discover-tools/
+  Written from scratch for Normies. References public API documentation from:
+  - MCP Registry (https://registry.modelcontextprotocol.io)
+  - Smithery Registry (https://smithery.ai)
+  - VoltAgent/awesome-agent-skills (https://github.com/VoltAgent/awesome-agent-skills)
+  - anthropics/skills (https://github.com/anthropics/skills)
+
+notion-expert/
+  Adapted from:
+  - tommy-ca/notion-skills (https://github.com/tommy-ca/notion-skills) — MIT License
+  - makenotion/notion-mcp-server (https://github.com/makenotion/notion-mcp-server) — capabilities reference
+
+google-workspace-expert/
+  Adapted from:
+  - the3asic/google-workspace-skill (https://github.com/the3asic/google-workspace-skill) — MIT License
+  - taylorwilsdon/google_workspace_mcp (https://github.com/taylorwilsdon/google_workspace_mcp) — MIT License
+  - ngs/google-mcp-server (https://github.com/ngs/google-mcp-server) — MIT License
+
+stripe-expert/
+  Adapted from:
+  - anthropics/skills (https://github.com/anthropics/skills) — MIT License
+  - wshobson/agents (https://github.com/wshobson/agents) — payment processing patterns
+
+supabase-expert/
+  Adapted from:
+  - supabase/agent-skills (https://github.com/supabase/agent-skills) — Apache 2.0 License
+  - Nice-Wolf-Studio/claude-code-supabase-skills (https://github.com/Nice-Wolf-Studio/claude-code-supabase-skills) — API operation patterns
+  - Supabase community examples (https://github.com/supabase/supabase/tree/master/examples) — schema and auth patterns
+
+================================================================================
+
+All referenced source material uses permissive open-source licenses
+(MIT or Apache 2.0). See individual SKILL.md files for inline attribution.

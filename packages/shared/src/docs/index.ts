@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 
 import { getBundledAssetsDir } from '../utils/paths.ts';
 import { debug } from '../utils/debug.ts';
 
-const CONFIG_DIR = join(homedir(), '.craft-agent');
+import { CONFIG_DIR } from '../config/paths.ts';
 const DOCS_DIR = join(CONFIG_DIR, 'docs');
 
 // Track if docs have been initialized this session (prevents re-init on hot reload)
@@ -92,7 +92,7 @@ export function getDocPath(filename: string): string {
 
 // App root path reference for use in prompts
 // Using ~ for display since actual path varies per system/instance
-export const APP_ROOT = '~/.craft-agent';
+export const APP_ROOT = '~/.normies';
 
 /**
  * Documentation file references for use in error messages and tool descriptions.

@@ -12,7 +12,7 @@ import { findIconFile } from '../utils/icon.ts';
 import { initializeDocs } from '../docs/index.ts';
 import { expandPath, toPortablePath, getBundledAssetsDir } from '../utils/paths.ts';
 import { CONFIG_DIR } from './paths.ts';
-import type { StoredAttachment, StoredMessage } from '@craft-agent/core/types';
+import type { StoredAttachment, StoredMessage } from '@normies/core/types';
 import type { Plan } from '../agent/plan-types.ts';
 import type { PermissionMode } from '../agent/mode-manager.ts';
 import { BUNDLED_CONFIG_DEFAULTS, type ConfigDefaults } from './config-defaults-schema.ts';
@@ -26,10 +26,10 @@ export type {
   McpAuthType,
   AuthType,
   OAuthCredentials,
-} from '@craft-agent/core/types';
+} from '@normies/core/types';
 
 // Import for local use
-import type { Workspace, AuthType } from '@craft-agent/core/types';
+import type { Workspace, AuthType } from '@normies/core/types';
 
 // Config stored in JSON file (credentials stored in encrypted file, not here)
 export interface StoredConfig {
@@ -597,7 +597,7 @@ function ensureWorkspaceDir(workspaceId: string): string {
 
 
 // Re-export types from core for convenience
-export type { StoredAttachment, StoredMessage } from '@craft-agent/core/types';
+export type { StoredAttachment, StoredMessage } from '@normies/core/types';
 
 export interface WorkspaceConversation {
   messages: StoredMessage[];

@@ -19,11 +19,10 @@ import type { EntityColor } from './types.ts'
  * Uses system colors with opacity modifiers for muted states.
  */
 export const DEFAULT_STATUS_COLORS: Record<string, EntityColor> = {
-  'backlog': 'foreground/50',       // Muted — not yet planned
   'todo': 'foreground/50',          // Muted — ready to work on
   'in-progress': 'success',         // Green — active work
   'needs-review': 'info',           // Amber — attention needed
-  'done': 'accent',                 // Purple — completed
+  'done': { light: 'rgb(48, 95, 188)', dark: 'rgb(125, 167, 248)' },  // Blue — completed
   'cancelled': 'foreground/50',     // Muted — inactive
 }
 

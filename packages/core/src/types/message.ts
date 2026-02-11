@@ -157,6 +157,8 @@ export interface Message {
   badges?: ContentBadge[];
   isError?: boolean;
   isStreaming?: boolean;
+  // Hidden: message sent silently (e.g. Plan approved trigger) — not shown in chat UI
+  hidden?: boolean;
   // Pending: streaming text where we don't yet know if it's intermediate
   // Set to true when text_delta creates message, false when text_complete arrives
   // Also used for optimistic user messages before backend confirmation
@@ -232,6 +234,8 @@ export interface StoredMessage {
   elapsedSeconds?: number;
   isBackground?: boolean;
   isError?: boolean;
+  /** Hidden: message sent silently — not shown in chat UI */
+  hidden?: boolean;
   /** Stored attachments for user messages (persisted to disk) */
   attachments?: StoredAttachment[];
   /** Content badges for inline display (sources, skills) */

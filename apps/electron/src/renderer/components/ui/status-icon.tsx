@@ -8,10 +8,10 @@
  * Status icons are discovered at `statuses/icons/{statusId}.{ext}`.
  */
 
-import { Circle } from 'lucide-react'
+import { Square } from 'lucide-react'
 import { EntityIcon } from '@/components/ui/entity-icon'
 import { useEntityIcon } from '@/lib/icon-cache'
-import type { IconSize } from '@craft-agent/shared/icons'
+import type { IconSize } from '@normies/shared/icons'
 
 interface StatusIconProps {
   /** Status identifier (used to discover icon file) */
@@ -53,7 +53,7 @@ export function StatusIcon({
     <EntityIcon
       icon={resolved}
       size={size}
-      fallbackIcon={Circle}
+      fallbackIcon={Square}
       className={className}
       chromeless={chromeless}
       bare={bare}

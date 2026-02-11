@@ -59,8 +59,9 @@ import { getSourceCredentialManager } from '../sources/index.ts';
 import { inferGoogleServiceFromUrl, inferSlackServiceFromUrl, inferMicrosoftServiceFromUrl, isApiOAuthProvider, type GoogleService, type SlackService, type MicrosoftService } from '../sources/types.ts';
 import { buildAuthorizationHeader } from '../sources/api-tools.ts';
 import { DOC_REFS } from '../docs/index.ts';
-import { renderMermaid } from '@craft-agent/mermaid';
+import { renderMermaid } from '@normies/mermaid';
 import { createLLMTool } from './llm-tool.ts';
+import { createCreateProjectTasksTool } from './tools/create-project-tasks.ts';
 import { isGoogleOAuthConfigured } from '../auth/google-oauth.ts';
 
 // ============================================================
@@ -232,6 +233,16 @@ export interface SessionScopedToolCallbacks {
    * 5. Agent resumes and processes the result
    */
   onAuthRequest?: (request: AuthRequest) => void;
+  /**
+   * Called when CreateProjectTasks tool is invoked.
+   * Main process creates task sessions and returns their IDs.
+   */
+  onCreateProjectSessions?: (data: import('./tools/create-project-tasks.ts').CreateProjectSessionsData) => Promise<string[]>;
+  /**
+   * Called when setCompletionSummary tool is invoked (task-execution sessions only).
+   * Saves the completion summary to the session and fires task_completed event.
+   */
+  onSetCompletionSummary?: (summary: string) => Promise<void>;
 }
 
 /**
@@ -409,7 +420,7 @@ Brief description of what this plan accomplishes.
 export function createConfigValidateTool(sessionId: string, workspaceRootPath: string) {
   return tool(
     'config_validate',
-    `Validate Craft Agent configuration files.
+    `Validate Normies configuration files.
 
 Use this after editing configuration files to check for errors before they take effect.
 Returns structured validation results with errors, warnings, and suggestions.
@@ -2125,6 +2136,65 @@ Returns validation result with specific error messages if invalid.`,
 }
 
 // ============================================================
+// Normies: setCompletionSummary Tool (task-execution only)
+// ============================================================
+
+/**
+ * Create the setCompletionSummary tool for task-execution sessions.
+ * Saves a plain-language completion summary to the session metadata.
+ */
+function createSetCompletionSummaryTool(
+  sessionId: string,
+  getCallbacks: () => SessionScopedToolCallbacks | undefined,
+) {
+  return tool(
+    'setCompletionSummary',
+    `Save a completion summary for this task. Call this after you have written your final response summarizing what you accomplished. The summary will be displayed on the task card in the sidebar.
+
+**Input:**
+- \`summary\`: A 1-2 sentence plain language summary of what was accomplished. Write for a non-technical audience.
+
+**Example:** "Set up the login page so users can sign in with their email and password. Added a lockout after 5 failed attempts to keep accounts secure."`,
+    {
+      summary: z.string().describe('Plain language summary of what was accomplished (1-2 sentences)'),
+    },
+    async (args) => {
+      debug('[setCompletionSummary] Called with summary:', args.summary.substring(0, 80));
+
+      const callbacks = getCallbacks();
+      if (!callbacks?.onSetCompletionSummary) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'Error: Completion summary handler not available.',
+          }],
+          isError: true,
+        };
+      }
+
+      try {
+        await callbacks.onSetCompletionSummary(args.summary);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'Completion summary saved.',
+          }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error saving completion summary: ${message}`,
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+}
+
+// ============================================================
 // Session-Scoped Tools Provider
 // ============================================================
 
@@ -2139,8 +2209,9 @@ const sessionScopedToolsCache = new Map<string, ReturnType<typeof createSdkMcpSe
  *
  * @param sessionId - Unique session identifier
  * @param workspaceRootPath - Absolute path to workspace folder (e.g., ~/.craft-agent/workspaces/xxx)
+ * @param systemPromptPreset - Optional system prompt preset; task-execution sessions exclude CreateProjectTasks
  */
-export function getSessionScopedTools(sessionId: string, workspaceRootPath: string): ReturnType<typeof createSdkMcpServer> {
+export function getSessionScopedTools(sessionId: string, workspaceRootPath: string, systemPromptPreset?: string): ReturnType<typeof createSdkMcpServer> {
   const cacheKey = `${sessionId}::${workspaceRootPath}`;
   let cached = sessionScopedToolsCache.get(cacheKey);
   if (!cached) {
@@ -2167,6 +2238,15 @@ export function getSessionScopedTools(sessionId: string, workspaceRootPath: stri
         createCredentialPromptTool(sessionId, workspaceRootPath),
         // LLM tool - invoke secondary Claude calls for subtasks
         createLLMTool({ sessionId }),
+        // Normies: CreateProjectTasks tool - creates task sessions from approved plans
+        // Excluded from task-execution sessions so follow-up feedback uses plan-in-place flow
+        ...(systemPromptPreset === 'task-execution' ? [] : [
+          createCreateProjectTasksTool(sessionId, () => getSessionScopedToolCallbacks(sessionId)),
+        ]),
+        // Normies: setCompletionSummary tool - only for task-execution sessions
+        ...(systemPromptPreset === 'task-execution' ? [
+          createSetCompletionSummaryTool(sessionId, () => getSessionScopedToolCallbacks(sessionId)),
+        ] : []),
       ],
     });
     sessionScopedToolsCache.set(cacheKey, cached);

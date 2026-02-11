@@ -5,7 +5,7 @@
  * Converts the flat Message[] array into grouped turns for email-like display.
  */
 
-import type { Message, StoredMessage, MessageRole } from '@craft-agent/core'
+import type { Message, StoredMessage, MessageRole } from '@normies/core'
 import type { ActivityItem, ActivityStatus, ActivityType, ResponseContent, TodoItem } from './TurnCard'
 
 // Re-export ActivityItem for consumers
@@ -361,7 +361,7 @@ function extractTodosFromActivities(activities: ActivityItem[]): TodoItem[] | un
  * as the signal: isIntermediate=true means more work coming, isIntermediate=false
  * means final response.
  */
-export function groupMessagesByTurn(messages: Message[]): Turn[] {
+export function groupMessagesByTurn(messages: Message[], isProcessing = true): Turn[] {
   // Sort by timestamp for correct chronological order
   // This ensures correct turn grouping even if messages are added out of order during streaming
   const sortedMessages = [...messages].sort((a, b) => a.timestamp - b.timestamp)
@@ -413,6 +413,7 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
           currentTurn.response = {
             text: lastTextActivity.content,
             isStreaming: false,
+            messageId: lastTextActivity.id,
           }
         }
       }
@@ -530,6 +531,7 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
         text: message.content,
         isStreaming: false,
         isPlan: true,
+        messageId: message.id,
       }
       currentTurn.isStreaming = false
       currentTurn.isComplete = true
@@ -628,6 +630,7 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
         text: message.content,
         isStreaming: !!message.isStreaming,
         streamStartTime: message.isStreaming ? message.timestamp : undefined,
+        messageId: message.id,
       }
       currentTurn.isStreaming = !!message.isStreaming
       currentTurn.isComplete = !message.isStreaming
@@ -638,6 +641,14 @@ export function groupMessagesByTurn(messages: Message[]): Turn[] {
       }
       continue
     }
+  }
+
+  // When processing is done and the last turn has no final response,
+  // mark it complete so the "promote intermediate to response" fallback fires.
+  // This handles the case where the agent's last text was intermediate (followed by a tool call)
+  // and no final text_complete with isIntermediate=false was emitted.
+  if (currentTurn && !isProcessing && !currentTurn.response) {
+    currentTurn.isComplete = true
   }
 
   // Flush any remaining turn

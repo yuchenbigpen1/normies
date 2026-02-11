@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Debug script to print the full Craft Agent system prompt with annotations.
+ * Debug script to print the full Normies system prompt with annotations.
  * Shows both the static system prompt and dynamic user message context components.
  *
  * Run with: bun run print:system-prompt
@@ -58,7 +58,7 @@ printAnnotation('The SDK also uses preset: "claude_code" which adds Claude Code\
 printAnnotation('');
 printAnnotation('Composed of:');
 printAnnotation('  1. User Preferences (if set) - formatPreferencesForPrompt()');
-printAnnotation('  2. Craft Agent Environment Marker - version, platform, arch');
+printAnnotation('  2. Normies Environment Marker - version, platform, arch');
 printAnnotation('  3. Core Instructions - capabilities, sources, guidelines');
 printAnnotation('  4. Configuration Documentation Refs - permissions, skills, themes, statuses');
 printAnnotation('  5. Permission Modes Documentation - inlined in system prompt');
@@ -78,7 +78,7 @@ console.log(`\n${colors.bold}Static System Prompt Length: ${systemPrompt.length.
 // Show with debug mode enabled
 const systemPromptWithDebug = getSystemPrompt(
   undefined,
-  { enabled: true, logFilePath: '~/Library/Logs/@craft-agent/electron/main.log' },
+  { enabled: true, logFilePath: '~/Library/Logs/@normies/electron/main.log' },
   '/Users/example/.craft-agent/workspaces/abc123'
 );
 console.log(`${colors.dim}With debug mode: ${systemPromptWithDebug.length.toLocaleString()} characters (+${(systemPromptWithDebug.length - systemPrompt.length).toLocaleString()})${colors.reset}`);
@@ -198,11 +198,11 @@ ${colors.bgMagenta}${colors.bold}                                               
 
 ${colors.bold}SDK Configuration:${colors.reset}
   systemPrompt.preset: 'claude_code'     ${colors.dim}// Claude Code's base system prompt${colors.reset}
-  systemPrompt.append: getSystemPrompt() ${colors.dim}// Craft Agent additions (static, cacheable)${colors.reset}
+  systemPrompt.append: getSystemPrompt() ${colors.dim}// Normies additions (static, cacheable)${colors.reset}
 
 ${colors.bold}Static System Prompt Components:${colors.reset}
   1. User Preferences (if set)           ${colors.dim}// formatPreferencesForPrompt()${colors.reset}
-  2. Craft Agent Environment Marker      ${colors.dim}// Version, platform, arch${colors.reset}
+  2. Normies Environment Marker      ${colors.dim}// Version, platform, arch${colors.reset}
   3. Core Instructions                   ${colors.dim}// Capabilities, sources, guidelines${colors.reset}
   4. Configuration Documentation Refs    ${colors.dim}// Permissions, skills, themes, statuses${colors.reset}
   5. Permission Modes Documentation      ${colors.dim}// Inlined in system prompt${colors.reset}

@@ -31,6 +31,9 @@ export {
   type CredentialInputMode,
 } from './session-scoped-tools.ts';
 
+// Export CreateProjectTasks types (Normies)
+export { type CreateProjectSessionsData } from './tools/create-project-tasks.ts';
+
 // Export mode-manager - Centralized mode management
 export {
   // Permission Mode API (primary)

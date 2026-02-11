@@ -1,7 +1,7 @@
-Craft Agents
-Copyright 2026 Craft Docs Ltd.
+Normies
+Copyright 2026 Normies
 
-This product includes software developed by Craft Docs Ltd.
+This product is based on Craft Agents by Craft Docs Ltd.
 https://craft.do
 
 ---
@@ -13,3 +13,10 @@ Commercial Terms of Service: https://www.anthropic.com/legal/commercial-terms
 
 Third-party dependencies are listed in package.json files and are subject
 to their respective licenses.
+
+---
+
+This product bundles n8n workflow skills from:
+https://github.com/czlonkowski/n8n-skills
+Copyright (c) 2025 Romuald Członkowski — MIT License
+See packages/shared/assets/workspace-template/skills/N8N-SKILLS-LICENSE

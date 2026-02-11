@@ -1,5 +1,5 @@
 // Types shared between main and renderer processes
-// Core types are re-exported from @craft-agent/core
+// Core types are re-exported from @normies/core
 
 // Import and re-export core types
 import type {
@@ -12,17 +12,17 @@ import type {
   StoredAttachment as CoreStoredAttachment,
   ContentBadge,
   ToolDisplayMeta,
-} from '@craft-agent/core/types';
+} from '@normies/core/types';
 
 // Import mode types from dedicated subpath export (avoids pulling in SDK)
-import type { PermissionMode } from '@craft-agent/shared/agent/modes';
+import type { PermissionMode } from '@normies/shared/agent/modes';
 export type { PermissionMode };
-export { PERMISSION_MODE_CONFIG } from '@craft-agent/shared/agent/modes';
+export { PERMISSION_MODE_CONFIG } from '@normies/shared/agent/modes';
 
 // Import thinking level types
-import type { ThinkingLevel } from '@craft-agent/shared/agent/thinking-levels';
+import type { ThinkingLevel } from '@normies/shared/agent/thinking-levels';
 export type { ThinkingLevel };
-export { THINKING_LEVELS, DEFAULT_THINKING_LEVEL } from '@craft-agent/shared/agent/thinking-levels';
+export { THINKING_LEVELS, DEFAULT_THINKING_LEVEL } from '@normies/shared/agent/thinking-levels';
 
 export type {
   CoreMessage as Message,
@@ -38,16 +38,16 @@ export type {
 
 // Import and re-export auth types for onboarding
 // Use types-only subpaths to avoid pulling in Node.js dependencies
-import type { AuthState, SetupNeeds } from '@craft-agent/shared/auth/types';
-import type { AuthType } from '@craft-agent/shared/config/types';
+import type { AuthState, SetupNeeds } from '@normies/shared/auth/types';
+import type { AuthType } from '@normies/shared/config/types';
 export type { AuthState, SetupNeeds, AuthType };
 
 // Import source types for session source selection
-import type { LoadedSource, FolderSourceConfig, SourceConnectionStatus } from '@craft-agent/shared/sources/types';
+import type { LoadedSource, FolderSourceConfig, SourceConnectionStatus } from '@normies/shared/sources/types';
 export type { LoadedSource, FolderSourceConfig, SourceConnectionStatus };
 
 // Import skill types
-import type { LoadedSkill, SkillMetadata } from '@craft-agent/shared/skills/types';
+import type { LoadedSkill, SkillMetadata } from '@normies/shared/skills/types';
 export type { LoadedSkill, SkillMetadata };
 
 
@@ -85,12 +85,12 @@ export interface FileSearchResult {
 }
 
 // Import auth request types for unified auth flow
-import type { AuthRequest as SharedAuthRequest, CredentialInputMode as SharedCredentialInputMode, CredentialAuthRequest as SharedCredentialAuthRequest } from '@craft-agent/shared/agent';
+import type { AuthRequest as SharedAuthRequest, CredentialInputMode as SharedCredentialInputMode, CredentialAuthRequest as SharedCredentialAuthRequest } from '@normies/shared/agent';
 export type { SharedAuthRequest as AuthRequest };
 export type { SharedCredentialInputMode as CredentialInputMode };
 // CredentialRequest is used by UI components for displaying credential input
 export type CredentialRequest = SharedCredentialAuthRequest;
-export { generateMessageId } from '@craft-agent/core/types';
+export { generateMessageId } from '@normies/core/types';
 
 /**
  * OAuth result from main process
@@ -171,8 +171,8 @@ export interface RefreshTitleResult {
 
 
 // Re-export permission types from core, extended with sessionId for multi-session context
-export type { PermissionRequest as BasePermissionRequest } from '@craft-agent/core/types';
-import type { PermissionRequest as BasePermissionRequest } from '@craft-agent/core/types';
+export type { PermissionRequest as BasePermissionRequest } from '@normies/core/types';
+import type { PermissionRequest as BasePermissionRequest } from '@normies/core/types';
 
 /**
  * Permission request with session context (for multi-session Electron app)
@@ -185,7 +185,7 @@ export interface PermissionRequest extends BasePermissionRequest {
 // Credential Input Types (Secure Auth UI)
 // ============================================
 
-// CredentialInputMode is imported from @craft-agent/shared/agent above
+// CredentialInputMode is imported from @normies/shared/agent above
 
 /**
  * Credential response from user (for credential auth requests)
@@ -271,7 +271,7 @@ export interface FileAttachment {
 }
 
 // Import types needed for Session interface
-import type { Message } from '@craft-agent/core/types';
+import type { Message } from '@normies/core/types';
 
 /**
  * Electron-specific Session type (includes runtime state)
@@ -367,6 +367,26 @@ export interface Session {
     /** Model's context window size in tokens (from SDK modelUsage) */
     contextWindow?: number
   }
+  // Project linking (Normies)
+  projectId?: string
+  taskIndex?: number
+  parentSessionId?: string
+  taskDependencies?: number[]
+  // Thread linking (Normies)
+  threadParentSessionId?: string
+  threadMessageId?: string
+  // Task metadata (Normies) — stored during task creation for Start button message
+  taskDescription?: string
+  taskTechnicalDetail?: string
+  taskFiles?: string[]
+  // Task completion (Normies)
+  completionSummary?: string
+  // Plan reference (Normies)
+  planPath?: string
+  // Architecture diagram (Normies)
+  diagramPath?: string
+  // System prompt preset (persisted for tool registration)
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
   /** When true, session is hidden from session list (e.g., mini edit sessions) */
   hidden?: boolean
 }
@@ -387,8 +407,8 @@ export interface CreateSessionOptions {
   workingDirectory?: string | 'user_default' | 'none'
   /** Model override for the session (e.g., 'haiku', 'sonnet') */
   model?: string
-  /** System prompt preset for the session ('default' | 'mini' or custom string) */
-  systemPromptPreset?: 'default' | 'mini' | string
+  /** System prompt preset for the session */
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
   /** When true, session won't appear in session list (e.g., mini edit sessions) */
   hidden?: boolean
   /** Initial todo state (status) for the session */
@@ -397,6 +417,22 @@ export interface CreateSessionOptions {
   labels?: string[]
   /** Whether the session should be flagged */
   isFlagged?: boolean
+  // Project linking (Normies)
+  projectId?: string
+  taskIndex?: number
+  parentSessionId?: string
+  taskDependencies?: number[]
+  // Thread linking (Normies)
+  threadParentSessionId?: string
+  threadMessageId?: string
+  // Task metadata (Normies)
+  taskDescription?: string
+  taskTechnicalDetail?: string
+  taskFiles?: string[]
+  // Plan reference (Normies)
+  planPath?: string
+  // Architecture diagram (Normies)
+  diagramPath?: string
 }
 
 // Events sent from main to renderer
@@ -404,7 +440,7 @@ export interface CreateSessionOptions {
 export type SessionEvent =
   | { type: 'text_delta'; sessionId: string; delta: string; turnId?: string }
   | { type: 'text_complete'; sessionId: string; text: string; isIntermediate?: boolean; turnId?: string; parentToolUseId?: string }
-  | { type: 'tool_start'; sessionId: string; toolName: string; toolUseId: string; toolInput: Record<string, unknown>; toolIntent?: string; toolDisplayName?: string; toolDisplayMeta?: import('@craft-agent/core').ToolDisplayMeta; turnId?: string; parentToolUseId?: string }
+  | { type: 'tool_start'; sessionId: string; toolName: string; toolUseId: string; toolInput: Record<string, unknown>; toolIntent?: string; toolDisplayName?: string; toolDisplayMeta?: import('@normies/core').ToolDisplayMeta; turnId?: string; parentToolUseId?: string }
   | { type: 'tool_result'; sessionId: string; toolUseId: string; toolName: string; result: string; turnId?: string; parentToolUseId?: string; isError?: boolean }
   | { type: 'error'; sessionId: string; error: string }
   | { type: 'typed_error'; sessionId: string; error: TypedError }
@@ -448,6 +484,10 @@ export type SessionEvent =
   | { type: 'source_activated'; sessionId: string; sourceSlug: string; originalMessage: string }
   // Real-time usage update during processing (for context display)
   | { type: 'usage_update'; sessionId: string; tokenUsage: { inputTokens: number; contextWindow?: number } }
+  // Normies: Project/task lifecycle events
+  | { type: 'project_created'; sessionId: string; projectId: string; projectName: string; taskSessionIds: string[] }
+  | { type: 'task_started'; sessionId: string; projectId: string }
+  | { type: 'task_completed'; sessionId: string; projectId: string; summary: string }
 
 // Options for sendMessage
 export interface SendMessageOptions {
@@ -456,7 +496,9 @@ export interface SendMessageOptions {
   /** Skill slugs to activate for this message (from @mentions) */
   skillSlugs?: string[]
   /** Content badges for inline display (sources, skills with embedded icons) */
-  badges?: import('@craft-agent/core').ContentBadge[]
+  badges?: import('@normies/core').ContentBadge[]
+  /** Normies: When true, the user message is not emitted to the renderer (hidden from chat UI) */
+  silent?: boolean
 }
 
 // =============================================================================
@@ -492,6 +534,9 @@ export type SessionCommand =
   | { type: 'setPendingPlanExecution'; planPath: string }
   | { type: 'markCompactionComplete' }
   | { type: 'clearPendingPlanExecution' }
+  // Normies: Project/task lifecycle
+  | { type: 'setCompletionSummary'; summary: string }
+  | { type: 'setProjectId'; projectId: string; diagramPath?: string }
 
 /**
  * Parameters for opening a new chat session
@@ -516,6 +561,9 @@ export const IPC_CHANNELS = {
   GET_TASK_OUTPUT: 'tasks:getOutput',
   RESPOND_TO_PERMISSION: 'sessions:respondToPermission',
   RESPOND_TO_CREDENTIAL: 'sessions:respondToCredential',
+
+  // Thread session creation (Normies)
+  CREATE_THREAD_SESSION: 'sessions:createThread',
 
   // Consolidated session command
   SESSION_COMMAND: 'sessions:command',
@@ -596,7 +644,8 @@ export const IPC_CHANNELS = {
   MENU_KEYBOARD_SHORTCUTS: 'menu:keyboardShortcuts',
   MENU_TOGGLE_FOCUS_MODE: 'menu:toggleFocusMode',
   MENU_TOGGLE_SIDEBAR: 'menu:toggleSidebar',
-  // Deep link navigation (main → renderer, for external craftagents:// URLs)
+  MENU_TOGGLE_SESSION_LIST: 'menu:toggleSessionList',
+  // Deep link navigation (main → renderer, for external normies:// URLs)
   DEEP_LINK_NAVIGATE: 'deeplink:navigate',
 
   // Auth
@@ -763,7 +812,7 @@ export const IPC_CHANNELS = {
 } as const
 
 // Re-import types for ElectronAPI
-import type { Workspace, SessionMetadata, StoredAttachment as StoredAttachmentType } from '@craft-agent/core/types';
+import type { Workspace, SessionMetadata, StoredAttachment as StoredAttachmentType } from '@normies/core/types';
 
 /** Tool icon mapping entry from tool-icons.json (with icon resolved to data URL) */
 export interface ToolIconMapping {
@@ -787,6 +836,9 @@ export interface ElectronAPI {
   getTaskOutput(taskId: string): Promise<string | null>
   respondToPermission(sessionId: string, requestId: string, allowed: boolean, alwaysAllow: boolean): Promise<boolean>
   respondToCredential(sessionId: string, requestId: string, response: CredentialResponse): Promise<boolean>
+
+  // Thread session creation (Normies) — creates hidden session with parent context
+  createThreadSession(workspaceId: string, parentSessionId: string, messageId: string, model?: string): Promise<{ session: Session; threadContext: string }>
 
   // Consolidated session command handler
   sessionCommand(sessionId: string, command: SessionCommand): Promise<void | ShareResult | RefreshTitleResult>
@@ -860,8 +912,9 @@ export interface ElectronAPI {
   onMenuKeyboardShortcuts(callback: () => void): () => void
   onMenuToggleFocusMode(callback: () => void): () => void
   onMenuToggleSidebar(callback: () => void): () => void
+  onMenuToggleSessionList(callback: () => void): () => void
 
-  // Deep link navigation listener (for external craftagents:// URLs)
+  // Deep link navigation listener (for external normies:// URLs)
   onDeepLinkNavigate(callback: (nav: DeepLinkNavigation) => void): () => void
 
   // Auth
@@ -930,9 +983,9 @@ export interface ElectronAPI {
   deleteSource(workspaceId: string, sourceSlug: string): Promise<void>
   startSourceOAuth(workspaceId: string, sourceSlug: string): Promise<{ success: boolean; error?: string; accessToken?: string }>
   saveSourceCredentials(workspaceId: string, sourceSlug: string, credential: string): Promise<void>
-  getSourcePermissionsConfig(workspaceId: string, sourceSlug: string): Promise<import('@craft-agent/shared/agent').PermissionsConfigFile | null>
-  getWorkspacePermissionsConfig(workspaceId: string): Promise<import('@craft-agent/shared/agent').PermissionsConfigFile | null>
-  getDefaultPermissionsConfig(): Promise<{ config: import('@craft-agent/shared/agent').PermissionsConfigFile | null; path: string }>
+  getSourcePermissionsConfig(workspaceId: string, sourceSlug: string): Promise<import('@normies/shared/agent').PermissionsConfigFile | null>
+  getWorkspacePermissionsConfig(workspaceId: string): Promise<import('@normies/shared/agent').PermissionsConfigFile | null>
+  getDefaultPermissionsConfig(): Promise<{ config: import('@normies/shared/agent').PermissionsConfigFile | null; path: string }>
   getMcpTools(workspaceId: string, sourceSlug: string): Promise<McpToolsResult>
 
   // Session content search (full-text search via ripgrep)
@@ -955,21 +1008,21 @@ export interface ElectronAPI {
   onSkillsChanged(callback: (skills: LoadedSkill[]) => void): () => void
 
   // Statuses (workspace-scoped)
-  listStatuses(workspaceId: string): Promise<import('@craft-agent/shared/statuses').StatusConfig[]>
+  listStatuses(workspaceId: string): Promise<import('@normies/shared/statuses').StatusConfig[]>
   reorderStatuses(workspaceId: string, orderedIds: string[]): Promise<void>
   // Statuses change listener (live updates when statuses config or icon files change)
   onStatusesChanged(callback: (workspaceId: string) => void): () => void
 
   // Labels (workspace-scoped)
-  listLabels(workspaceId: string): Promise<import('@craft-agent/shared/labels').LabelConfig[]>
-  createLabel(workspaceId: string, input: import('@craft-agent/shared/labels').CreateLabelInput): Promise<import('@craft-agent/shared/labels').LabelConfig>
+  listLabels(workspaceId: string): Promise<import('@normies/shared/labels').LabelConfig[]>
+  createLabel(workspaceId: string, input: import('@normies/shared/labels').CreateLabelInput): Promise<import('@normies/shared/labels').LabelConfig>
   deleteLabel(workspaceId: string, labelId: string): Promise<{ stripped: number }>
   // Labels change listener (live updates when labels config changes)
   onLabelsChanged(callback: (workspaceId: string) => void): () => void
 
   // Views (workspace-scoped, stored in views.json)
-  listViews(workspaceId: string): Promise<import('@craft-agent/shared/views').ViewConfig[]>
-  saveViews(workspaceId: string, views: import('@craft-agent/shared/views').ViewConfig[]): Promise<void>
+  listViews(workspaceId: string): Promise<import('@normies/shared/views').ViewConfig[]>
+  saveViews(workspaceId: string, views: import('@normies/shared/views').ViewConfig[]): Promise<void>
 
   // Generic workspace image loading/saving (returns data URL for images, raw string for SVG)
   readWorkspaceImage(workspaceId: string, relativePath: string): Promise<string>
@@ -1144,6 +1197,7 @@ export type ChatFilter =
   | { kind: 'state'; stateId: string }
   | { kind: 'label'; labelId: string }
   | { kind: 'view'; viewId: string }
+  | { kind: 'project'; projectId: string }
 
 /**
  * Settings subpage options

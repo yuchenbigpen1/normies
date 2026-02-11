@@ -15,6 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 
 import {
   SettingsSection,
@@ -80,7 +81,7 @@ export default function InputSettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="Input" actions={<HeaderMenu route={routes.view.settings('input')} />} />
+      <PanelHeader title="Input" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('input')} />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto">

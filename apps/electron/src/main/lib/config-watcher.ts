@@ -19,39 +19,39 @@ import { watch, existsSync, readdirSync, statSync, readFileSync, mkdirSync } fro
 import { join, dirname, basename, relative } from 'path';
 import { homedir } from 'os';
 import type { FSWatcher } from 'fs';
-import { debug, perf } from '@craft-agent/shared/utils';
-import { loadStoredConfig, type StoredConfig } from '@craft-agent/shared/config';
+import { debug, perf } from '@normies/shared/utils';
+import { loadStoredConfig, type StoredConfig, CONFIG_DIR } from '@normies/shared/config';
 import {
   validateConfig,
   validatePreferences,
   validateSource,
   type ValidationResult,
-} from '@craft-agent/shared/config';
-import type { LoadedSource, SourceGuide } from '@craft-agent/shared/sources';
+} from '@normies/shared/config';
+import type { LoadedSource, SourceGuide } from '@normies/shared/sources';
 import {
   loadSource,
   loadWorkspaceSources,
   loadSourceGuide,
   sourceNeedsIconDownload,
   downloadSourceIcon,
-} from '@craft-agent/shared/sources';
-import { permissionsConfigCache, getAppPermissionsDir } from '@craft-agent/shared/agent';
-import { getWorkspacePath, getWorkspaceSourcesPath, getWorkspaceSkillsPath } from '@craft-agent/shared/workspaces';
-import type { LoadedSkill } from '@craft-agent/shared/skills';
-import { loadSkill, loadWorkspaceSkills, skillNeedsIconDownload, downloadSkillIcon } from '@craft-agent/shared/skills';
+} from '@normies/shared/sources';
+import { permissionsConfigCache, getAppPermissionsDir } from '@normies/shared/agent';
+import { getWorkspacePath, getWorkspaceSourcesPath, getWorkspaceSkillsPath } from '@normies/shared/workspaces';
+import type { LoadedSkill } from '@normies/shared/skills';
+import { loadSkill, loadWorkspaceSkills, skillNeedsIconDownload, downloadSkillIcon } from '@normies/shared/skills';
 import {
   loadStatusConfig,
   statusNeedsIconDownload,
   downloadStatusIcon,
-} from '@craft-agent/shared/statuses';
-import { loadAppTheme, loadPresetThemes, loadPresetTheme, getAppThemesDir } from '@craft-agent/shared/config';
-import type { ThemeOverrides, PresetTheme } from '@craft-agent/shared/config';
+} from '@normies/shared/statuses';
+import { loadAppTheme, loadPresetThemes, loadPresetTheme, getAppThemesDir } from '@normies/shared/config';
+import type { ThemeOverrides, PresetTheme } from '@normies/shared/config';
 
 // ============================================================
 // Constants
 // ============================================================
 
-const CONFIG_DIR = join(homedir(), '.craft-agent');
+// CONFIG_DIR imported from @normies/shared/config
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const PREFERENCES_FILE = join(CONFIG_DIR, 'preferences.json');
 

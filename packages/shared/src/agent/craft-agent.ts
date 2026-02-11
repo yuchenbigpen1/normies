@@ -67,7 +67,7 @@ export {
 // Documentation is served via local files at ~/.craft-agent/docs/
 
 // Import and re-export AgentEvent from core (single source of truth)
-import type { AgentEvent } from '@craft-agent/core/types';
+import type { AgentEvent } from '@normies/core/types';
 export type { AgentEvent };
 
 // Stateless tool matching — pure functions for SDK message → AgentEvent conversion
@@ -442,6 +442,12 @@ export class CraftAgent {
   // 5. Agent resumes and processes the result
   public onAuthRequest: ((request: AuthRequest) => void) | null = null;
 
+  // Callback when CreateProjectTasks tool is invoked (Normies)
+  public onCreateProjectSessions: ((data: import('./tools/create-project-tasks.ts').CreateProjectSessionsData) => Promise<string[]>) | null = null;
+
+  // Callback when setCompletionSummary tool is invoked (Normies task-execution sessions)
+  public onSetCompletionSummary: ((summary: string) => Promise<void>) | null = null;
+
   // Callback when a source config changes (hot-reload from file watcher)
   public onSourceChange: ((slug: string, source: LoadedSource | null) => void) | null = null;
 
@@ -499,6 +505,20 @@ export class CraftAgent {
       onAuthRequest: (request) => {
         this.onDebug?.(`[CraftAgent] onAuthRequest received: ${request.sourceSlug} (type: ${request.type})`);
         this.onAuthRequest?.(request);
+      },
+      onCreateProjectSessions: async (data) => {
+        this.onDebug?.(`[CraftAgent] onCreateProjectSessions received: ${data.projectName} (${data.tasks.length} tasks)`);
+        if (this.onCreateProjectSessions) {
+          return this.onCreateProjectSessions(data);
+        }
+        throw new Error('onCreateProjectSessions callback not registered');
+      },
+      onSetCompletionSummary: async (summary) => {
+        this.onDebug?.(`[CraftAgent] onSetCompletionSummary received: ${summary.substring(0, 80)}`);
+        if (this.onSetCompletionSummary) {
+          return this.onSetCompletionSummary(summary);
+        }
+        throw new Error('onSetCompletionSummary callback not registered');
       },
     });
 
@@ -827,7 +847,7 @@ export class CraftAgent {
       const mcpServers: Options['mcpServers'] = isMiniAgent
         ? {
             // Mini agents need session tools (config_validate) and docs for reference
-            session: getSessionScopedTools(sessionId, this.workspaceRootPath),
+            session: getSessionScopedTools(sessionId, this.workspaceRootPath, this.config.systemPromptPreset),
             'craft-agents-docs': {
               type: 'http',
               url: 'https://agents.craft.do/docs/mcp',
@@ -836,8 +856,8 @@ export class CraftAgent {
         : {
             preferences: getPreferencesServer(false),
             // Session-scoped tools (SubmitPlan, source_test, etc.)
-            session: getSessionScopedTools(sessionId, this.workspaceRootPath),
-            // Craft Agents documentation - always available for searching setup guides
+            session: getSessionScopedTools(sessionId, this.workspaceRootPath, this.config.systemPromptPreset),
+            // Normies documentation - always available for searching setup guides
             // This is a public Mintlify MCP server, no auth needed
             'craft-agents-docs': {
               type: 'http',
@@ -1311,12 +1331,17 @@ export class CraftAgent {
                   return { continue: true };
                 }
 
+                // Generate user-friendly description for file operations
+                const fileName = filePath.split('/').pop() || filePath;
+                const actionVerb = input.tool_name === 'Write' ? 'Create or update' : 'Edit';
+                const friendlyDesc = `${actionVerb} file: ${fileName}`;
+
                 const result = await requestPermission(
                   input.tool_use_id,
                   input.tool_name,
                   filePath,
                   input.tool_name,
-                  `${input.tool_name}: ${filePath}`
+                  friendlyDesc
                 );
 
                 if (!result.allowed) {
@@ -1349,12 +1374,18 @@ export class CraftAgent {
                     return { continue: true };
                   }
 
+                  // Extract the tool action name for a friendlier description
+                  const toolParts = serverAndTool.split('/');
+                  const serviceName = toolParts[0] || 'service';
+                  const actionName = toolParts.slice(1).join('/') || 'action';
+                  const friendlyMcpDesc = `Use ${serviceName} to ${actionName.replace(/_/g, ' ')}`;
+
                   const result = await requestPermission(
                     input.tool_use_id,
                     'MCP Tool',
                     serverAndTool,
                     input.tool_name,
-                    `MCP: ${serverAndTool}`
+                    friendlyMcpDesc
                   );
 
                   if (!result.allowed) {
@@ -1389,12 +1420,17 @@ export class CraftAgent {
                     return { continue: true };
                   }
 
+                  // Generate friendlier API description
+                  const methodVerbs: Record<string, string> = { POST: 'Create', PUT: 'Update', PATCH: 'Update', DELETE: 'Delete' };
+                  const verb = methodVerbs[method] || method;
+                  const friendlyApiDesc = `${verb} via API: ${path || 'endpoint'}`;
+
                   const result = await requestPermission(
                     input.tool_use_id,
                     'API Call',
                     apiDescription,
                     apiDescription,
-                    `API: ${apiDescription}`
+                    friendlyApiDesc
                   );
 
                   if (!result.allowed) {
@@ -1453,12 +1489,17 @@ export class CraftAgent {
                   });
                 });
 
+                // Use the agent-provided description if available, otherwise fall back to the command
+                const toolInput = input.tool_input as Record<string, unknown>;
+                const agentDescription = toolInput?.description as string | undefined;
+                const bashDescription = agentDescription || `Run command: ${baseCommand}`;
+
                 if (this.onPermissionRequest) {
                   this.onPermissionRequest({
                     requestId,
                     toolName: input.tool_name,
                     command: commandStr,
-                    description: `Execute: ${commandStr}`,
+                    description: bashDescription,
                   });
                 } else {
                   this.pendingPermissions.delete(requestId);
@@ -2518,6 +2559,20 @@ Please continue the conversation naturally from where we left off.
         canRetry: true,
         retryDelayMs: 1000,
       },
+      'max_output_tokens': {
+        code: 'invalid_request',
+        title: 'Response Too Long',
+        message: 'The model hit its output limit before finishing.',
+        details: [
+          'Try a shorter prompt or ask for a brief answer',
+          'Break the request into smaller steps',
+        ],
+        actions: [
+          { key: 'r', label: 'Retry', action: 'retry' },
+        ],
+        canRetry: true,
+        retryDelayMs: 1000,
+      },
       'server_error': {
         code: 'network_error',
         title: 'Connection Error',
@@ -3247,6 +3302,8 @@ Please continue the conversation naturally from where we left off.
     this.onDebug = null;
     this.onPlanSubmitted = null;
     this.onAuthRequest = null;
+    this.onCreateProjectSessions = null;
+    this.onSetCompletionSummary = null;
     this.onSourceChange = null;
     this.onSourcesListChange = null;
     this.onConfigValidationError = null;

@@ -20,8 +20,8 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
-import { isEmoji } from '@craft-agent/shared/utils/icon-constants'
-import type { ResolvedEntityIcon } from '@craft-agent/shared/icons'
+import { isEmoji } from '@normies/shared/utils/icon-constants'
+import type { ResolvedEntityIcon } from '@normies/shared/icons'
 
 // ============================================================================
 // Types
@@ -685,8 +685,9 @@ function sanitizeSvgForInline(svg: string): string {
     .replace(/on\w+="[^"]*"/gi, '')
     .replace(/on\w+='[^']*'/gi, '')
     .replace(/javascript:/gi, '')
-    .replace(/\s+width="[^"]*"/gi, '')
-    .replace(/\s+height="[^"]*"/gi, '')
+    // Only strip width/height from the root <svg> tag, not child elements like <rect>
+    .replace(/(<svg\b[^>]*?)\s+width="[^"]*"/i, '$1')
+    .replace(/(<svg\b[^>]*?)\s+height="[^"]*"/i, '$1')
 }
 
 /**

@@ -14,7 +14,7 @@ interface TopBarButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
  * TopBarButton - Consistent button style for the app's top bar
  *
  * Fixed size 28x28px with centered content, rounded corners, and hover effects.
- * Used for: Craft logo, back/forward navigation, sidebar toggle, etc.
+ * Used for: Normies logo, back/forward navigation, sidebar toggle, etc.
  */
 export const TopBarButton = React.forwardRef<HTMLButtonElement, TopBarButtonProps>(
   ({ children, isActive, className, disabled, ...props }, ref) => {
@@ -25,7 +25,7 @@ export const TopBarButton = React.forwardRef<HTMLButtonElement, TopBarButtonProp
         disabled={disabled}
         className={cn(
           "h-7 w-7 flex items-center justify-center rounded-[6px]",
-          "hover:bg-foreground/5 focus:outline-none focus-visible:ring-0",
+          "hover:bg-foreground/5 hover:backdrop-blur-[4px] focus:outline-none focus-visible:ring-0",
           "disabled:opacity-30 disabled:pointer-events-none",
           "transition-colors duration-100",
           isActive && "bg-foreground/5",

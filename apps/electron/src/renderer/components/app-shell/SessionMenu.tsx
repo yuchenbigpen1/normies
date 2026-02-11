@@ -23,8 +23,8 @@ import * as React from 'react'
 import {
   Trash2,
   Pencil,
-  Flag,
-  FlagOff,
+  Star,
+  StarOff,
   MailOpen,
   FolderOpen,
   Copy,
@@ -40,8 +40,8 @@ import { toast } from 'sonner'
 import { useMenuComponents, type MenuComponents } from '@/components/ui/menu-context'
 import { getStateColor, getStateIcon, type TodoStateId } from '@/config/todo-states'
 import type { TodoState } from '@/config/todo-states'
-import type { LabelConfig } from '@craft-agent/shared/labels'
-import { extractLabelId } from '@craft-agent/shared/labels'
+import type { LabelConfig } from '@normies/shared/labels'
+import { extractLabelId } from '@normies/shared/labels'
 import { LabelIcon } from '@/components/ui/label-icon'
 
 export interface SessionMenuProps {
@@ -67,6 +67,8 @@ export interface SessionMenuProps {
   labels?: LabelConfig[]
   /** Callback when labels are toggled (receives full updated labels array) */
   onLabelsChange?: (labels: string[]) => void
+  /** Whether this is a task item in a project view (simplified menu) */
+  isProjectView?: boolean
   /** Callbacks */
   onRename: () => void
   onFlag: () => void
@@ -93,6 +95,7 @@ export function SessionMenu({
   sessionLabels = [],
   labels = [],
   onLabelsChange,
+  isProjectView,
   onRename,
   onFlag,
   onUnflag,
@@ -191,6 +194,33 @@ export function SessionMenu({
   // Get menu components from context (works with both DropdownMenu and ContextMenu)
   const { MenuItem, Separator, Sub, SubTrigger, SubContent } = useMenuComponents()
 
+  // Simplified menu for task items in project view
+  if (isProjectView) {
+    return (
+      <>
+        {/* Rename */}
+        <MenuItem onClick={onRename}>
+          <Pencil className="h-3.5 w-3.5" />
+          <span className="flex-1">Rename</span>
+        </MenuItem>
+
+        {/* Regenerate Title */}
+        <MenuItem onClick={handleRefreshTitle}>
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span className="flex-1">Regenerate Name</span>
+        </MenuItem>
+
+        <Separator />
+
+        {/* Delete */}
+        <MenuItem onClick={onDelete} variant="destructive">
+          <Trash2 className="h-3.5 w-3.5" />
+          <span className="flex-1">Delete</span>
+        </MenuItem>
+      </>
+    )
+  }
+
   return (
     <>
       {/* Share/Shared based on shared state */}
@@ -288,16 +318,16 @@ export function SessionMenu({
         </Sub>
       )}
 
-      {/* Flag/Unflag */}
+      {/* Star/Unstar */}
       {!isFlagged ? (
         <MenuItem onClick={onFlag}>
-          <Flag className="h-3.5 w-3.5 text-info" />
-          <span className="flex-1">Flag</span>
+          <Star className="h-3.5 w-3.5 text-info" />
+          <span className="flex-1">Star</span>
         </MenuItem>
       ) : (
         <MenuItem onClick={onUnflag}>
-          <FlagOff className="h-3.5 w-3.5" />
-          <span className="flex-1">Unflag</span>
+          <StarOff className="h-3.5 w-3.5" />
+          <span className="flex-1">Unstar</span>
         </MenuItem>
       )}
 

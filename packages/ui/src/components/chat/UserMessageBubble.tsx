@@ -12,8 +12,8 @@
  */
 
 import type { ReactNode } from 'react'
-import type { StoredAttachment, ContentBadge } from '@craft-agent/core'
-import { normalizePath } from '@craft-agent/core/utils'
+import type { StoredAttachment, ContentBadge } from '@normies/core'
+import { normalizePath } from '@normies/core/utils'
 import { cn } from '../../lib/utils'
 import { Markdown } from '../markdown'
 import { FileTypeIcon, getFileTypeLabel } from './attachment-helpers'

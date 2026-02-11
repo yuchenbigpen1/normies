@@ -28,7 +28,7 @@ export const MODELS: ModelDefinition[] = [
 // ============================================
 
 /** Default model for main chat (user-facing) */
-export const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+export const DEFAULT_MODEL = 'claude-opus-4-6';
 
 /** Model for API response summarization (cost efficient) */
 export const SUMMARIZATION_MODEL = 'claude-haiku-4-5-20251001';

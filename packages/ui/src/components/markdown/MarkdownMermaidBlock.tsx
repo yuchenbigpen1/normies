@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { renderMermaid } from '@craft-agent/mermaid'
+import { renderMermaid } from '@normies/mermaid'
 import { Maximize2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { CodeBlock } from './CodeBlock'
@@ -8,7 +8,7 @@ import { MermaidPreviewOverlay } from '../overlay/MermaidPreviewOverlay'
 // ============================================================================
 // MarkdownMermaidBlock — renders mermaid code fences as SVG diagrams.
 //
-// Uses @craft-agent/mermaid to parse flowchart text and produce an SVG string.
+// Uses @normies/mermaid to parse flowchart text and produce an SVG string.
 // Falls back to a plain code block if rendering fails (invalid syntax, etc).
 //
 // Theming: Colors are passed as CSS variable references (var(--background),
@@ -41,6 +41,13 @@ function parseSvgDimensions(svgString: string): { width: number; height: number 
   return { width: parseFloat(widthMatch[1]), height: parseFloat(heightMatch[1]) }
 }
 
+/** Project context for clickable Mermaid nodes (Normies) */
+export interface MermaidProjectContext {
+  projectId: string
+  /** Maps taskIndex to sessionId */
+  taskSessionMap: Record<number, string>
+}
+
 interface MarkdownMermaidBlockProps {
   code: string
   className?: string
@@ -48,9 +55,13 @@ interface MarkdownMermaidBlockProps {
    *  Set to false when the mermaid block is the first block in a message,
    *  where the TurnCard's own fullscreen button already occupies the same position. */
   showExpandButton?: boolean
+  /** Project context for making diagram nodes clickable (Normies) */
+  projectContext?: MermaidProjectContext
+  /** Callback when a task node is clicked (Normies) */
+  onNodeClick?: (taskIndex: number) => void
 }
 
-export function MarkdownMermaidBlock({ code, className, showExpandButton = true }: MarkdownMermaidBlockProps) {
+export function MarkdownMermaidBlock({ code, className, showExpandButton = true, projectContext, onNodeClick }: MarkdownMermaidBlockProps) {
   const [svg, setSvg] = React.useState<string | null>(null)
   const [error, setError] = React.useState<Error | null>(null)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
@@ -91,6 +102,42 @@ export function MarkdownMermaidBlock({ code, className, showExpandButton = true 
 
     return () => { cancelled = true }
   }, [code])
+
+  // Make task nodes clickable when projectContext is provided (Normies)
+  const svgContainerRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    if (!svg || !projectContext || !onNodeClick) return
+    const container = svgContainerRef.current
+    if (!container) return
+
+    // Find all SVG nodes with IDs matching "task{N}" or data-id="task{N}"
+    const nodes = container.querySelectorAll('[id^="flowchart-task"], [id^="task"]')
+    const handlers: Array<{ el: Element; handler: (e: Event) => void }> = []
+
+    nodes.forEach(node => {
+      // Extract task index from node ID (e.g., "flowchart-task0-123" → 0, or "task0" → 0)
+      const idMatch = node.id.match(/task(\d+)/)
+      if (!idMatch) return
+      const taskIndex = parseInt(idMatch[1], 10)
+      if (!(taskIndex in projectContext.taskSessionMap)) return
+
+      // Style as clickable
+      const el = node as HTMLElement
+      el.style.cursor = 'pointer'
+
+      const handler = (e: Event) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onNodeClick(taskIndex)
+      }
+      el.addEventListener('click', handler)
+      handlers.push({ el, handler })
+    })
+
+    return () => {
+      handlers.forEach(({ el, handler }) => el.removeEventListener('click', handler))
+    }
+  }, [svg, projectContext, onNodeClick])
 
   // Track horizontal scroll state for fade indicators.
   // Updates on scroll events and container resize.
@@ -257,6 +304,7 @@ export function MarkdownMermaidBlock({ code, className, showExpandButton = true 
             {/* SVG container — CSS transform scales the SVG visually.
                 transform-origin: top left ensures scaling expands down and right. */}
             <div
+              ref={svgContainerRef}
               dangerouslySetInnerHTML={{ __html: svg }}
               style={{
                 transformOrigin: 'top left',

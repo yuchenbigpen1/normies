@@ -1,14 +1,14 @@
 {
-  "name": "@craft-agent/electron",
+  "name": "@normies/electron",
   "version": "0.3.5",
-  "description": "Electron desktop app for Craft Agents",
+  "description": "Electron desktop app for Normies",
   "main": "dist/main.cjs",
   "private": true,
   "author": {
-    "name": "Craft Docs Ltd.",
-    "email": "support@craft.do"
+    "name": "Normies",
+    "email": "support@normies.ai"
   },
-  "homepage": "https://agents.craft.do",
+  "homepage": "https://github.com/yuchenzhang/normies",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -33,9 +33,9 @@
     "lint:fix": "eslint src/ --fix"
   },
   "dependencies": {
-    "@craft-agent/core": "workspace:*",
-    "@craft-agent/shared": "workspace:*",
-    "@craft-agent/ui": "workspace:*",
+    "@normies/core": "workspace:*",
+    "@normies/shared": "workspace:*",
+    "@normies/ui": "workspace:*",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

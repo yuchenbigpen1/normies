@@ -58,13 +58,14 @@ export interface ParsedCompoundRoute {
  * Known prefixes that indicate a compound route
  */
 const COMPOUND_ROUTE_PREFIXES = [
-  'allChats', 'flagged', 'state', 'label', 'view', 'sources', 'skills', 'settings'
+  'allChats', 'flagged', 'state', 'label', 'view', 'project', 'sources', 'skills', 'settings'
 ]
 
 /**
  * Check if a route is a compound route (new format)
  */
 export function isCompoundRoute(route: string): boolean {
+  if (!route || typeof route !== 'string') return false
   const firstSegment = route.split('/')[0]
   return COMPOUND_ROUTE_PREFIXES.includes(firstSegment)
 }
@@ -185,6 +186,11 @@ export function parseCompoundRoute(route: string): ParsedCompoundRoute | null {
       chatFilter = { kind: 'view', viewId: decodeURIComponent(segments[1]) }
       detailsStartIndex = 2
       break
+    case 'project':
+      if (!segments[1]) return null
+      chatFilter = { kind: 'project', projectId: segments[1] }
+      detailsStartIndex = 2
+      break
     default:
       return null
   }
@@ -253,6 +259,9 @@ export function buildCompoundRoute(parsed: ParsedCompoundRoute): string {
       break
     case 'view':
       base = `view/${encodeURIComponent(filter.viewId)}`
+      break
+    case 'project':
+      base = `project/${filter.projectId}`
       break
     default:
       base = 'allChats'
@@ -358,13 +367,14 @@ function convertCompoundToViewRoute(compound: ParsedCompoundRoute): ParsedRoute 
           ...(filter.kind === 'state' ? { stateId: filter.stateId } : {}),
           ...(filter.kind === 'label' ? { labelId: filter.labelId } : {}),
           ...(filter.kind === 'view' ? { viewId: filter.viewId } : {}),
+          ...(filter.kind === 'project' ? { projectId: filter.projectId } : {}),
         },
       }
     }
     return {
       type: 'view',
       name: filter.kind,
-      id: filter.kind === 'state' ? filter.stateId : (filter.kind === 'label' ? filter.labelId : (filter.kind === 'view' ? filter.viewId : undefined)),
+      id: filter.kind === 'state' ? filter.stateId : (filter.kind === 'label' ? filter.labelId : (filter.kind === 'view' ? filter.viewId : (filter.kind === 'project' ? filter.projectId : undefined))),
       params: {},
     }
   }
@@ -636,6 +646,12 @@ export function buildRouteFromNavigationState(state: NavigationState): string {
       break
     case 'view':
       base = `view/${encodeURIComponent(filter.viewId)}`
+      break
+    case 'project':
+      base = `project/${filter.projectId}`
+      break
+    default:
+      base = 'allChats'
       break
   }
 

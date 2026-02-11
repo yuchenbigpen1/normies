@@ -169,6 +169,16 @@ export const VIEW_MENU: MenuSection = {
       ipcChannel: IPC_CHANNELS.MENU_TOGGLE_SIDEBAR,
       icon: 'PanelLeft',
     },
+    {
+      type: 'action',
+      id: 'toggleSessionList',
+      label: 'Toggle Task List',
+      shortcut: 'CmdOrCtrl+E',
+      shortcutDisplayMac: '⌘E',
+      shortcutDisplayOther: 'Ctrl+E',
+      ipcChannel: IPC_CHANNELS.MENU_TOGGLE_SESSION_LIST,
+      icon: 'PanelLeftClose',
+    },
   ],
 }
 

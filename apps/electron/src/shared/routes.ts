@@ -144,6 +144,12 @@ export const routes = {
         ? `sources/local/source/${sourceSlug}` as const
         : 'sources/local' as const,
 
+    /** Project view (chats navigator, project filter) — shows task list for a project (Normies) */
+    project: (projectId: string, sessionId?: string) =>
+      sessionId
+        ? `project/${projectId}/chat/${sessionId}` as const
+        : `project/${projectId}` as const,
+
     /** Skills view (skills navigator). Pass a slug string for a local skill detail view. */
     skills: (skillSlug?: string) => {
       if (!skillSlug) return 'skills' as const

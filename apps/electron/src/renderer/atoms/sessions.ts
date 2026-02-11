@@ -68,6 +68,24 @@ export interface SessionMeta {
   messageCount?: number
   /** When true, session is hidden from session list (e.g., mini edit sessions) */
   hidden?: boolean
+  // Project linking (Normies)
+  projectId?: string
+  taskIndex?: number
+  parentSessionId?: string
+  taskDependencies?: number[]
+  // Task metadata (Normies)
+  taskDescription?: string
+  taskTechnicalDetail?: string
+  taskFiles?: string[]
+  // Thread linking (Normies)
+  threadParentSessionId?: string
+  threadMessageId?: string
+  // Task completion (Normies)
+  completionSummary?: string
+  // Plan reference (Normies)
+  planPath?: string
+  // Architecture diagram (Normies)
+  diagramPath?: string
 }
 
 /**
@@ -122,6 +140,24 @@ export function extractSessionMeta(session: Session): SessionMeta {
     tokenUsage: session.tokenUsage,
     // Hidden sessions (e.g., mini edit sessions in EditPopover)
     hidden: session.hidden,
+    // Project linking (Normies)
+    projectId: session.projectId,
+    taskIndex: session.taskIndex,
+    parentSessionId: session.parentSessionId,
+    taskDependencies: session.taskDependencies,
+    // Task metadata (Normies)
+    taskDescription: session.taskDescription,
+    taskTechnicalDetail: session.taskTechnicalDetail,
+    taskFiles: session.taskFiles,
+    // Thread linking (Normies)
+    threadParentSessionId: session.threadParentSessionId,
+    threadMessageId: session.threadMessageId,
+    // Task completion (Normies)
+    completionSummary: session.completionSummary,
+    // Plan reference (Normies)
+    planPath: session.planPath,
+    // Architecture diagram (Normies)
+    diagramPath: session.diagramPath,
   }
 }
 
@@ -164,6 +200,9 @@ const sessionLoadingPromises = new Map<string, Promise<Session | null>>()
  * This replaces the tab-based session selection
  */
 export const activeSessionIdAtom = atom<string | null>(null)
+
+/** Route to return to after visiting the planning chat (set by SessionList, read by ChatPage) */
+export const planReturnRouteAtom = atom<string | null>(null)
 
 // NOTE: sessionsAtom REMOVED to fix memory leak
 // The sessions array with messages was being retained by Jotai's internal state.

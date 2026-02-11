@@ -14,7 +14,7 @@ import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { routes } from '@/lib/navigate'
-import { Spinner } from '@craft-agent/ui'
+import { Spinner } from '@normies/ui'
 import {
   SettingsSection,
   SettingsCard,
@@ -23,6 +23,7 @@ import {
 } from '@/components/settings'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 
 export const meta: DetailsPageMeta = {
   navigator: 'settings',
@@ -190,19 +191,19 @@ export default function PreferencesPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="Preferences" actions={<HeaderMenu route={routes.view.settings('preferences')} helpFeature="preferences" />} />
+      <PanelHeader title="Preferences" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('preferences')} helpFeature="preferences" />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto space-y-8">
           {/* Basic Info */}
           <SettingsSection
             title="Basic Info"
-            description="Help Craft Agent personalize responses to you."
+            description="Help Normies personalize responses to you."
           >
             <SettingsCard divided>
               <SettingsInput
                 label="Name"
-                description="How Craft Agent should address you."
+                description="How Normies should address you."
                 value={formState.name}
                 onChange={(v) => updateField('name', v)}
                 placeholder="Your name"
@@ -218,7 +219,7 @@ export default function PreferencesPage() {
               />
               <SettingsInput
                 label="Language"
-                description="Preferred language for Craft Agent's responses."
+                description="Preferred language for Normies's responses."
                 value={formState.language}
                 onChange={(v) => updateField('language', v)}
                 placeholder="e.g., English"
@@ -255,7 +256,7 @@ export default function PreferencesPage() {
           {/* Notes */}
           <SettingsSection
             title="Notes"
-            description="Free-form context that helps Craft Agent understand your preferences."
+            description="Free-form context that helps Normies understand your preferences."
             action={
               // EditPopover for AI-assisted notes editing with "Edit File" as secondary action
               preferencesPath ? (
@@ -274,7 +275,7 @@ export default function PreferencesPage() {
               <SettingsTextarea
                 value={formState.notes}
                 onChange={(v) => updateField('notes', v)}
-                placeholder="Any additional context you'd like Craft Agent to know..."
+                placeholder="Any additional context you'd like Normies to know..."
                 rows={5}
                 inCard
               />

@@ -79,6 +79,26 @@ export function readSessionJsonl(sessionFile: string): StoredSession | null {
       messages,
       tokenUsage: header.tokenUsage,
       hidden: header.hidden,
+      // Project linking (Normies)
+      projectId: header.projectId,
+      taskIndex: header.taskIndex,
+      parentSessionId: header.parentSessionId,
+      taskDependencies: header.taskDependencies,
+      // Task metadata (Normies)
+      taskDescription: header.taskDescription,
+      taskTechnicalDetail: header.taskTechnicalDetail,
+      taskFiles: header.taskFiles,
+      // Thread linking (Normies)
+      threadParentSessionId: header.threadParentSessionId,
+      threadMessageId: header.threadMessageId,
+      // Task completion (Normies)
+      completionSummary: header.completionSummary,
+      // Plan reference (Normies)
+      planPath: header.planPath,
+      // Architecture diagram (Normies)
+      diagramPath: header.diagramPath,
+      // System prompt preset (Normies)
+      systemPromptPreset: header.systemPromptPreset,
     };
   } catch (error) {
     debug('[jsonl] Failed to read session:', sessionFile, error);
@@ -144,6 +164,26 @@ export function createSessionHeader(session: StoredSession): SessionHeader {
     lastFinalMessageId: extractLastFinalMessageId(session.messages),
     // Hidden flag for mini-agent sessions (not shown in session list)
     hidden: session.hidden,
+    // Project linking (Normies)
+    projectId: session.projectId,
+    taskIndex: session.taskIndex,
+    parentSessionId: session.parentSessionId,
+    taskDependencies: session.taskDependencies,
+    // Task metadata (Normies)
+    taskDescription: session.taskDescription,
+    taskTechnicalDetail: session.taskTechnicalDetail,
+    taskFiles: session.taskFiles,
+    // Thread linking (Normies)
+    threadParentSessionId: session.threadParentSessionId,
+    threadMessageId: session.threadMessageId,
+    // Task completion (Normies)
+    completionSummary: session.completionSummary,
+    // Plan reference (Normies)
+    planPath: session.planPath,
+    // Architecture diagram (Normies)
+    diagramPath: session.diagramPath,
+    // System prompt preset (Normies)
+    systemPromptPreset: session.systemPromptPreset,
   };
 }
 

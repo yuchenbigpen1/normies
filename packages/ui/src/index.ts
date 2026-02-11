@@ -1,5 +1,5 @@
 /**
- * @craft-agent/ui - Shared React UI components for Craft Agent
+ * @normies/ui - Shared React UI components for Normies
  *
  * This package provides platform-agnostic UI components that work in both:
  * - Electron desktop app (full interactive mode)
@@ -151,6 +151,8 @@ export {
   DocumentFormattedMarkdownOverlay,
   ImagePreviewOverlay,
   PDFPreviewOverlay,
+  MermaidPreviewOverlay,
+  ThreadOverlay,
   detectLanguage,
   detectLanguageFromPath,
   type CodePreviewOverlayProps,
@@ -164,6 +166,9 @@ export {
   type DocumentFormattedMarkdownOverlayProps,
   type ImagePreviewOverlayProps,
   type PDFPreviewOverlayProps,
+  type MermaidPreviewOverlayProps,
+  type ThreadOverlayProps,
+  type ThreadMessage,
 } from './components/overlay'
 
 // File classification (for link interceptor)

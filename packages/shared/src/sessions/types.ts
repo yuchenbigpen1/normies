@@ -11,7 +11,7 @@
 
 import type { PermissionMode } from '../agent/mode-manager.ts';
 import type { ThinkingLevel } from '../agent/thinking-levels.ts';
-import type { StoredAttachment, MessageRole, ToolStatus, AuthRequestType, AuthStatus, CredentialInputMode, StoredMessage } from '@craft-agent/core/types';
+import type { StoredAttachment, MessageRole, ToolStatus, AuthRequestType, AuthStatus, CredentialInputMode, StoredMessage } from '@normies/core/types';
 
 /**
  * Todo state for sessions (user-controlled, never automatic)
@@ -45,9 +45,9 @@ export interface SessionTokenUsage {
 
 /**
  * Stored message format (simplified for persistence)
- * Re-exported from @craft-agent/core for convenience
+ * Re-exported from @normies/core for convenience
  */
-export type { StoredMessage } from '@craft-agent/core/types';
+export type { StoredMessage } from '@normies/core/types';
 
 /**
  * Session configuration (persisted metadata)
@@ -108,6 +108,26 @@ export interface SessionConfig {
   };
   /** When true, session is hidden from session list (e.g., mini edit sessions) */
   hidden?: boolean;
+  // Project linking (Normies)
+  projectId?: string;
+  taskIndex?: number;
+  parentSessionId?: string;
+  taskDependencies?: number[];
+  // Task metadata (Normies)
+  taskDescription?: string;
+  taskTechnicalDetail?: string;
+  taskFiles?: string[];
+  // Thread linking (Normies)
+  threadParentSessionId?: string;
+  threadMessageId?: string;
+  // Task completion (Normies)
+  completionSummary?: string;
+  // Plan reference (Normies)
+  planPath?: string;
+  // Architecture diagram (Normies)
+  diagramPath?: string;
+  // System prompt preset (Normies) — persisted so renderer can detect task sessions
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread';
 }
 
 /**
@@ -190,6 +210,26 @@ export interface SessionHeader {
   tokenUsage: SessionTokenUsage;
   /** ID of the last final (non-intermediate) assistant message - for unread detection without loading messages */
   lastFinalMessageId?: string;
+  // Project linking (Normies)
+  projectId?: string;
+  taskIndex?: number;
+  parentSessionId?: string;
+  taskDependencies?: number[];
+  // Task metadata (Normies)
+  taskDescription?: string;
+  taskTechnicalDetail?: string;
+  taskFiles?: string[];
+  // Thread linking (Normies)
+  threadParentSessionId?: string;
+  threadMessageId?: string;
+  // Task completion (Normies)
+  completionSummary?: string;
+  // Plan reference (Normies)
+  planPath?: string;
+  // Architecture diagram (Normies)
+  diagramPath?: string;
+  // System prompt preset (Normies) — persisted so renderer can detect task sessions
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread';
 }
 
 /**
@@ -245,4 +285,24 @@ export interface SessionMetadata {
   tokenUsage?: SessionTokenUsage;
   /** When true, session is hidden from session list (e.g., mini edit sessions) */
   hidden?: boolean;
+  // Project linking (Normies)
+  projectId?: string;
+  taskIndex?: number;
+  parentSessionId?: string;
+  taskDependencies?: number[];
+  // Task metadata (Normies)
+  taskDescription?: string;
+  taskTechnicalDetail?: string;
+  taskFiles?: string[];
+  // Thread linking (Normies)
+  threadParentSessionId?: string;
+  threadMessageId?: string;
+  // Task completion (Normies)
+  completionSummary?: string;
+  // Plan reference (Normies)
+  planPath?: string;
+  // Architecture diagram (Normies)
+  diagramPath?: string;
+  // System prompt preset (Normies) — persisted so renderer can detect task sessions
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread';
 }

@@ -12,8 +12,8 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { LabelIcon, LabelValueTypeIcon } from './label-icon'
-import { formatDisplayValue } from '@craft-agent/shared/labels'
-import type { LabelConfig } from '@craft-agent/shared/labels'
+import { formatDisplayValue } from '@normies/shared/labels'
+import type { LabelConfig } from '@normies/shared/labels'
 
 export interface LabelBadgeProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Label configuration (for color, name, valueType) */

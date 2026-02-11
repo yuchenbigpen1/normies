@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-`@craft-agent/shared` is the core business logic package for Craft Agent. It contains:
+`@normies/shared` is the core business logic package for Craft Agent. It contains:
 - Agent implementation (CraftAgent, session-scoped tools, permission modes)
 - Authentication (OAuth, credentials, auth state)
 - Configuration (storage, preferences, themes, watcher)
@@ -20,14 +20,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This package uses subpath exports for clean imports:
 
 ```typescript
-import { CraftAgent, getPermissionMode, setPermissionMode } from '@craft-agent/shared/agent';
-import { loadStoredConfig, type Workspace } from '@craft-agent/shared/config';
-import { getCredentialManager } from '@craft-agent/shared/credentials';
-import { CraftMcpClient } from '@craft-agent/shared/mcp';
-import { loadWorkspaceSources, type LoadedSource } from '@craft-agent/shared/sources';
-import { loadStatusConfig, createStatus } from '@craft-agent/shared/statuses';
-import { resolveTheme } from '@craft-agent/shared/config/theme';
-import { debug } from '@craft-agent/shared/utils';
+import { CraftAgent, getPermissionMode, setPermissionMode } from '@normies/shared/agent';
+import { loadStoredConfig, type Workspace } from '@normies/shared/config';
+import { getCredentialManager } from '@normies/shared/credentials';
+import { CraftMcpClient } from '@normies/shared/mcp';
+import { loadWorkspaceSources, type LoadedSource } from '@normies/shared/sources';
+import { loadStatusConfig, createStatus } from '@normies/shared/statuses';
+import { resolveTheme } from '@normies/shared/config/theme';
+import { debug } from '@normies/shared/utils';
 ```
 
 ## Directory Structure
@@ -144,7 +144,7 @@ Sources are external data connections (MCP servers, APIs, local filesystems). St
 
 ## Dependencies
 
-- `@craft-agent/core` - Shared types
+- `@normies/core` - Shared types
 - `@anthropic-ai/claude-agent-sdk` - Claude Agent SDK
 
 ## Type Checking

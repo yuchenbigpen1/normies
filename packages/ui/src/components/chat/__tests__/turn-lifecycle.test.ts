@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'bun:test'
 import { deriveTurnPhase, groupMessagesByTurn, type AssistantTurn } from '../turn-utils'
-import type { Message } from '@craft-agent/core'
+import type { Message } from '@normies/core'
 
 // ============================================================================
 // Test Helpers
@@ -313,6 +313,65 @@ describe('turn lifecycle scenarios', () => {
       // Still awaiting because intermediate text is not the final response
       expect(deriveTurnPhase(assistantTurn)).toBe('awaiting')
     })
+  })
+})
+
+describe('response messageId tracking', () => {
+  it('response includes the actual message ID for thread context lookup', () => {
+    resetCounters()
+    turnIdCounter++
+
+    // 1. User message + tool + final response
+    const messages: Message[] = [
+      createUserMessage('Explain this code'),
+      createToolMessage('completed', 'Read'),
+      createAssistantMessage(false, false), // Final response, not streaming
+    ]
+    const turns = groupMessagesByTurn(messages)
+    const assistantTurn = getLastAssistantTurn(turns)!
+
+    // The response should carry the actual message ID (assistant-3),
+    // NOT the turnId (turn-1). This is critical for thread/second-opinion
+    // feature which needs to look up the specific message in the backend.
+    expect(assistantTurn.response).toBeDefined()
+    expect(assistantTurn.response!.messageId).toBe('assistant-3')
+    // Verify it's different from turnId (which is the correlation ID)
+    expect(assistantTurn.response!.messageId).not.toBe(assistantTurn.turnId)
+  })
+
+  it('promoted intermediate response includes messageId', () => {
+    resetCounters()
+    turnIdCounter++
+
+    // Scenario: agent's last text was intermediate (no final response),
+    // and processing is done — the intermediate gets promoted to response
+    const messages: Message[] = [
+      createUserMessage('Quick question'),
+      createToolMessage('completed', 'Read'),
+      createAssistantMessage(false, true), // intermediate text
+    ]
+    // isProcessing=false triggers the promotion fallback
+    const turns = groupMessagesByTurn(messages, false)
+    const assistantTurn = getLastAssistantTurn(turns)!
+
+    // Even promoted responses should have a messageId
+    expect(assistantTurn.response).toBeDefined()
+    expect(assistantTurn.response!.messageId).toBe('assistant-3')
+  })
+
+  it('response-only turn (no tools) includes messageId', () => {
+    resetCounters()
+    turnIdCounter++
+
+    const messages: Message[] = [
+      createUserMessage('Hello'),
+      createAssistantMessage(false, false),
+    ]
+    const turns = groupMessagesByTurn(messages)
+    const assistantTurn = getLastAssistantTurn(turns)!
+
+    expect(assistantTurn.response).toBeDefined()
+    expect(assistantTurn.response!.messageId).toBe('assistant-2')
   })
 })
 

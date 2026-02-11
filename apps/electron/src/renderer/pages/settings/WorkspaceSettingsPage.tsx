@@ -19,12 +19,13 @@ import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { cn } from '@/lib/utils'
 import { routes } from '@/lib/navigate'
-import { Spinner } from '@craft-agent/ui'
+import { Spinner } from '@normies/ui'
 import { RenameDialog } from '@/components/ui/rename-dialog'
 import type { PermissionMode, ThinkingLevel, WorkspaceSettings } from '../../../shared/types'
-import { PERMISSION_MODE_CONFIG } from '@craft-agent/shared/agent/mode-types'
-import { DEFAULT_THINKING_LEVEL, THINKING_LEVELS } from '@craft-agent/shared/agent/thinking-levels'
+import { PERMISSION_MODE_CONFIG } from '@normies/shared/agent/mode-types'
+import { DEFAULT_THINKING_LEVEL, THINKING_LEVELS } from '@normies/shared/agent/thinking-levels'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 
 import {
   SettingsSection,
@@ -291,7 +292,7 @@ export default function WorkspaceSettingsPage() {
   if (!activeWorkspaceId) {
     return (
       <div className="h-full flex flex-col">
-        <PanelHeader title="Workspace Settings" actions={<HeaderMenu route={routes.view.settings('workspace')} helpFeature="workspaces" />} />
+        <PanelHeader title="Workspace Settings" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('workspace')} helpFeature="workspaces" />} />
         <div className="flex-1 flex items-center justify-center">
           <p className="text-sm text-muted-foreground">No workspace selected</p>
         </div>
@@ -303,7 +304,7 @@ export default function WorkspaceSettingsPage() {
   if (isLoadingWorkspace) {
     return (
       <div className="h-full flex flex-col">
-        <PanelHeader title="Workspace Settings" actions={<HeaderMenu route={routes.view.settings('workspace')} helpFeature="workspaces" />} />
+        <PanelHeader title="Workspace Settings" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('workspace')} helpFeature="workspaces" />} />
         <div className="flex-1 flex items-center justify-center">
           <Spinner className="text-muted-foreground" />
         </div>
@@ -313,7 +314,7 @@ export default function WorkspaceSettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="Workspace Settings" actions={<HeaderMenu route={routes.view.settings('workspace')} helpFeature="workspaces" />} />
+      <PanelHeader title="Workspace Settings" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('workspace')} helpFeature="workspaces" />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto">

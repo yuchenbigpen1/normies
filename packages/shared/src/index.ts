@@ -1,17 +1,17 @@
 /**
- * @craft-agent/shared
+ * @normies/shared
  *
- * Shared business logic for Craft Agent.
+ * Shared business logic for Normies.
  * Used by the Electron app.
  *
  * Import specific modules via subpath exports:
- *   import { CraftAgent } from '@craft-agent/shared/agent';
- *   import { loadStoredConfig } from '@craft-agent/shared/config';
- *   import { getCredentialManager } from '@craft-agent/shared/credentials';
- *   import { CraftMcpClient } from '@craft-agent/shared/mcp';
- *   import { debug } from '@craft-agent/shared/utils';
- *   import { loadSource, createSource, getSourceCredentialManager } from '@craft-agent/shared/sources';
- *   import { createWorkspace, loadWorkspace } from '@craft-agent/shared/workspaces';
+ *   import { CraftAgent } from '@normies/shared/agent';
+ *   import { loadStoredConfig } from '@normies/shared/config';
+ *   import { getCredentialManager } from '@normies/shared/credentials';
+ *   import { CraftMcpClient } from '@normies/shared/mcp';
+ *   import { debug } from '@normies/shared/utils';
+ *   import { loadSource, createSource, getSourceCredentialManager } from '@normies/shared/sources';
+ *   import { createWorkspace, loadWorkspace } from '@normies/shared/workspaces';
  *
  * Available modules:
  *   - agent: CraftAgent SDK wrapper, plan tools

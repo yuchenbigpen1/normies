@@ -17,6 +17,7 @@ import { routes } from '@/lib/navigate'
 import { Monitor, Sun, Moon } from 'lucide-react'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
 import type { ToolIconMapping } from '../../../shared/types'
+import { NavigationButtons } from '@/components/app-shell/NavigationButtons'
 
 import {
   SettingsSection,
@@ -201,6 +202,7 @@ export default function AppearanceSettingsPage() {
     <div className="h-full flex flex-col">
       <PanelHeader
         title="Appearance"
+        leftActions={<NavigationButtons />}
         actions={<HeaderMenu route={routes.view.settings('appearance')} helpFeature="themes" />}
       />
       <div className="flex-1 min-h-0 mask-fade-y">

@@ -13,7 +13,7 @@ import type { AppShellContextType } from '@/context/AppShellContext'
 import { OnboardingWizard, ReauthScreen } from '@/components/onboarding'
 import { ResetConfirmationDialog } from '@/components/ResetConfirmationDialog'
 import { SplashScreen } from '@/components/SplashScreen'
-import { TooltipProvider } from '@craft-agent/ui'
+import { TooltipProvider } from '@normies/ui'
 import { FocusProvider } from '@/context/FocusContext'
 import { ModalProvider } from '@/context/ModalContext'
 import { useGlobalShortcuts } from '@/hooks/keyboard'
@@ -51,7 +51,7 @@ import {
   CodePreviewOverlay,
   DocumentFormattedMarkdownOverlay,
   JSONPreviewOverlay,
-} from '@craft-agent/ui'
+} from '@normies/ui'
 import { useLinkInterceptor, type FilePreviewState } from '@/hooks/useLinkInterceptor'
 
 type AppState = 'loading' | 'onboarding' | 'reauth' | 'ready'
@@ -526,10 +526,33 @@ export default function App() {
         }))
       }
 
+      // Normies: Handle project_created event — sync new task sessions + parent projectId to renderer
+      if (event.type === 'project_created') {
+        const { projectId, projectName, taskSessionIds } = event
+        // 1. Update parent session's projectId and name so it appears in Projects nav
+        updateSessionById(sessionId, { projectId, ...(projectName ? { name: projectName } : {}) })
+        // 2. Fetch and add each new task session to the renderer atoms
+        Promise.all(
+          taskSessionIds.map(async (taskId: string) => {
+            const taskSession = await window.electronAPI.getSessionMessages(taskId)
+            if (taskSession) {
+              addSession(taskSession)
+            }
+          })
+        )
+        return // Don't process further — this isn't a streaming event
+      }
+
       // Check if session is currently streaming (atom is source of truth)
       const atomSession = store.get(sessionAtomFamily(sessionId))
       const isStreaming = atomSession?.isProcessing === true
       const isHandoff = handoffEventTypes.has(event.type)
+
+      // Skip handoff events for sessions not tracked in metadata map and not actively streaming
+      // (e.g., thread sessions managed by ChatDisplay independently — should never enter the metadata map)
+      if (!isStreaming && isHandoff && !store.get(sessionMetaMapAtom).has(sessionId)) {
+        return
+      }
 
       // During streaming OR for handoff events: use atom as source of truth
       // This ensures all events during streaming see the complete state
@@ -580,6 +603,10 @@ export default function App() {
 
       // Not streaming: use per-session atoms directly (no sessionsAtom)
       const currentSession = store.get(sessionAtomFamily(sessionId))
+
+      // Skip events for sessions not tracked by the renderer (e.g., thread sessions
+      // which are managed by ChatDisplay independently and should never enter the metadata map)
+      if (!currentSession) return
 
       const { session: updatedSession, effects } = processAgentEvent(
         agentEvent,
@@ -1273,7 +1300,7 @@ export default function App() {
     openNewChat,
   ])
 
-  // Platform actions for @craft-agent/ui components (overlays, etc.)
+  // Platform actions for @normies/ui components (overlays, etc.)
   // Memoized to prevent re-renders when these callbacks don't change
   // NOTE: Must be defined before early returns to maintain consistent hook order
   const platformActions = useMemo(() => ({

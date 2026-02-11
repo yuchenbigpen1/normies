@@ -1,17 +1,17 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { formatDistanceToNow, formatDistanceToNowStrict, isToday, isYesterday, format, startOfDay } from "date-fns"
 import type { Locale } from "date-fns"
-import { MoreHorizontal, Flag, Copy, Link2Off, CloudUpload, Globe, RefreshCw, Inbox } from "lucide-react"
+import { MoreHorizontal, Star, Copy, Link2Off, CloudUpload, Globe, RefreshCw, Inbox } from "lucide-react"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { rendererPerf } from "@/lib/perf"
 import { searchLog } from "@/lib/logger"
-import type { LabelConfig } from "@craft-agent/shared/labels"
-import { flattenLabels, parseLabelEntry, formatLabelEntry, formatDisplayValue } from "@craft-agent/shared/labels"
-import { resolveEntityColor } from "@craft-agent/shared/colors"
+import type { LabelConfig } from "@normies/shared/labels"
+import { flattenLabels, parseLabelEntry, formatLabelEntry, formatDisplayValue } from "@normies/shared/labels"
+import { resolveEntityColor } from "@normies/shared/colors"
 import { useTheme } from "@/context/ThemeContext"
-import { Spinner, Tooltip, TooltipTrigger, TooltipContent } from "@craft-agent/ui"
+import { Spinner, Tooltip, TooltipTrigger, TooltipContent } from "@normies/ui"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty"
 import { Separator } from "@/components/ui/separator"
@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TodoStateMenu } from "@/components/ui/todo-filter-menu"
 import { LabelValuePopover } from "@/components/ui/label-value-popover"
 import { LabelValueTypeIcon } from "@/components/ui/label-icon"
-import { getStateColor, getStateIcon, getStateLabel, type TodoStateId } from "@/config/todo-states"
+import { getState, getStateColor, getStateIcon, getStateLabel, type TodoStateId } from "@/config/todo-states"
 import type { TodoState } from "@/config/todo-states"
 import {
   DropdownMenu,
@@ -52,9 +52,9 @@ import { useNavigation, useNavigationState, routes, isChatsNavigation, type Chat
 import { useFocusContext } from "@/context/FocusContext"
 import { getSessionTitle } from "@/utils/session"
 import type { SessionMeta } from "@/atoms/sessions"
-import type { ViewConfig } from "@craft-agent/shared/views"
-import { PERMISSION_MODE_CONFIG, type PermissionMode } from "@craft-agent/shared/agent/modes"
-import { fuzzyScore } from "@craft-agent/shared/search"
+import type { ViewConfig } from "@normies/shared/views"
+import { PERMISSION_MODE_CONFIG, type PermissionMode } from "@normies/shared/agent/modes"
+import { fuzzyScore } from "@normies/shared/search"
 
 // Pagination constants
 const INITIAL_DISPLAY_LIMIT = 20
@@ -231,6 +231,9 @@ function sessionMatchesCurrentFilter(
       if (currentFilter.viewId === '__all__') return matched.length > 0
       return matched.some(v => v.id === currentFilter.viewId)
 
+    case 'project':
+      return session.projectId === currentFilter.projectId && session.taskIndex != null
+
     default:
       // Exhaustive check - TypeScript will error if we miss a case
       const _exhaustive: never = currentFilter
@@ -302,6 +305,10 @@ interface SessionItemProps {
   onLabelsChange?: (sessionId: string, labels: string[]) => void
   /** Number of matches in ChatDisplay (only set when session is selected and loaded) */
   chatMatchCount?: number
+  /** Optional subtitle shown below the title (e.g., completionSummary in project view) */
+  subtitle?: string
+  /** Whether this item is shown in a project task list (hides permission mode badge and timestamp) */
+  isProjectView?: boolean
 }
 
 /**
@@ -331,6 +338,8 @@ function SessionItem({
   labels,
   onLabelsChange,
   chatMatchCount,
+  subtitle,
+  isProjectView,
 }: SessionItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
@@ -340,6 +349,8 @@ function SessionItem({
 
   // Get current todo state from session properties
   const currentTodoState = getSessionTodoState(item)
+  const currentStateObj = getState(currentTodoState, todoStates)
+  const isClosedState = currentStateObj?.category === 'closed'
 
   // Resolve session label entries (e.g. "bug", "priority::3") to config + optional value
   const resolvedLabels = useMemo(() => {
@@ -375,8 +386,8 @@ function SessionItem({
       data-selected={isSelected || undefined}
       data-session-id={item.id}
     >
-      {/* Separator - only show if not first in group */}
-      {!isFirstInGroup && (
+      {/* Separator - hidden in project view */}
+      {!isFirstInGroup && !isProjectView && (
         <div className="session-separator pl-12 pr-4">
           <Separator />
         </div>
@@ -384,14 +395,30 @@ function SessionItem({
       {/* Wrapper for button + dropdown + context menu, group for hover state */}
       <ContextMenu modal={true} onOpenChange={setContextMenuOpen}>
         <ContextMenuTrigger asChild>
-          <div className="session-content relative group select-none pl-2 mr-2">
-        {/* Todo State Icon - positioned absolutely, outside the button */}
-        <Popover modal={true} open={todoMenuOpen} onOpenChange={setTodoMenuOpen}>
-          <PopoverTrigger asChild>
-            <div className="absolute left-4 top-3.5 z-10">
+          <div className={cn("session-content relative group select-none pl-2 mr-2", isClosedState && "opacity-65")}>
+        {/* Main content button */}
+        <button
+          {...itemProps}
+          className={cn(
+            "flex w-full items-start gap-2 pr-4 text-left text-sm outline-none rounded-[8px]",
+            isProjectView ? "py-2.5 pl-4" : "py-3 pl-2",
+            // Fast hover transition (75ms vs default 150ms), selection is instant
+            "transition-[background-color] duration-75",
+            !isSelected && "hover:bg-foreground/2"
+          )}
+          style={isSelected ? { backgroundColor: isDark ? 'rgb(43,64,112)' : 'rgb(209,223,252)' } : undefined}
+          onMouseDown={handleClick}
+          onKeyDown={(e) => {
+            itemProps.onKeyDown(e)
+            onKeyDown(e, item)
+          }}
+        >
+          {/* Todo State Icon — inline so it aligns with title */}
+          <Popover modal={true} open={todoMenuOpen} onOpenChange={setTodoMenuOpen}>
+            <PopoverTrigger asChild>
               <div
                 className={cn(
-                  "w-4 h-4 flex items-center justify-center rounded-full transition-colors cursor-pointer",
+                  "w-5 h-5 shrink-0 flex items-center justify-center rounded-[4px] transition-colors cursor-pointer",
                   "hover:bg-foreground/5",
                 )}
                 style={{ color: getStateColor(currentTodoState, todoStates) ?? 'var(--foreground)' }}
@@ -399,64 +426,56 @@ function SessionItem({
                 aria-haspopup="menu"
                 aria-expanded={todoMenuOpen}
                 aria-label="Change todo state"
+                onClick={(e) => e.stopPropagation()}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
                 }}
               >
-                <div className="w-4 h-4 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>img]:w-full [&>img]:h-full [&>span]:text-base">
-                  {getStateIcon(currentTodoState, todoStates)}
+                <div className="w-5 h-5 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>img]:w-full [&>img]:h-full [&>span]:text-base">
+                  {currentTodoState === 'in-progress' ? (
+                    <Spinner className="text-[14px]" />
+                  ) : (
+                    getStateIcon(currentTodoState, todoStates)
+                  )}
                 </div>
               </div>
-            </div>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-auto p-0 border-0 shadow-none bg-transparent"
-            align="start"
-            side="bottom"
-            sideOffset={4}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-            }}
-          >
-            <TodoStateMenu
-              activeState={currentTodoState}
-              onSelect={handleTodoStateSelect}
-              states={todoStates}
-            />
-          </PopoverContent>
-        </Popover>
-        {/* Main content button */}
-        <button
-          {...itemProps}
-          className={cn(
-            "flex w-full items-start gap-2 pl-2 pr-4 py-3 text-left text-sm outline-none rounded-[8px]",
-            // Fast hover transition (75ms vs default 150ms), selection is instant
-            "transition-[background-color] duration-75",
-            isSelected
-              ? "bg-foreground/5 hover:bg-foreground/7"
-              : "hover:bg-foreground/2"
-          )}
-          onMouseDown={handleClick}
-          onKeyDown={(e) => {
-            itemProps.onKeyDown(e)
-            onKeyDown(e, item)
-          }}
-        >
-          {/* Spacer for todo icon */}
-          <div className="w-4 h-5 shrink-0" />
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-auto p-0 border-0 shadow-none bg-transparent"
+              align="start"
+              side="bottom"
+              sideOffset={4}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+            >
+              <TodoStateMenu
+                activeState={currentTodoState}
+                onSelect={handleTodoStateSelect}
+                states={todoStates}
+              />
+            </PopoverContent>
+          </Popover>
           {/* Content column */}
-          <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+          <div className={cn("flex flex-col min-w-0 flex-1", isProjectView ? "gap-2.5" : "gap-1.5")}>
             {/* Title - up to 2 lines, with shimmer during async operations (sharing, title regen, etc.) */}
             <div className="flex items-start gap-2 w-full pr-6 min-w-0">
               <div className={cn(
-                "font-medium font-sans line-clamp-2 min-w-0 -mb-[2px]",
+                "font-sans truncate min-w-0 -mb-[2px]",
+                isProjectView ? "text-[15px] font-medium" : "text-[15px] font-medium",
                 item.isAsyncOperationOngoing && "animate-shimmer-text"
               )}>
                 {searchQuery ? highlightMatch(getSessionTitle(item), searchQuery) : getSessionTitle(item)}
               </div>
             </div>
+            {/* Task subtitle — completionSummary or preview in project view, hidden for completed tasks */}
+            {subtitle && !isClosedState && (
+              <div className={cn("text-xs min-w-0 pr-6", isProjectView ? "text-foreground/70 line-clamp-3" : "text-muted-foreground line-clamp-3")}>
+                {subtitle}
+              </div>
+            )}
             {/* Subtitle row — badges scroll horizontally when they overflow */}
             <div className="flex items-center gap-1.5 text-xs text-foreground/70 w-full -mb-[2px] min-w-0">
               {/* Fixed indicators (Spinner + New) — always visible */}
@@ -477,7 +496,7 @@ function SessionItem({
               >
                 {item.isFlagged && (
                   <span className="shrink-0 h-[18px] w-[18px] flex items-center justify-center rounded bg-foreground/5">
-                    <Flag className="h-[10px] w-[10px] text-info fill-info" />
+                    <Star className="h-[10px] w-[10px] text-info fill-info" />
                   </span>
                 )}
                 {item.lastMessageRole === 'plan' && (
@@ -485,7 +504,7 @@ function SessionItem({
                     Plan
                   </span>
                 )}
-                {permissionMode && (
+                {permissionMode && !isProjectView && (
                   <span
                     className={cn(
                       "shrink-0 h-[18px] px-1.5 text-[10px] font-medium rounded flex items-center whitespace-nowrap",
@@ -617,8 +636,9 @@ function SessionItem({
                 )}
               </div>
               {/* Timestamp — outside stacking container so it never overlaps badges.
-                  shrink-0 keeps it fixed-width; the badges container clips instead. */}
-              {item.lastMessageAt && (
+                  shrink-0 keeps it fixed-width; the badges container clips instead.
+                  Hidden in project view where task ordering matters more than recency. */}
+              {item.lastMessageAt && !isProjectView && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="shrink-0 text-[11px] text-foreground/40 whitespace-nowrap cursor-default">
@@ -681,6 +701,7 @@ function SessionItem({
                     todoStates={todoStates}
                     sessionLabels={item.labels ?? []}
                     labels={labels}
+                    isProjectView={isProjectView}
                     onLabelsChange={onLabelsChange ? (newLabels) => onLabelsChange(item.id, newLabels) : undefined}
                     onRename={() => onRenameClick(item.id, getSessionTitle(item))}
                     onFlag={() => onFlag?.(item.id)}
@@ -712,6 +733,7 @@ function SessionItem({
               todoStates={todoStates}
               sessionLabels={item.labels ?? []}
               labels={labels}
+              isProjectView={isProjectView}
               onLabelsChange={onLabelsChange ? (newLabels) => onLabelsChange(item.id, newLabels) : undefined}
               onRename={() => onRenameClick(item.id, getSessionTitle(item))}
               onFlag={() => onFlag?.(item.id)}
@@ -785,6 +807,8 @@ interface SessionListProps {
   statusFilter?: Map<string, FilterMode>
   /** Secondary label filter (label chips) - for search result grouping */
   labelFilterMap?: Map<string, FilterMode>
+  /** Project name (passed from AppShell for project header) */
+  projectName?: string
 }
 
 // Re-export TodoStateId for use by parent components
@@ -824,10 +848,12 @@ export function SessionList({
   workspaceId,
   statusFilter,
   labelFilterMap,
+  projectName,
 }: SessionListProps) {
   const [session] = useSession()
   const { navigate } = useNavigation()
   const navState = useNavigationState()
+  const { isDark } = useTheme()
 
   // Pre-flatten label tree once for efficient ID lookups in each SessionItem
   const flatLabels = useMemo(() => flattenLabels(labels), [labels])
@@ -929,9 +955,14 @@ export function SessionList({
     }
   }, [searchActive])
 
-  // Sort by most recent activity first
+  // Detect project view mode for task-specific rendering
+  const isProjectView = currentFilter?.kind === 'project'
+
+  // Sort: by taskIndex in project view, by most recent activity otherwise
   const sortedItems = [...visibleItems].sort((a, b) =>
-    (b.lastMessageAt || 0) - (a.lastMessageAt || 0)
+    isProjectView
+      ? (a.taskIndex ?? 0) - (b.taskIndex ?? 0)
+      : (b.lastMessageAt || 0) - (a.lastMessageAt || 0)
   )
 
   // Filter items by search query — ripgrep content search only for consistent results
@@ -1061,15 +1092,29 @@ export function SessionList({
   // Group sessions by date (only used in normal mode, not search mode)
   const dateGroups = useMemo(() => groupSessionsByDate(paginatedItems), [paginatedItems])
 
+  // Project progress stats (only computed in project view)
+  const projectProgress = useMemo(() => {
+    if (!isProjectView) return null
+    const tasks = searchFilteredItems
+    const total = tasks.length
+    const done = tasks.filter(t => t.todoState === 'done').length
+    const inProgress = tasks.filter(t => t.todoState === 'in-progress').length
+    return { total, done, inProgress }
+  }, [isProjectView, searchFilteredItems])
+
   // Create flat list for keyboard navigation (maintains order across groups/sections)
   const flatItems = useMemo(() => {
     if (isSearchMode) {
       // Search mode: flat list of matching + other results (no date grouping)
       return [...matchingFilterItems, ...otherResultItems]
     }
+    // Project view: flat list ordered by taskIndex (already sorted above)
+    if (isProjectView) {
+      return paginatedItems
+    }
     // Normal mode: flatten date groups
     return dateGroups.flatMap(group => group.sessions)
-  }, [isSearchMode, matchingFilterItems, otherResultItems, dateGroups])
+  }, [isSearchMode, isProjectView, matchingFilterItems, otherResultItems, dateGroups, paginatedItems])
 
   // Create a lookup map for session ID -> flat index
   const sessionIndexMap = useMemo(() => {
@@ -1096,6 +1141,8 @@ export function SessionList({
       navigate(routes.view.flagged(item.id))
     } else if (currentFilter.kind === 'state') {
       navigate(routes.view.state(currentFilter.stateId, item.id))
+    } else if (currentFilter.kind === 'project') {
+      navigate(routes.view.project(currentFilter.projectId, item.id))
     }
     // Scroll the selected item into view
     requestAnimationFrame(() => {
@@ -1116,8 +1163,8 @@ export function SessionList({
   const handleFlagWithToast = useCallback((sessionId: string) => {
     if (!onFlag) return
     onFlag(sessionId)
-    toast('Conversation flagged', {
-      description: 'Added to your flagged items',
+    toast('Conversation starred', {
+      description: 'Added to your starred items',
       action: onUnflag ? {
         label: 'Undo',
         onClick: () => onUnflag(sessionId),
@@ -1128,8 +1175,8 @@ export function SessionList({
   const handleUnflagWithToast = useCallback((sessionId: string) => {
     if (!onUnflag) return
     onUnflag(sessionId)
-    toast('Flag removed', {
-      description: 'Removed from flagged items',
+    toast('Star removed', {
+      description: 'Removed from starred items',
       action: onFlag ? {
         label: 'Undo',
         onClick: () => onFlag(sessionId),
@@ -1355,6 +1402,8 @@ export function SessionList({
                             navigate(routes.view.flagged(item.id))
                           } else if (currentFilter.kind === 'state') {
                             navigate(routes.view.state(currentFilter.stateId, item.id))
+                          } else if (currentFilter.kind === 'project') {
+                            navigate(routes.view.project(currentFilter.projectId, item.id))
                           }
                           onSessionSelect?.(item)
                         }}
@@ -1366,6 +1415,7 @@ export function SessionList({
                         labels={labels}
                         onLabelsChange={onLabelsChange}
                         chatMatchCount={isSearchMode ? contentSearchResults.get(item.id)?.matchCount : undefined}
+                        isProjectView={isProjectView}
                       />
                     )
                   })}
@@ -1402,6 +1452,8 @@ export function SessionList({
                             navigate(routes.view.flagged(item.id))
                           } else if (currentFilter.kind === 'state') {
                             navigate(routes.view.state(currentFilter.stateId, item.id))
+                          } else if (currentFilter.kind === 'project') {
+                            navigate(routes.view.project(currentFilter.projectId, item.id))
                           }
                           onSessionSelect?.(item)
                         }}
@@ -1413,11 +1465,110 @@ export function SessionList({
                         labels={labels}
                         onLabelsChange={onLabelsChange}
                         chatMatchCount={isSearchMode ? contentSearchResults.get(item.id)?.matchCount : undefined}
+                        isProjectView={isProjectView}
                       />
                     )
                   })}
                 </>
               )}
+            </>
+          ) : isProjectView && currentFilter?.kind === 'project' ? (
+            /* Project mode: flat list ordered by taskIndex with progress header */
+            <>
+              {/* Project progress header — pie ring + project name */}
+              {projectProgress && (() => {
+                const isComplete = projectProgress.done === projectProgress.total && projectProgress.total > 0
+                const progress = projectProgress.total > 0 ? projectProgress.done / projectProgress.total : 0
+                // Pie wedge: arc from 12 o'clock sweeping clockwise
+                const r = 10 // fill radius (inside the stroke ring)
+                const cx = 14, cy = 14
+                const angle = progress * 2 * Math.PI - Math.PI / 2
+                const endX = cx + r * Math.cos(angle)
+                const endY = cy + r * Math.sin(angle)
+                const largeArc = progress > 0.5 ? 1 : 0
+                const piePath = progress <= 0
+                  ? ''
+                  : progress >= 1
+                    ? `M ${cx},${cy - r} A ${r},${r} 0 1,1 ${cx - 0.001},${cy - r} Z`
+                    : `M ${cx},${cy} L ${cx},${cy - r} A ${r},${r} 0 ${largeArc},1 ${endX},${endY} Z`
+
+                const progressColor = isDark ? 'rgb(125,167,248)' : 'rgb(48,95,188)'
+                const ringBgColor = isDark ? 'rgb(125,167,248,0.25)' : 'rgb(48,95,188,0.25)'
+
+                return (
+                  <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+                    {/* Project name */}
+                    <div className="min-w-0 flex-1">
+                      {projectName && (
+                        <div className={cn("text-[21px] font-semibold font-sans truncate", isComplete && "opacity-50")}>{projectName}</div>
+                      )}
+                    </div>
+                    {/* Pie progress ring — right of project name */}
+                    <svg width="28" height="28" viewBox="0 0 28 28" className="shrink-0">
+                      {/* Outline ring */}
+                      <circle
+                        cx="14" cy="14" r="12"
+                        fill="none"
+                        stroke={isComplete ? progressColor : ringBgColor}
+                        strokeWidth="2"
+                      />
+                      {/* Filled pie wedge */}
+                      {progress > 0 && (
+                        <path
+                          d={piePath}
+                          fill={progressColor}
+                          className="transition-all duration-500"
+                        />
+                      )}
+                      {/* Checkmark when complete */}
+                      {isComplete && (
+                        <path d="M9.5 14.5l3 3 6-6.5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      )}
+                    </svg>
+                  </div>
+                )
+              })()}
+              {/* Horizontal divider under project header */}
+              <div className="pb-1">
+                <div className="h-px bg-foreground/15" />
+              </div>
+
+              {/* Task list - flat, ordered by taskIndex */}
+              {paginatedItems.map((item, index) => {
+                const flatIndex = sessionIndexMap.get(item.id) ?? 0
+                const itemProps = getItemProps(item, flatIndex)
+                return (
+                  <SessionItem
+                    key={item.id}
+                    item={item}
+                    index={flatIndex}
+                    itemProps={itemProps}
+                    isSelected={session.selected === item.id}
+                    isLast={flatIndex === flatItems.length - 1}
+                    isFirstInGroup={index === 0}
+                    onKeyDown={handleKeyDown}
+                    onRenameClick={handleRenameClick}
+                    onTodoStateChange={onTodoStateChange}
+                    onFlag={onFlag ? handleFlagWithToast : undefined}
+                    onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                    onMarkUnread={onMarkUnread}
+                    onDelete={handleDeleteWithToast}
+                    onSelect={() => {
+                      navigate(routes.view.project(currentFilter.projectId, item.id))
+                      onSessionSelect?.(item)
+                    }}
+                    onOpenInNewWindow={() => onOpenInNewWindow?.(item)}
+                    permissionMode={sessionOptions?.get(item.id)?.permissionMode}
+                    todoStates={todoStates}
+                    flatLabels={flatLabels}
+                    labels={labels}
+                    onLabelsChange={onLabelsChange}
+                    subtitle={item.completionSummary || item.taskDescription || item.preview}
+                    isProjectView={isProjectView}
+                  />
+                )
+              })}
+
             </>
           ) : (
             /* Normal mode: show date-grouped sessions */
@@ -1450,6 +1601,8 @@ export function SessionList({
                           navigate(routes.view.flagged(item.id))
                         } else if (currentFilter.kind === 'state') {
                           navigate(routes.view.state(currentFilter.stateId, item.id))
+                        } else if (currentFilter.kind === 'project') {
+                          navigate(routes.view.project(currentFilter.projectId, item.id))
                         }
                         onSessionSelect?.(item)
                       }}
@@ -1461,6 +1614,7 @@ export function SessionList({
                       labels={labels}
                       onLabelsChange={onLabelsChange}
                       chatMatchCount={contentSearchResults.get(item.id)?.matchCount}
+                      isProjectView={isProjectView}
                     />
                   )
                 })}
@@ -1486,6 +1640,7 @@ export function SessionList({
         onSubmit={handleRenameSubmit}
         placeholder="Enter a name..."
       />
+
     </div>
   )
 }

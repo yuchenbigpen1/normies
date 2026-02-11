@@ -1,10 +1,10 @@
 /**
- * @craft-agent/ui - Shared Tailwind CSS v4 theme
+ * @normies/ui - Shared Tailwind CSS v4 theme
  *
  * This file provides the base theme configuration for all Craft Agent UIs.
  * Import this in your app's main CSS file:
  *
- *   @import "@craft-agent/ui/styles";
+ *   @import "@normies/ui/styles";
  *
  * The consuming app can then add its own source directive:
  *
@@ -52,6 +52,12 @@
   /* === SHADOW OPACITY (light mode = subtle, dark mode = stronger) === */
   --shadow-border-opacity: 0.08;            /* Border ring opacity */
   --shadow-blur-opacity: 0.06;              /* Blur layers opacity */
+
+  /* === GLASS VARIABLES (glassmorphism effects) === */
+  --glass-blur: 12px;                       /* Blur amount for glass effect */
+  --glass-opacity: 0.7;                     /* Background opacity for glass panels */
+  --glass-border-opacity: 0.2;              /* Border opacity for glass borders */
+  --glass-saturation: 1.2;                  /* Color saturation boost for glass */
 
   /* === MIX VARIANTS (solid interpolation toward background) === */
   --foreground-2: color-mix(in oklch, var(--foreground) 2%, var(--background));
@@ -126,6 +132,12 @@
   /* === SHADOW OPACITY (stronger in dark mode) === */
   --shadow-border-opacity: 0.15;
   --shadow-blur-opacity: 0.12;
+
+  /* === GLASS VARIABLES (glassmorphism effects) === */
+  --glass-blur: 16px;                       /* Stronger blur in dark mode */
+  --glass-opacity: 0.6;                     /* Slightly more transparent in dark */
+  --glass-border-opacity: 0.3;              /* Stronger border in dark mode */
+  --glass-saturation: 1.4;                  /* Higher saturation boost for dark */
 
   /* === MIX VARIANTS === */
   --foreground-2: color-mix(in oklch, var(--foreground) 2%, var(--background));
@@ -382,9 +394,81 @@ html[data-font="inter"] {
     -webkit-corner-shape: superellipse;
   }
 
-  /* Unified popover styling */
+  /* =============================================================================
+     GLASS UTILITIES (Glassmorphism Effects)
+
+     Apply frosted glass effects with backdrop blur and semi-transparent backgrounds.
+     Works best on panels overlaying images or gradients.
+
+     Usage:
+     - .glass          - Base glass effect (medium blur)
+     - .glass-light    - Subtle glass (light blur)
+     - .glass-medium   - Standard glass (medium blur)
+     - .glass-strong   - Heavy glass (strong blur)
+     - .glass-border   - Adds gradient border effect for glass panels
+  ============================================================================= */
+
+  .glass {
+    background: oklch(from var(--background) l c h / var(--glass-opacity));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  }
+
+  .glass-medium {
+    background: oklch(from var(--background) l c h / var(--glass-opacity));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  }
+
+  .glass-light {
+    background: oklch(from var(--background) l c h / calc(var(--glass-opacity) + 0.1));
+    backdrop-filter: blur(calc(var(--glass-blur) * 0.5)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.5)) saturate(var(--glass-saturation));
+  }
+
+  .glass-strong {
+    background: oklch(from var(--background) l c h / calc(var(--glass-opacity) - 0.1));
+    backdrop-filter: blur(calc(var(--glass-blur) * 1.5)) saturate(calc(var(--glass-saturation) * 1.2));
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.5)) saturate(calc(var(--glass-saturation) * 1.2));
+  }
+
+  /* Glass border effect using pseudo-element with gradient
+     Creates a subtle rim light effect on glass panels */
+  .glass-border {
+    position: relative;
+  }
+
+  .glass-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      to bottom,
+      oklch(from var(--foreground) l c h / var(--glass-border-opacity)),
+      oklch(from var(--foreground) l c h / calc(var(--glass-border-opacity) * 0.5))
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Ensure content is above the border pseudo-element */
+  .glass-border > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Unified popover styling with glass treatment */
   .popover-styled {
-    background: var(--background);
+    background: oklch(from var(--background) l c h / var(--glass-opacity));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
     color: var(--foreground);
     border-radius: 8px;
     border: none;

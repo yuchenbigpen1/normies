@@ -34,10 +34,9 @@ const STATUS_ICONS_DIR = 'statuses/icons';
  */
 export function getDefaultStatusConfig(): WorkspaceStatusConfig {
   // Note: color is omitted - defaults from colors/defaults.ts are applied:
-  // - backlog: foreground/50 (muted, not yet planned)
   // - todo: foreground/50 (muted, ready to work on)
   // - needs-review: info (amber, attention needed)
-  // - done: accent (purple, completed)
+  // - done: blue (completed)
   // - cancelled: foreground/50 (muted, inactive)
   //
   // Note: icon is omitted - auto-discovered from statuses/icons/{id}.svg
@@ -45,20 +44,12 @@ export function getDefaultStatusConfig(): WorkspaceStatusConfig {
     version: 1,
     statuses: [
       {
-        id: 'backlog',
-        label: 'Backlog',
-        category: 'open',
-        isFixed: false,
-        isDefault: true,
-        order: 0,
-      },
-      {
         id: 'todo',
         label: 'Todo',
         category: 'open',
         isFixed: true,
         isDefault: false,
-        order: 1,
+        order: 0,
       },
       {
         id: 'needs-review',
@@ -66,7 +57,7 @@ export function getDefaultStatusConfig(): WorkspaceStatusConfig {
         category: 'open',
         isFixed: false,
         isDefault: true,
-        order: 2,
+        order: 1,
       },
       {
         id: 'done',
@@ -74,7 +65,7 @@ export function getDefaultStatusConfig(): WorkspaceStatusConfig {
         category: 'closed',
         isFixed: true,
         isDefault: false,
-        order: 3,
+        order: 2,
       },
       {
         id: 'cancelled',
@@ -82,7 +73,7 @@ export function getDefaultStatusConfig(): WorkspaceStatusConfig {
         category: 'closed',
         isFixed: true,
         isDefault: false,
-        order: 4,
+        order: 3,
       },
     ],
     defaultStatusId: 'todo',

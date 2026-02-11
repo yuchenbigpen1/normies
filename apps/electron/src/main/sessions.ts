@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/electron/main'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { rm, readFile } from 'fs/promises'
-import { CraftAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest } from '@craft-agent/shared/agent'
+import { CraftAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest } from '@normies/shared/agent'
 import { sessionLog, isDebugMode, getLogFilePath } from './logger'
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { WindowManager } from './window-manager'
@@ -15,8 +15,8 @@ import {
   getAnthropicBaseUrl,
   resolveModelId,
   type Workspace,
-} from '@craft-agent/shared/config'
-import { loadWorkspaceConfig } from '@craft-agent/shared/workspaces'
+} from '@normies/shared/config'
+import { loadWorkspaceConfig } from '@normies/shared/workspaces'
 import {
   // Session persistence functions
   listSessions as listStoredSessions,
@@ -36,22 +36,22 @@ import {
   type StoredMessage,
   type SessionMetadata,
   type TodoState,
-} from '@craft-agent/shared/sessions'
-import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@craft-agent/shared/sources'
-import { ConfigWatcher, type ConfigWatcherCallbacks } from '@craft-agent/shared/config'
-import { getAuthState } from '@craft-agent/shared/auth'
-import { setAnthropicOptionsEnv, setPathToClaudeCodeExecutable, setInterceptorPath, setExecutable } from '@craft-agent/shared/agent'
-import { getCredentialManager } from '@craft-agent/shared/credentials'
-import { CraftMcpClient } from '@craft-agent/shared/mcp'
+} from '@normies/shared/sessions'
+import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@normies/shared/sources'
+import { ConfigWatcher, type ConfigWatcherCallbacks } from '@normies/shared/config'
+import { getAuthState } from '@normies/shared/auth'
+import { setAnthropicOptionsEnv, setPathToClaudeCodeExecutable, setInterceptorPath, setExecutable } from '@normies/shared/agent'
+import { getCredentialManager } from '@normies/shared/credentials'
+import { CraftMcpClient } from '@normies/shared/mcp'
 import { type Session, type Message, type SessionEvent, type FileAttachment, type StoredAttachment, type SendMessageOptions, IPC_CHANNELS, generateMessageId } from '../shared/types'
-import { generateSessionTitle, regenerateSessionTitle, formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@craft-agent/shared/utils'
-import { loadWorkspaceSkills, type LoadedSkill } from '@craft-agent/shared/skills'
-import type { ToolDisplayMeta } from '@craft-agent/core/types'
-import { DEFAULT_MODEL, getToolIconsDir } from '@craft-agent/shared/config'
-import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@craft-agent/shared/agent/thinking-levels'
-import { evaluateAutoLabels } from '@craft-agent/shared/labels/auto'
-import { listLabels } from '@craft-agent/shared/labels/storage'
-import { extractLabelId } from '@craft-agent/shared/labels'
+import { generateSessionTitle, regenerateSessionTitle, formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@normies/shared/utils'
+import { loadWorkspaceSkills, type LoadedSkill } from '@normies/shared/skills'
+import type { ToolDisplayMeta } from '@normies/core/types'
+import { DEFAULT_MODEL, getToolIconsDir } from '@normies/shared/config'
+import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@normies/shared/agent/thinking-levels'
+import { evaluateAutoLabels } from '@normies/shared/labels/auto'
+import { listLabels } from '@normies/shared/labels/storage'
+import { extractLabelId } from '@normies/shared/labels'
 
 /**
  * Sanitize message content for use as session title.
@@ -381,8 +381,6 @@ interface ManagedSession {
   model?: string
   // Thinking level for this session ('off', 'think', 'max')
   thinkingLevel?: ThinkingLevel
-  // System prompt preset for mini agents ('default' | 'mini')
-  systemPromptPreset?: 'default' | 'mini' | string
   // Role/type of the last message (for badge display without loading messages)
   lastMessageRole?: 'user' | 'assistant' | 'plan' | 'tool' | 'error'
   // ID of the last final (non-intermediate) assistant message - pre-computed for unread detection
@@ -426,6 +424,26 @@ interface ManagedSession {
   hidden?: boolean
   // Token refresh manager for this session (handles OAuth token refresh with rate limiting)
   tokenRefreshManager?: TokenRefreshManager
+  // Project linking (Normies)
+  projectId?: string
+  taskIndex?: number
+  parentSessionId?: string
+  taskDependencies?: number[]
+  // Thread linking (Normies)
+  threadParentSessionId?: string
+  threadMessageId?: string
+  // Task metadata (Normies)
+  taskDescription?: string
+  taskTechnicalDetail?: string
+  taskFiles?: string[]
+  // Task completion (Normies)
+  completionSummary?: string
+  // Architecture diagram (Normies)
+  diagramPath?: string
+  // Plan reference (Normies)
+  planPath?: string
+  // System prompt preset (persisted for tool registration)
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
 }
 
 // Convert runtime Message to StoredMessage for persistence
@@ -632,7 +650,7 @@ export class SessionManager {
       onSkillChange: async (slug, skill) => {
         sessionLog.info(`Skill '${slug}' changed:`, skill ? 'updated' : 'deleted')
         // Broadcast updated list to UI
-        const { loadWorkspaceSkills } = await import('@craft-agent/shared/skills')
+        const { loadWorkspaceSkills } = await import('@normies/shared/skills')
         const skills = loadWorkspaceSkills(workspaceRootPath)
         this.broadcastSkillsChanged(skills)
       },
@@ -723,7 +741,7 @@ export class SessionManager {
   /**
    * Broadcast app theme changed event to all windows
    */
-  private broadcastAppThemeChanged(theme: import('@craft-agent/shared/config').ThemeOverrides | null): void {
+  private broadcastAppThemeChanged(theme: import('@normies/shared/config').ThemeOverrides | null): void {
     if (!this.windowManager) return
     sessionLog.info(`Broadcasting app theme changed`)
     this.windowManager.broadcastToAll(IPC_CHANNELS.THEME_APP_CHANGED, theme)
@@ -732,7 +750,7 @@ export class SessionManager {
   /**
    * Broadcast skills changed event to all windows
    */
-  private broadcastSkillsChanged(skills: import('@craft-agent/shared/skills').LoadedSkill[]): void {
+  private broadcastSkillsChanged(skills: import('@normies/shared/skills').LoadedSkill[]): void {
     if (!this.windowManager) return
     sessionLog.info(`Broadcasting skills changed (${skills.length} skills)`)
     this.windowManager.broadcastToAll(IPC_CHANNELS.SKILLS_CHANGED, skills)
@@ -759,7 +777,7 @@ export class SessionManager {
     const workspaceRootPath = managed.workspace.rootPath
     sessionLog.info(`Reloading sources for session ${managed.id}`)
 
-    // Reload all sources from disk (craft-agents-docs is always available as MCP server)
+    // Reload all sources from disk (built-in docs source is always available as MCP server)
     const allSources = loadAllSources(workspaceRootPath)
     managed.agent.setAllSources(allSources)
 
@@ -785,7 +803,7 @@ export class SessionManager {
    * Bun's automatic .env loading is disabled in the subprocess (--env-file=/dev/null)
    * to prevent a user's project .env from injecting ANTHROPIC_API_KEY and overriding
    * OAuth auth — Claude Code prioritizes API key over OAuth token when both are set.
-   * See: https://github.com/lukilabs/craft-agents-oss/issues/39
+   * See upstream issue #39
    */
   async reinitializeAuth(): Promise<void> {
     try {
@@ -954,6 +972,24 @@ export class SessionManager {
             sharedUrl: meta.sharedUrl,
             sharedId: meta.sharedId,
             hidden: meta.hidden,
+            // Project linking (Normies)
+            projectId: meta.projectId,
+            taskIndex: meta.taskIndex,
+            parentSessionId: meta.parentSessionId,
+            taskDependencies: meta.taskDependencies,
+            // Task metadata (Normies)
+            taskDescription: meta.taskDescription,
+            taskTechnicalDetail: meta.taskTechnicalDetail,
+            taskFiles: meta.taskFiles,
+            // Thread linking (Normies)
+            threadParentSessionId: meta.threadParentSessionId,
+            threadMessageId: meta.threadMessageId,
+            // Task completion (Normies)
+            completionSummary: meta.completionSummary,
+            // Architecture diagram (Normies)
+            diagramPath: meta.diagramPath,
+            // System prompt preset (Normies)
+            systemPromptPreset: meta.systemPromptPreset,
             // Initialize TokenRefreshManager for this session
             tokenRefreshManager: new TokenRefreshManager(getSourceCredentialManager(), {
               log: (msg) => sessionLog.debug(msg),
@@ -1008,6 +1044,31 @@ export class SessionManager {
           costUsd: 0,
         },
         hidden: managed.hidden,
+        // Project linking (Normies)
+        projectId: managed.projectId,
+        taskIndex: managed.taskIndex,
+        parentSessionId: managed.parentSessionId,
+        taskDependencies: managed.taskDependencies,
+        // Task metadata (Normies)
+        taskDescription: managed.taskDescription,
+        taskTechnicalDetail: managed.taskTechnicalDetail,
+        taskFiles: managed.taskFiles,
+        // Thread linking (Normies)
+        threadParentSessionId: managed.threadParentSessionId,
+        threadMessageId: managed.threadMessageId,
+        // Task completion (Normies)
+        completionSummary: managed.completionSummary,
+        // Architecture diagram (Normies)
+        diagramPath: managed.diagramPath,
+        // Plan reference (Normies)
+        planPath: managed.planPath,
+        // System prompt preset (Normies)
+        systemPromptPreset: managed.systemPromptPreset,
+        // Model (persisted for session-specific model override)
+        model: managed.model,
+        // Shared viewer state
+        sharedUrl: managed.sharedUrl,
+        sharedId: managed.sharedId,
       }
 
       // Queue for async persistence with debouncing
@@ -1099,7 +1160,7 @@ export class SessionManager {
         onError: (err) => sessionLog.error(`[OAuth ${request.sourceSlug}] ${err}`),
       }, {
         sessionId: managed.id,
-        deeplinkScheme: process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents',
+        deeplinkScheme: process.env.CRAFT_DEEPLINK_SCHEME || 'normies',
       })
 
       if (result.success) {
@@ -1272,7 +1333,7 @@ export class SessionManager {
       }
 
       // Update source config to mark as authenticated
-      const { markSourceAuthenticated } = await import('@craft-agent/shared/sources')
+      const { markSourceAuthenticated } = await import('@normies/shared/sources')
       markSourceAuthenticated(managed.workspace.rootPath, request.sourceSlug)
 
       // Mark source as unseen so fresh guide is injected on next message
@@ -1339,6 +1400,26 @@ export class SessionManager {
         createdAt: m.createdAt,
         messageCount: m.messageCount,
         hidden: m.hidden,
+        // Project linking (Normies)
+        projectId: m.projectId,
+        taskIndex: m.taskIndex,
+        parentSessionId: m.parentSessionId,
+        taskDependencies: m.taskDependencies,
+        // Task metadata (Normies)
+        taskDescription: m.taskDescription,
+        taskTechnicalDetail: m.taskTechnicalDetail,
+        taskFiles: m.taskFiles,
+        // Plan reference (Normies)
+        planPath: m.planPath,
+        // Thread linking (Normies)
+        threadParentSessionId: m.threadParentSessionId,
+        threadMessageId: m.threadMessageId,
+        // Task completion (Normies)
+        completionSummary: m.completionSummary,
+        // Architecture diagram (Normies)
+        diagramPath: m.diagramPath,
+        // System prompt preset (needed by renderer for task-session plan approval flow)
+        systemPromptPreset: m.systemPromptPreset,
       }))
       .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
   }
@@ -1381,6 +1462,25 @@ export class SessionManager {
       lastMessageRole: m.lastMessageRole,
       tokenUsage: m.tokenUsage,
       hidden: m.hidden,
+      // Project linking (Normies)
+      projectId: m.projectId,
+      taskIndex: m.taskIndex,
+      parentSessionId: m.parentSessionId,
+      taskDependencies: m.taskDependencies,
+      // Task metadata (Normies)
+      taskDescription: m.taskDescription,
+      taskTechnicalDetail: m.taskTechnicalDetail,
+      taskFiles: m.taskFiles,
+      planPath: m.planPath,
+      // Thread linking (Normies)
+      threadParentSessionId: m.threadParentSessionId,
+      threadMessageId: m.threadMessageId,
+      // Task completion (Normies)
+      completionSummary: m.completionSummary,
+      // Architecture diagram (Normies)
+      diagramPath: m.diagramPath,
+      // System prompt preset (needed by renderer for task-session plan approval flow)
+      systemPromptPreset: m.systemPromptPreset,
     }
   }
 
@@ -1424,6 +1524,21 @@ export class SessionManager {
       managed.sharedId = storedSession.sharedId
       // Sync name from disk - ensures title persistence across lazy loading
       managed.name = storedSession.name
+      // Sync Normies fields from stored session (recovers data after restart for sessions
+      // that were persisted with these fields but loaded via header-only metadata at startup)
+      if (storedSession.projectId != null) managed.projectId = storedSession.projectId
+      if (storedSession.taskIndex != null) managed.taskIndex = storedSession.taskIndex
+      if (storedSession.parentSessionId) managed.parentSessionId = storedSession.parentSessionId
+      if (storedSession.taskDependencies) managed.taskDependencies = storedSession.taskDependencies
+      if (storedSession.taskDescription) managed.taskDescription = storedSession.taskDescription
+      if (storedSession.taskTechnicalDetail) managed.taskTechnicalDetail = storedSession.taskTechnicalDetail
+      if (storedSession.taskFiles) managed.taskFiles = storedSession.taskFiles
+      if (storedSession.planPath) managed.planPath = storedSession.planPath
+      if (storedSession.diagramPath) managed.diagramPath = storedSession.diagramPath
+      if (storedSession.completionSummary) managed.completionSummary = storedSession.completionSummary
+      if (storedSession.systemPromptPreset) managed.systemPromptPreset = storedSession.systemPromptPreset
+      if (storedSession.threadParentSessionId) managed.threadParentSessionId = storedSession.threadParentSessionId
+      if (storedSession.threadMessageId) managed.threadMessageId = storedSession.threadMessageId
       sessionLog.debug(`Lazy-loaded ${managed.messages.length} messages for session ${managed.id}`)
     }
     managed.messagesLoaded = true
@@ -1478,10 +1593,29 @@ export class SessionManager {
     const storedSession = await createStoredSession(workspaceRootPath, {
       permissionMode: defaultPermissionMode,
       workingDirectory: resolvedWorkingDir,
+      model: options?.model || defaultModel,
       hidden: options?.hidden,
       todoState: options?.todoState,
       labels: options?.labels,
       isFlagged: options?.isFlagged,
+      // Project linking (Normies)
+      projectId: options?.projectId,
+      taskIndex: options?.taskIndex,
+      parentSessionId: options?.parentSessionId,
+      taskDependencies: options?.taskDependencies,
+      // Task metadata (Normies)
+      taskDescription: options?.taskDescription,
+      taskTechnicalDetail: options?.taskTechnicalDetail,
+      taskFiles: options?.taskFiles,
+      // Thread linking (Normies)
+      threadParentSessionId: options?.threadParentSessionId,
+      threadMessageId: options?.threadMessageId,
+      // Architecture diagram (Normies)
+      diagramPath: options?.diagramPath,
+      // Plan reference (Normies)
+      planPath: options?.planPath,
+      // System prompt preset (Normies)
+      systemPromptPreset: options?.systemPromptPreset,
     })
 
     // Model priority: options.model > storedSession.model > workspace default
@@ -1516,6 +1650,22 @@ export class SessionManager {
       backgroundShellCommands: new Map(),
       messagesLoaded: true,  // New sessions don't need to load messages from disk
       hidden: options?.hidden,
+      // Project linking (Normies)
+      projectId: options?.projectId,
+      taskIndex: options?.taskIndex,
+      parentSessionId: options?.parentSessionId,
+      taskDependencies: options?.taskDependencies,
+      // Task metadata (Normies)
+      taskDescription: options?.taskDescription,
+      taskTechnicalDetail: options?.taskTechnicalDetail,
+      taskFiles: options?.taskFiles,
+      // Thread linking (Normies)
+      threadParentSessionId: options?.threadParentSessionId,
+      threadMessageId: options?.threadMessageId,
+      // Architecture diagram (Normies)
+      diagramPath: options?.diagramPath,
+      // Plan reference (Normies)
+      planPath: options?.planPath,
       // Initialize TokenRefreshManager for this session (handles OAuth token refresh with rate limiting)
       tokenRefreshManager: new TokenRefreshManager(getSourceCredentialManager(), {
         log: (msg) => sessionLog.debug(msg),
@@ -1540,7 +1690,95 @@ export class SessionManager {
       thinkingLevel: defaultThinkingLevel,
       sessionFolderPath: getSessionStoragePath(workspaceRootPath, storedSession.id),
       hidden: options?.hidden,
+      // Project linking (Normies)
+      projectId: options?.projectId,
+      taskIndex: options?.taskIndex,
+      parentSessionId: options?.parentSessionId,
+      taskDependencies: options?.taskDependencies,
+      // Task metadata (Normies)
+      taskDescription: options?.taskDescription,
+      taskTechnicalDetail: options?.taskTechnicalDetail,
+      taskFiles: options?.taskFiles,
+      // Thread linking (Normies)
+      threadParentSessionId: options?.threadParentSessionId,
+      threadMessageId: options?.threadMessageId,
+      // Architecture diagram (Normies)
+      diagramPath: options?.diagramPath,
     }
+  }
+
+  /**
+   * Create a thread session for the Normies thread/critique feature.
+   * Thread sessions are hidden, use a cheaper model, and get context from the parent conversation.
+   *
+   * @param workspaceId - Workspace to create the session in
+   * @param parentSessionId - The session being discussed
+   * @param messageId - The specific assistant message being discussed
+   * @returns The created session + thread context string for the first message
+   */
+  async createThreadSession(workspaceId: string, parentSessionId: string, messageId: string, model?: string): Promise<{ session: Session; threadContext: string }> {
+    // Get the parent session to extract context
+    const parentManaged = this.sessions.get(parentSessionId)
+    if (!parentManaged) {
+      throw new Error(`Parent session ${parentSessionId} not found`)
+    }
+
+    // Load parent messages if not already loaded
+    await this.ensureMessagesLoaded(parentManaged)
+
+    // Find the specific message being discussed
+    // Primary: match by message.id (unique per message)
+    // Fallback: match by turnId (correlation ID) — safety net for older clients passing turnId
+    const targetMessage = parentManaged.messages.find(m => m.id === messageId)
+      || parentManaged.messages.find(m => m.turnId === messageId)
+    const targetContent = targetMessage
+      ? (typeof targetMessage.content === 'string' ? targetMessage.content : JSON.stringify(targetMessage.content))
+      : '[Message not found]'
+
+    // Build thread context from recent parent messages (last 10 messages up to the target)
+    const targetIdx = targetMessage
+      ? parentManaged.messages.indexOf(targetMessage)
+      : -1
+    const contextMessages = targetIdx >= 0
+      ? parentManaged.messages.slice(Math.max(0, targetIdx - 9), targetIdx + 1)
+      : parentManaged.messages.slice(-10)
+
+    const conversationSummary = contextMessages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => {
+        const content = typeof m.content === 'string' ? m.content : '[complex content]'
+        const truncated = content.length > 500 ? content.slice(0, 500) + '...' : content
+        return `**${m.role === 'user' ? 'User' : 'Assistant'}**: ${truncated}`
+      })
+      .join('\n\n')
+
+    const threadContext = `## Context from Main Conversation
+
+The user is asking about this response from their main assistant:
+
+---
+${targetContent.length > 2000 ? targetContent.slice(0, 2000) + '\n\n[truncated]' : targetContent}
+---
+
+### Recent conversation leading up to this:
+
+${conversationSummary}
+
+---
+
+Remember: You're providing a second opinion. Help the user understand, question, or formulate feedback about the above.`
+
+    // Create the thread session
+    const session = await this.createSession(workspaceId, {
+      threadParentSessionId: parentSessionId,
+      threadMessageId: messageId,
+      hidden: true,
+      systemPromptPreset: 'thread',
+      model: model || 'claude-haiku-4-5-20251001', // User-selected or default to cheaper model
+      workingDirectory: 'none', // Threads don't need a working directory
+    })
+
+    return { session, threadContext }
   }
 
   /**
@@ -1746,6 +1984,73 @@ export class SessionManager {
         // The UI will call sessionCommand({ type: 'startOAuth' }) when user clicks "Sign in"
       }
 
+      // Wire up onCreateProjectSessions to create task sessions from Explore agent (Normies)
+      managed.agent.onCreateProjectSessions = async (data) => {
+        sessionLog.info(`CreateProjectSessions for session ${managed.id}: project="${data.projectName}", ${data.tasks.length} tasks`)
+
+        const taskSessionIds: string[] = []
+
+        // Create task sessions
+        for (const task of data.tasks) {
+          const taskSession = await this.createSession(managed.workspace.id, {
+            model: 'claude-opus-4-6',
+            projectId: data.projectId,
+            taskIndex: task.taskIndex,
+            parentSessionId: data.parentSessionId,
+            taskDependencies: task.dependencies,
+            planPath: data.planPath,
+            diagramPath: data.diagramPath,
+            // Task metadata for Start button execution message
+            taskDescription: task.description,
+            taskTechnicalDetail: task.technicalDetail,
+            taskFiles: task.files,
+            // Task sessions start as Todo
+            todoState: 'todo',
+            // Task sessions use the task-execution system prompt
+            systemPromptPreset: 'task-execution',
+            // Use same working directory as parent
+            workingDirectory: managed.workingDirectory,
+            // Task sessions are NOT hidden — they're visible in Project view.
+            // Only thread sessions use hidden: true. Task visibility is controlled
+            // by the AllChats filter excluding sessions with projectId + taskIndex.
+          })
+
+          // Set the session name to the task title
+          const taskManaged = this.sessions.get(taskSession.id)
+          if (taskManaged) {
+            taskManaged.name = task.title
+            this.persistSession(taskManaged)
+          }
+
+          taskSessionIds.push(taskSession.id)
+        }
+
+        // Update parent session with projectId, project name, and diagramPath
+        managed.projectId = data.projectId
+        managed.name = data.projectName
+        managed.diagramPath = data.diagramPath
+        this.persistSession(managed)
+        await this.flushSession(managed.id)
+
+        // Fire project_created event
+        this.sendEvent({
+          type: 'project_created',
+          sessionId: managed.id,
+          projectId: data.projectId,
+          projectName: data.projectName,
+          taskSessionIds,
+        }, managed.workspace.id)
+
+        sessionLog.info(`Project "${data.projectName}" created: ${taskSessionIds.length} task sessions`)
+        return taskSessionIds
+      }
+
+      // Wire up onSetCompletionSummary to save task completion summary (Normies)
+      managed.agent.onSetCompletionSummary = async (summary: string) => {
+        sessionLog.info(`Completion summary for session ${managed.id}: ${summary.substring(0, 80)}`)
+        await this.setCompletionSummary(managed.id, summary)
+      }
+
       // Wire up onSourceActivationRequest to auto-enable sources when agent tries to use them
       managed.agent.onSourceActivationRequest = async (sourceSlug: string): Promise<boolean> => {
         sessionLog.info(`Source activation request for session ${managed.id}:`, sourceSlug)
@@ -1885,6 +2190,48 @@ export class SessionManager {
   }
 
   // ============================================
+  // Normies: Project/Task Lifecycle
+  // ============================================
+
+  /**
+   * Set completion summary for a task session.
+   * Called by the agent after completing a task.
+   */
+  async setCompletionSummary(sessionId: string, summary: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (managed) {
+      managed.completionSummary = summary
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
+      // Emit task_completed event if this is a task session with a project
+      if (managed.projectId) {
+        this.sendEvent({
+          type: 'task_completed',
+          sessionId,
+          projectId: managed.projectId,
+          summary,
+        }, managed.workspace.id)
+      }
+    }
+  }
+
+  /**
+   * Set project ID and optional diagram path on a session.
+   * Called when an Explore session becomes a project parent.
+   */
+  async setProjectId(sessionId: string, projectId: string, diagramPath?: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (managed) {
+      managed.projectId = projectId
+      if (diagramPath) {
+        managed.diagramPath = diagramPath
+      }
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
+    }
+  }
+
+  // ============================================
   // Pending Plan Execution (Accept & Compact)
   // ============================================
 
@@ -1962,7 +2309,7 @@ export class SessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
+      const { VIEWER_URL } = await import('@normies/shared/branding')
       const response = await fetch(`${VIEWER_URL}/s/api`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2026,7 +2373,7 @@ export class SessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
+      const { VIEWER_URL } = await import('@normies/shared/branding')
       const response = await fetch(`${VIEWER_URL}/s/api/${managed.sharedId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2071,7 +2418,7 @@ export class SessionManager {
     this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
 
     try {
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
+      const { VIEWER_URL } = await import('@normies/shared/branding')
       const response = await fetch(
         `${VIEWER_URL}/s/api/${managed.sharedId}`,
         { method: 'DELETE' }
@@ -2293,6 +2640,9 @@ export class SessionManager {
       sessionLog.warn(`refreshTitle: Session ${sessionId} not found`)
       return { success: false, error: 'Session not found' }
     }
+
+    // Ensure messages are loaded (they may be lazy-loaded)
+    await this.ensureMessagesLoaded(managed)
 
     // Get recent user messages (last 3) for context
     const userMessages = managed.messages
@@ -2531,6 +2881,7 @@ export class SessionManager {
         timestamp: Date.now(),
         attachments: storedAttachments, // Include for persistence (has thumbnailBase64)
         badges: options?.badges,  // Include content badges (sources, skills with embedded icons)
+        ...(options?.silent && { hidden: true }),  // Normies: silent messages are hidden from chat UI
       }
       managed.messages.push(userMessage)
 
@@ -2538,12 +2889,15 @@ export class SessionManager {
       managed.lastMessageRole = 'user'
 
       // Emit user_message event so UI can confirm the optimistic message
-      this.sendEvent({
-        type: 'user_message',
-        sessionId,
-        message: userMessage,
-        status: 'accepted'
-      }, managed.workspace.id)
+      // Normies: Skip emit when silent flag is set (e.g. Accept Plan background message)
+      if (!options?.silent) {
+        this.sendEvent({
+          type: 'user_message',
+          sessionId,
+          message: userMessage,
+          status: 'accepted'
+        }, managed.workspace.id)
+      }
 
       // If this is the first user message and no title exists, set one immediately
       // AI generation will enhance it later, but we always have a title from the start
@@ -2939,6 +3293,14 @@ export class SessionManager {
     if (reason === 'complete' && managed.systemPromptPreset === 'mini' && managed.todoState !== 'done') {
       sessionLog.info(`Auto-completing mini agent session ${sessionId}`)
       await this.setTodoState(sessionId, 'done')
+    }
+
+    // 4. Normies: Move task sessions to "needs-review" when agent finishes processing
+    //    Task sessions (task-execution preset with a projectId) move to 'needs-review'
+    //    so the user can verify the work before marking it as done.
+    if (reason === 'complete' && managed.systemPromptPreset === 'task-execution' && managed.projectId && managed.todoState !== 'done' && managed.todoState !== 'needs-review') {
+      sessionLog.info(`Moving task session ${sessionId} to needs-review`)
+      await this.setTodoState(sessionId, 'needs-review')
     }
 
     // 4. Check queue and process or complete

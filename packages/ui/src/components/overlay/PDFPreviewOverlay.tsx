@@ -17,9 +17,11 @@ import { CopyButton } from './CopyButton'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-// Configure pdf.js worker using Vite's ?url import for cross-platform dev/prod compatibility
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker
+// Configure pdf.js worker in a bundler-friendly way that also works in tests.
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString()
 
 export interface PDFPreviewOverlayProps {
   isOpen: boolean

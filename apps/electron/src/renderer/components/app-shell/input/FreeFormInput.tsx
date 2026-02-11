@@ -11,7 +11,7 @@ import {
   ChevronDown,
   Loader2,
 } from 'lucide-react'
-import { Icon_Home, Icon_Folder } from '@craft-agent/ui'
+import { Icon_Home, Icon_Folder } from '@normies/ui'
 
 import * as storage from '@/lib/local-storage'
 
@@ -31,10 +31,10 @@ import {
   InlineLabelMenu,
   useInlineLabelMenu,
 } from '@/components/ui/label-menu'
-import type { LabelConfig } from '@craft-agent/shared/labels'
+import type { LabelConfig } from '@normies/shared/labels'
 import { parseMentions } from '@/lib/mentions'
 import { RichTextInput, type RichTextInputHandle } from '@/components/ui/rich-text-input'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@craft-agent/ui'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@normies/ui'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -59,9 +59,9 @@ import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
 import { SourceAvatar } from '@/components/ui/source-avatar'
 import { FreeFormInputContextBadge } from './FreeFormInputContextBadge'
 import type { FileAttachment, LoadedSource, LoadedSkill } from '../../../../shared/types'
-import type { PermissionMode } from '@craft-agent/shared/agent/modes'
-import { PERMISSION_MODE_ORDER } from '@craft-agent/shared/agent/modes'
-import { type ThinkingLevel, THINKING_LEVELS, getThinkingLevelName } from '@craft-agent/shared/agent/thinking-levels'
+import type { PermissionMode } from '@normies/shared/agent/modes'
+import { PERMISSION_MODE_ORDER } from '@normies/shared/agent/modes'
+import { type ThinkingLevel, THINKING_LEVELS, getThinkingLevelName } from '@normies/shared/agent/thinking-levels'
 import { useEscapeInterrupt } from '@/context/EscapeInterruptContext'
 import { hasOpenOverlay } from '@/lib/overlay-detection'
 import { EscapeInterruptOverlay } from './EscapeInterruptOverlay'
@@ -187,6 +187,8 @@ export interface FreeFormInputProps {
   }
   /** Enable compact mode - hides attach, sources, working directory for popover embedding */
   compactMode?: boolean
+  /** Input variant: 'full' (default) or 'stripped' (thread overlay — hides attachments, sources, directory, context badge but keeps model picker) */
+  variant?: 'full' | 'stripped'
 }
 
 /**
@@ -237,7 +239,11 @@ export function FreeFormInput({
   isEmptySession = false,
   contextStatus,
   compactMode = false,
+  variant = 'full',
 }: FreeFormInputProps) {
+  // Stripped mode: thread overlay variant — hides chrome but keeps model picker
+  const isStripped = variant === 'stripped'
+
   // Read custom model and workspace info from context.
   // Uses optional variant so playground (no provider) doesn't crash.
   const appShellCtx = useOptionalAppShellContext()
@@ -260,8 +266,11 @@ export function FreeFormInput({
   }, [workspaceRootPath, workspaceId])
 
   // Shuffle placeholder order once per mount so each session feels fresh
+  // Stripped mode uses a fixed thread-specific placeholder
   const shuffledPlaceholder = React.useMemo(
-    () => Array.isArray(placeholder) ? shuffleArray(placeholder) : placeholder,
+    () => isStripped
+      ? 'Ask a question, challenge this, or sanity check...'
+      : Array.isArray(placeholder) ? shuffleArray(placeholder) : placeholder,
     [] // eslint-disable-line react-hooks/exhaustive-deps -- intentionally shuffle only on mount
   )
 
@@ -424,11 +433,9 @@ export function FreeFormInput({
         toast.error('No details provided')
         return
       }
-      // Switch to allow-all (Auto) mode if in Explore mode (allow execution without prompts)
-      // Only switch if currently in safe mode - if user is in 'ask' mode, respect their choice
-      if (permissionMode === 'safe') {
-        onPermissionModeChange?.('allow-all')
-      }
+      // Normies: Do NOT switch permission mode on plan approval.
+      // The agent should call CreateProjectTasks (a tool call, not code execution),
+      // so it doesn't need allow-all mode. Stay in current mode (Explore/safe).
       // Submit the message
       onSubmit(text, undefined)
     }
@@ -449,10 +456,7 @@ export function FreeFormInput({
 
       const planPath = e.detail?.planPath
 
-      // Switch to allow-all (Auto) mode if in Explore mode
-      if (permissionMode === 'safe') {
-        onPermissionModeChange?.('allow-all')
-      }
+      // Normies: Do NOT switch permission mode — agent calls CreateProjectTasks, not code execution.
 
       // Persist the pending plan execution state BEFORE sending /compact.
       // This allows reload recovery if CMD+R happens during compaction.
@@ -477,12 +481,16 @@ export function FreeFormInput({
         // Remove the listener (one-time use)
         window.removeEventListener('craft:compaction-complete', handleCompactionComplete as unknown as EventListener)
 
-        // Send the execution message with explicit plan path
-        // After compaction, Claude doesn't automatically remember the plan file
-        if (planPath) {
-          onSubmit(`Read the plan at ${planPath} and execute it.`, undefined)
-        } else {
-          onSubmit('Plan approved, please execute.', undefined)
+        // Normies: Send hidden message via IPC (not visible in UI) to create project tasks
+        // Switch to execute mode first — agent needs it for CreateProjectTasks
+        if (permissionMode === 'safe') {
+          onPermissionModeChange?.('allow-all')
+        }
+        const taskMsg = planPath
+          ? `Plan approved. Read the plan at ${planPath} and use the CreateProjectTasks tool to create the task sessions. Do NOT execute the plan yourself — just create the tasks and confirm where to find them in the Projects sidebar.`
+          : 'Plan approved. Now use the CreateProjectTasks tool to create the task sessions from this plan. Do NOT execute the plan yourself — just create the tasks and confirm where to find them in the Projects sidebar.'
+        if (sessionId) {
+          window.electronAPI.sendMessage(sessionId, taskMsg, undefined, undefined, { silent: true })
         }
 
         // Clear the pending state since we just sent the execution message
@@ -1122,8 +1130,8 @@ export function FreeFormInput({
     // Update inline mention state (for @mentions - skills, sources, folders)
     inlineMention.handleInputChange(value, cursorPosition)
 
-    // Update inline label state (for #labels)
-    inlineLabel.handleInputChange(value, cursorPosition)
+    // Update inline label state (for #labels) — disabled: no longer trigger menu on #
+    // inlineLabel.handleInputChange(value, cursorPosition)
 
     // Auto-capitalize first letter (but not for slash commands, @mentions, or #labels)
     // Only if autoCapitalisation setting is enabled
@@ -1322,8 +1330,8 @@ export function FreeFormInput({
 
           <div className={cn("flex items-center gap-1 px-2 py-2", !compactMode && "border-t border-border/50")}>
           {/* Left side: Context badges - shrinkable so model + send always stay visible */}
-          {/* Hidden in compact mode (EditPopover embedding) */}
-          {!compactMode && (
+          {/* Hidden in compact mode (EditPopover embedding) and stripped mode (thread overlay) */}
+          {!compactMode && !isStripped && (
           <div className="flex items-center gap-1 min-w-32 shrink overflow-hidden">
           {/* 1. Attach Files Badge */}
           <FreeFormInputContextBadge
@@ -1520,8 +1528,8 @@ export function FreeFormInput({
 
           {/* Right side: Model + Send - never shrink so they're always visible */}
           <div className="flex items-center shrink-0">
-          {/* 5. Model Selector - Hidden in compact mode (EditPopover embedding) */}
-          {!compactMode && (
+          {/* 5. Model Selector - Hidden in compact mode, visible in stripped mode (thread needs model picker) */}
+          {(!compactMode || isStripped) && (
           <DropdownMenu open={modelDropdownOpen} onOpenChange={setModelDropdownOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1649,7 +1657,8 @@ export function FreeFormInput({
           )}
 
           {/* 5.5 Context Usage Warning Badge - shows when approaching auto-compaction threshold */}
-          {(() => {
+          {/* Hidden in stripped mode (thread overlay) */}
+          {!isStripped && (() => {
             // Calculate usage percentage based on compaction threshold (~77.5% of context window),
             // not the full context window - this gives users meaningful warnings before compaction kicks in.
             // SDK triggers compaction at ~155k tokens for a 200k context window.
