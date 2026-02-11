@@ -1,0 +1,40 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Normies Docs",
+  "theme": "mint",
+  "colors": {
+    "primary": "#0F766E",
+    "light": "#14B8A6",
+    "dark": "#115E59"
+  },
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "docs/index",
+        "docs/release-checklist"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "docs/projects-and-tasks",
+        "docs/threads",
+        "docs/sources",
+        "docs/skills",
+        "docs/permissions",
+        "docs/statuses",
+        "docs/labels"
+      ]
+    },
+    {
+      "group": "Settings",
+      "pages": [
+        "docs/workspaces",
+        "docs/themes",
+        "docs/app-settings",
+        "docs/preferences"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+# Release Checklist
+
+Use this before sharing a DMG/installer with other people.
+
+## 1. Code and Build Health
+
+Run:
+
+```bash
+bun run typecheck:all
+bun test
+bun run build
+```
+
+## 2. Package Validation
+
+For macOS:
+
+```bash
+bun run release
+```
+
+Expected artifact path:
+- `apps/electron/release/Normies-arm64.dmg` or `apps/electron/release/Normies-x64.dmg`
+
+## 3. Branding and Links
+
+Confirm:
+- App name is `Normies`
+- Icon is correct in dock/installer
+- Help/Learn More links point to Normies docs (not Craft docs)
+
+## 4. Distribution Decision
+
+- **Private testing only**: unsigned DMG can work, but users may need extra security prompts.
+- **Public sharing**: use Apple code signing + notarization for smooth install experience.
+
+## 5. Optional Upload/Update Channel
+
+If you use hosted updates, run the upload flow with S3 environment variables configured.
