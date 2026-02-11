@@ -632,10 +632,15 @@ export function handlePlanSubmitted(
   event: PlanSubmittedEvent
 ): ProcessResult {
   const { session, streaming } = state
+  const planPath = event.message.role === 'plan' ? event.message.planPath : undefined
 
   return {
     state: {
-      session: appendMessage(session, event.message),
+      session: {
+        ...appendMessage(session, event.message),
+        // Keep top-level plan reference in sync with the latest submitted plan.
+        ...(planPath ? { planPath } : {}),
+      },
       streaming,
     },
     effects: [],

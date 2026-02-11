@@ -1895,6 +1895,9 @@ Remember: You're providing a second opinion. Help the user understand, question,
 
           // Add to session messages
           managed.messages.push(planMessage)
+          // Persist latest plan path on the session metadata so project views can
+          // consistently resolve the plan even when messages are not loaded.
+          managed.planPath = planPath
 
           // Update lastMessageRole for badge display
           managed.lastMessageRole = 'plan'
@@ -2025,9 +2028,10 @@ Remember: You're providing a second opinion. Help the user understand, question,
           taskSessionIds.push(taskSession.id)
         }
 
-        // Update parent session with projectId, project name, and diagramPath
+        // Update parent session with project metadata (used by Project header actions)
         managed.projectId = data.projectId
         managed.name = data.projectName
+        managed.planPath = data.planPath
         managed.diagramPath = data.diagramPath
         this.persistSession(managed)
         await this.flushSession(managed.id)

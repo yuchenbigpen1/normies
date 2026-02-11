@@ -1251,7 +1251,16 @@ function AppShellContent({
   // Project-view paths: plan and diagram files for header buttons
   const projectPlanPath = useMemo(() => {
     if (chatFilter?.kind !== 'project') return null
-    const task = workspaceSessionMetas.find(s => s.projectId === chatFilter.projectId && s.planPath)
+    // Prefer parent project session planPath (source of truth), then fall back
+    // to any task session planPath for older/migrated data.
+    const parent = workspaceSessionMetas.find(
+      s => s.projectId === chatFilter.projectId && s.taskIndex == null && s.planPath
+    )
+    if (parent?.planPath) return parent.planPath
+
+    const task = workspaceSessionMetas.find(
+      s => s.projectId === chatFilter.projectId && s.taskIndex != null && s.planPath
+    )
     return task?.planPath ?? null
   }, [chatFilter, workspaceSessionMetas])
 
