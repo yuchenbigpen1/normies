@@ -1,0 +1,5 @@
+# Limit Mintlify indexing to documentation content only.
+# This avoids scanning the full monorepo (which can trigger OpenAPI discovery failures).
+*
+!docs.json
+!docs/**
