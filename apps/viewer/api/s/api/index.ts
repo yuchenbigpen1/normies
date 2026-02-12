@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
 import { randomUUID } from 'node:crypto'
 
 const MAX_SESSION_BYTES = 20 * 1024 * 1024
@@ -10,6 +10,13 @@ export const config = {
       sizeLimit: '20mb',
     },
   },
+}
+
+function getRedis() {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    throw new Error('Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN')
+  }
+  return Redis.fromEnv()
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -38,10 +45,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const id = randomUUID().replace(/-/g, '').slice(0, 16)
-  await kv.set(`share:${id}`, parsed)
+  try {
+    const redis = getRedis()
+    await redis.set(`share:${id}`, parsed)
 
-  const host = req.headers.host
-  const protocol = req.headers['x-forwarded-proto'] || 'https'
-  const origin = `${protocol}://${host}`
-  return res.status(201).json({ id, url: `${origin}/s/${id}` })
+    const host = req.headers.host
+    const protocol = req.headers['x-forwarded-proto'] || 'https'
+    const origin = `${protocol}://${host}`
+    return res.status(201).json({ id, url: `${origin}/s/${id}` })
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to save shared session',
+    })
+  }
 }
