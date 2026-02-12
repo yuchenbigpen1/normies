@@ -2273,14 +2273,14 @@ function AppShellContent({
                       compact: true,
                       onClick: () => navigate(routes.view.project(p.id)),
                       projectContextMenu: {
-                        sessionId: p.id,
-                        onRename: () => setProjectRenameState({ open: true, sessionId: p.id, name: p.name }),
+                        sessionId: p.sessionId,
+                        onRename: () => setProjectRenameState({ open: true, sessionId: p.sessionId, name: p.name }),
                         onOpenInNewWindow: () => {
                           if (activeWorkspaceId) {
-                            window.electronAPI.openSessionInNewWindow(activeWorkspaceId, p.id)
+                            window.electronAPI.openSessionInNewWindow(activeWorkspaceId, p.sessionId)
                           }
                         },
-                        onDelete: () => handleDeleteSession(p.id),
+                        onDelete: () => handleDeleteSession(p.sessionId),
                       },
                     })),
                     // --- Sources Section (flat) ---
