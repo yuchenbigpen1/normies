@@ -986,6 +986,8 @@ export class SessionManager {
             threadMessageId: meta.threadMessageId,
             // Task completion (Normies)
             completionSummary: meta.completionSummary,
+            // Plan reference (Normies)
+            planPath: meta.planPath,
             // Architecture diagram (Normies)
             diagramPath: meta.diagramPath,
             // System prompt preset (Normies)
