@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { Redis } from '@upstash/redis'
+import Redis from 'ioredis'
 
 const MAX_SESSION_BYTES = 20 * 1024 * 1024
 
@@ -11,11 +11,16 @@ export const config = {
   },
 }
 
+let redis: Redis | null = null
+
 function getRedis() {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    throw new Error('Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN')
+  if (!process.env.REDIS_URL) {
+    throw new Error('Missing REDIS_URL')
   }
-  return Redis.fromEnv()
+  if (!redis) {
+    redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3, lazyConnect: true })
+  }
+  return redis
 }
 
 function getShareId(req: VercelRequest): string | null {
@@ -32,14 +37,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const redis = getRedis()
 
     if (req.method === 'GET') {
-      const data = await redis.get(`share:${id}`)
-      if (!data) return res.status(404).json({ error: 'Session not found' })
-      return res.status(200).json(data)
+      const raw = await redis.get(`share:${id}`)
+      if (!raw) return res.status(404).json({ error: 'Session not found' })
+      return res.status(200).json(JSON.parse(raw))
     }
 
     if (req.method === 'PUT') {
-      const existing = await redis.get(`share:${id}`)
-      if (!existing) return res.status(404).json({ error: 'Session not found' })
+      const existingRaw = await redis.get(`share:${id}`)
+      if (!existingRaw) return res.status(404).json({ error: 'Session not found' })
 
       const rawBody =
         typeof req.body === 'string'
@@ -60,13 +65,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Invalid JSON body' })
       }
 
-      await redis.set(`share:${id}`, parsed)
+      await redis.set(`share:${id}`, JSON.stringify(parsed))
       return res.status(200).json({ id, ok: true })
     }
 
     if (req.method === 'DELETE') {
-      const existing = await redis.get(`share:${id}`)
-      if (!existing) return res.status(404).json({ error: 'Session not found' })
+      const existingRaw = await redis.get(`share:${id}`)
+      if (!existingRaw) return res.status(404).json({ error: 'Session not found' })
       await redis.del(`share:${id}`)
       return res.status(200).json({ ok: true })
     }

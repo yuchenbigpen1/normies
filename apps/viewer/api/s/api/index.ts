@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { Redis } from '@upstash/redis'
+import Redis from 'ioredis'
 import { randomUUID } from 'node:crypto'
 
 const MAX_SESSION_BYTES = 20 * 1024 * 1024
@@ -12,11 +12,16 @@ export const config = {
   },
 }
 
+let redis: Redis | null = null
+
 function getRedis() {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    throw new Error('Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN')
+  if (!process.env.REDIS_URL) {
+    throw new Error('Missing REDIS_URL')
   }
-  return Redis.fromEnv()
+  if (!redis) {
+    redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 3, lazyConnect: true })
+  }
+  return redis
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -47,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const id = randomUUID().replace(/-/g, '').slice(0, 16)
   try {
     const redis = getRedis()
-    await redis.set(`share:${id}`, parsed)
+    await redis.set(`share:${id}`, JSON.stringify(parsed))
 
     const host = req.headers.host
     const protocol = req.headers['x-forwarded-proto'] || 'https'

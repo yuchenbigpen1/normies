@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@upstash/redis": "^1.35.3",
+    "ioredis": "^5.4.1",
     "@normies/core": "workspace:*",
     "@normies/ui": "workspace:*",
     "react": "^18.3.1",
