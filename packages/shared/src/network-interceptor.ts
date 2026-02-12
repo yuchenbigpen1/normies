@@ -20,7 +20,7 @@ type HeadersInitType = Headers | Record<string, string> | string[][];
 const DEBUG = process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1';
 
 // Log file for debug output (avoids console spam)
-import { CONFIG_DIR } from './config/paths.ts';
+const CONFIG_DIR = process.env.NORMIES_CONFIG_DIR || join(homedir(), '.normies');
 const LOG_DIR = join(CONFIG_DIR, 'logs');
 const LOG_FILE = join(LOG_DIR, 'interceptor.log');
 

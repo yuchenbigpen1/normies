@@ -1504,8 +1504,9 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                             onTodoStateChange?.('in-progress')
                             // 2. Switch to execute mode so the agent can work
                             onPermissionModeChange?.('allow-all')
-                            // 3. Send full execution context to agent silently (hidden from chat UI)
-                            window.electronAPI.sendMessage(session.id, buildExecutionContext(), undefined, undefined, { silent: true })
+                            // 3. Send full execution context to agent as a normal user message
+                            // so users can see the kickoff prompt immediately in chat.
+                            window.electronAPI.sendMessage(session.id, buildExecutionContext())
                           }}
                         />
                       </div>

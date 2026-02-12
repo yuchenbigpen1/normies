@@ -466,6 +466,7 @@ function messageToStored(msg: Message): StoredMessage {
     toolDisplayMeta: msg.toolDisplayMeta,  // Includes base64 icon for viewer
     parentToolUseId: msg.parentToolUseId,
     isError: msg.isError,
+    hidden: msg.hidden,
     attachments: msg.attachments,
     badges: msg.badges,  // Content badges for inline display (sources, skills, context)
     // Turn grouping
@@ -516,6 +517,7 @@ function storedToMessage(stored: StoredMessage): Message {
     toolDisplayMeta: stored.toolDisplayMeta,  // Includes base64 icon for viewer
     parentToolUseId: stored.parentToolUseId,
     isError: stored.isError,
+    hidden: stored.hidden,
     attachments: stored.attachments,
     badges: stored.badges,  // Content badges for inline display (sources, skills, context)
     // Turn grouping

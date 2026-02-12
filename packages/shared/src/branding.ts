@@ -19,4 +19,4 @@ export const NORMIES_LOGO_HTML = NORMIES_LOGO.map((line) => line.trimEnd()).join
 export const CRAFT_LOGO_HTML = NORMIES_LOGO_HTML;
 
 /** Session viewer base URL */
-export const VIEWER_URL = 'https://agents.craft.do';
+export const VIEWER_URL = 'https://share.normies.work';

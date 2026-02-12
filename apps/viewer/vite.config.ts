@@ -7,8 +7,8 @@ import { resolve } from 'path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   root: __dirname,
-  // Base path for production - assets go to /s/assets/* to avoid conflict with marketing site
-  base: '/s/',
+  // Dedicated share subdomain serves only the viewer, so root assets are fine.
+  base: '/',
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
@@ -30,9 +30,9 @@ export default defineConfig({
     port: 5174, // Different from Electron dev server
     open: true,
     proxy: {
-      // Proxy API requests to production R2 during local dev
+      // Proxy API requests to production share service during local dev
       '/s/api': {
-        target: 'https://agents.craft.do',
+        target: 'https://share.normies.work',
         changeOrigin: true,
         secure: true,
       },
