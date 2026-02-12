@@ -1,6 +1,7 @@
-import type { PermissionRequest as PermissionRequestType, CredentialRequest as CredentialRequestType } from '../../../../shared/types'
+import type { PermissionRequest as PermissionRequestType, CredentialRequest as CredentialRequestType, QuestionRequest as QuestionRequestType } from '../../../../shared/types'
 import { PermissionRequest } from './structured/PermissionRequest'
 import { CredentialRequest } from './structured/CredentialRequest'
+import { QuestionPanel } from './structured/QuestionPanel'
 import type { StructuredInputState, StructuredResponse } from './structured/types'
 
 interface StructuredInputProps {
@@ -16,6 +17,7 @@ interface StructuredInputProps {
  * Routes to the appropriate component based on the input type:
  * - permission: PermissionRequest (bash command approval)
  * - credential: CredentialRequest (secure auth input)
+ * - question: QuestionPanel (agent multiple-choice questions)
  */
 export function StructuredInput({ state, onResponse, unstyled = false }: StructuredInputProps) {
   switch (state.type) {
@@ -31,6 +33,14 @@ export function StructuredInput({ state, onResponse, unstyled = false }: Structu
       return (
         <CredentialRequest
           request={state.data as CredentialRequestType}
+          onResponse={onResponse}
+          unstyled={unstyled}
+        />
+      )
+    case 'question':
+      return (
+        <QuestionPanel
+          request={state.data as QuestionRequestType}
           onResponse={onResponse}
           unstyled={unstyled}
         />

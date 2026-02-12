@@ -116,6 +116,13 @@ export function getDocUrl(feature: DocFeature): string {
 }
 
 /**
+ * Get the documentation home URL
+ */
+export function getDocsHomeUrl(): string {
+  return DOC_BASE_URL
+}
+
+/**
  * Get the doc info (title, summary, path) for a feature
  */
 export function getDocInfo(feature: DocFeature): DocInfo {

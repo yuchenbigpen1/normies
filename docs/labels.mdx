@@ -8,6 +8,24 @@ Labels help organize sessions with tags and optional structured values.
 - Add priority tags
 - Filter sessions quickly
 
+## Labels vs Statuses
+
+- **Status** is exclusive (one workflow state at a time).
+- **Labels** are additive (multiple tags can coexist).
+
+Use statuses for lifecycle, labels for classification.
+
+## Label Design Tips
+
+- Keep a small, meaningful top-level taxonomy.
+- Use nested labels when teams need hierarchy.
+- Add typed values only when they drive real filtering or reporting.
+- Use consistent color semantics so scanning stays fast.
+
+## Auto-Labeling
+
+Labels can be applied automatically using pattern rules, which is useful for issue keys, links, and structured identifiers.
+
 ## Detailed Internal Guide
 
 - `packages/shared/assets/docs/labels.md`

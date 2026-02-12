@@ -168,6 +168,8 @@ export function NavigationProvider({
             return session.isFlagged === true
           case 'state':
             return session.todoState === filter.stateId
+          case 'project':
+            return session.projectId === filter.projectId && session.taskIndex != null
           default:
             return false
         }
@@ -177,9 +179,23 @@ export function NavigationProvider({
   )
 
   // Helper: Get first session ID for a filter
+  // For completed projects, returns the handoff task session instead of the first task
   const getFirstSessionId = useCallback(
     (filter: ChatFilter): string | null => {
       const filtered = filterSessionsByFilter(filter)
+      if (!filtered.length) return null
+
+      // For project views: if all non-handoff tasks are done, select the handoff task
+      if (filter.kind === 'project') {
+        const nonHandoff = filtered.filter(s => s.taskType !== 'handoff')
+        const handoff = filtered.find(s => s.taskType === 'handoff')
+        if (handoff && nonHandoff.length > 0 && nonHandoff.every(s => s.todoState === 'done')) {
+          return handoff.id
+        }
+        // Otherwise return first task sorted by taskIndex
+        return [...filtered].sort((a, b) => (a.taskIndex ?? 0) - (b.taskIndex ?? 0))[0]?.id ?? null
+      }
+
       return filtered[0]?.id ?? null
     },
     [filterSessionsByFilter]

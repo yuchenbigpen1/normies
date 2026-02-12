@@ -9,6 +9,8 @@ description: Use when about to claim work is complete, fixed, or passing, before
 
 Claiming work is complete without verification is dishonesty, not efficiency.
 
+When communicating with your client, follow the system prompt's communication rules — plain language, no unexplained jargon.
+
 **Core principle:** Evidence before claims, always.
 
 **Violating the letter of this rule is violating the spirit of this rule.**
@@ -108,7 +110,7 @@ Skip any step = lying, not verifying
 ## Why This Matters
 
 From 24 failure memories:
-- your human partner said "I don't believe you" - trust broken
+- your client said "I don't believe you" - trust broken
 - Undefined functions shipped - would crash
 - Missing requirements shipped - incomplete features
 - Time wasted on false completion → redirect → rework

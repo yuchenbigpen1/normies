@@ -213,7 +213,6 @@ describe('validateStatusesContent', () => {
       { id: 'todo', label: 'To Do', category: 'open', isFixed: true, isDefault: true, order: 0 },
       { id: 'in-progress', label: 'In Progress', category: 'open', isFixed: false, isDefault: false, order: 1 },
       { id: 'done', label: 'Done', category: 'closed', isFixed: true, isDefault: false, order: 2 },
-      { id: 'cancelled', label: 'Cancelled', category: 'closed', isFixed: true, isDefault: false, order: 3 },
     ],
   };
 
@@ -232,11 +231,11 @@ describe('validateStatusesContent', () => {
   it('fails when required fixed status is missing', () => {
     const config = {
       ...validStatuses,
-      statuses: validStatuses.statuses.filter(s => s.id !== 'cancelled'),
+      statuses: validStatuses.statuses.filter(s => s.id !== 'done'),
     };
     const result = validateStatusesContent(JSON.stringify(config));
     expect(result.valid).toBe(false);
-    expect(result.errors.some(e => e.message.includes("'cancelled'"))).toBe(true);
+    expect(result.errors.some(e => e.message.includes("'done'"))).toBe(true);
   });
 
   it('fails when defaultStatusId references non-existent status', () => {
@@ -269,7 +268,6 @@ describe('validateStatusesContent', () => {
       statuses: [
         { id: 'todo', label: 'To Do', category: 'closed', isFixed: true, isDefault: true, order: 0 },
         { id: 'done', label: 'Done', category: 'closed', isFixed: true, isDefault: false, order: 1 },
-        { id: 'cancelled', label: 'Cancelled', category: 'closed', isFixed: true, isDefault: false, order: 2 },
       ],
     };
     const result = validateStatusesContent(JSON.stringify(config));
@@ -470,7 +468,6 @@ Content here.
       statuses: [
         { id: 'todo', label: 'To Do', category: 'open', isFixed: true, isDefault: true, order: 0 },
         { id: 'done', label: 'Done', category: 'closed', isFixed: true, isDefault: false, order: 1 },
-        { id: 'cancelled', label: 'Cancelled', category: 'closed', isFixed: true, isDefault: false, order: 2 },
       ],
     });
     const result = validateConfigFileContent(detection, config);

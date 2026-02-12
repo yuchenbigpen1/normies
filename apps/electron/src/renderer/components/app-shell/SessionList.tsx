@@ -1093,9 +1093,10 @@ export function SessionList({
   const dateGroups = useMemo(() => groupSessionsByDate(paginatedItems), [paginatedItems])
 
   // Project progress stats (only computed in project view)
+  // Exclude handoff tasks from progress counts — they're meta-tasks, not deliverables
   const projectProgress = useMemo(() => {
     if (!isProjectView) return null
-    const tasks = searchFilteredItems
+    const tasks = searchFilteredItems.filter(t => t.taskType !== 'handoff')
     const total = tasks.length
     const done = tasks.filter(t => t.todoState === 'done').length
     const inProgress = tasks.filter(t => t.todoState === 'in-progress').length

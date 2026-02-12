@@ -88,6 +88,7 @@ export function readSessionJsonl(sessionFile: string): StoredSession | null {
       taskDescription: header.taskDescription,
       taskTechnicalDetail: header.taskTechnicalDetail,
       taskFiles: header.taskFiles,
+      taskType: header.taskType,
       // Thread linking (Normies)
       threadParentSessionId: header.threadParentSessionId,
       threadMessageId: header.threadMessageId,
@@ -173,6 +174,7 @@ export function createSessionHeader(session: StoredSession): SessionHeader {
     taskDescription: session.taskDescription,
     taskTechnicalDetail: session.taskTechnicalDetail,
     taskFiles: session.taskFiles,
+    taskType: session.taskType,
     // Thread linking (Normies)
     threadParentSessionId: session.threadParentSessionId,
     threadMessageId: session.threadMessageId,

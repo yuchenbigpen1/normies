@@ -32,7 +32,7 @@ export function WelcomeStep({
       description={
         isExistingUser
           ? 'Update your API connection or change your setup.'
-          : 'Agents with the UX they deserve. Connect anything. Organize your sessions. Everything you need to do the work of your life!'
+          : 'Describe your problem. Get the right solution. No code required.'
       }
       actions={
         <ContinueButton onClick={onContinue} className="w-full" loading={isLoading} loadingText="Checking...">

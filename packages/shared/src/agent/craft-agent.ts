@@ -23,6 +23,7 @@ import {
   getSessionScopedTools,
   cleanupSessionScopedTools,
   type AuthRequest,
+  type QuestionRequest,
 } from './session-scoped-tools.ts';
 import {
   getPermissionMode,
@@ -91,6 +92,8 @@ export enum AbortReason {
   Redirect = 'redirect',
   /** Source was auto-activated mid-turn (silent, auto-retry follows) */
   SourceActivated = 'source_activated',
+  /** Agent asked the user a question and is awaiting their answer */
+  QuestionRequest = 'question_request',
 }
 
 /**
@@ -442,6 +445,10 @@ export class CraftAgent {
   // 5. Agent resumes and processes the result
   public onAuthRequest: ((request: AuthRequest) => void) | null = null;
 
+  // Callback when ask_user_question tool is invoked
+  // Same forceAbort pattern as onAuthRequest
+  public onQuestionRequest: ((request: QuestionRequest) => void) | null = null;
+
   // Callback when CreateProjectTasks tool is invoked (Normies)
   public onCreateProjectSessions: ((data: import('./tools/create-project-tasks.ts').CreateProjectSessionsData) => Promise<string[]>) | null = null;
 
@@ -519,6 +526,10 @@ export class CraftAgent {
           return this.onSetCompletionSummary(summary);
         }
         throw new Error('onSetCompletionSummary callback not registered');
+      },
+      onQuestionRequest: (request) => {
+        this.onDebug?.(`[CraftAgent] onQuestionRequest received: ${request.questions.length} questions`);
+        this.onQuestionRequest?.(request);
       },
     });
 
@@ -3302,6 +3313,7 @@ Please continue the conversation naturally from where we left off.
     this.onDebug = null;
     this.onPlanSubmitted = null;
     this.onAuthRequest = null;
+    this.onQuestionRequest = null;
     this.onCreateProjectSessions = null;
     this.onSetCompletionSummary = null;
     this.onSourceChange = null;

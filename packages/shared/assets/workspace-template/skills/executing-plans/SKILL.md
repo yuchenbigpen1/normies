@@ -1,84 +1,84 @@
 ---
 name: executing-plans
-description: Use when you have a written implementation plan to execute in a separate session with review checkpoints
+description: Use when executing a task from a project plan in a dedicated task session
 ---
 
 # Executing Plans
 
 ## Overview
 
-Load plan, review critically, execute tasks in batches, report for review between batches.
+You are in a dedicated task session. The task description arrives in the session's first message — that message IS your task. Review it critically, execute it thoroughly, and report your results.
 
-**Core principle:** Batch execution with checkpoints for architect review.
+**Core principle:** One task, one session. Do it well, verify it, and summarize what you did.
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+**Announce at start:** "I'm using the executing-plans skill to execute this task."
 
 ## The Process
 
-### Step 1: Load and Review Plan
-1. Read plan file
-2. Review critically - identify any questions or concerns about the plan
-3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create TodoWrite and proceed
+### Step 1: Review the Task
 
-### Step 2: Execute Batch
-**Default: First 3 tasks**
+1. Read the task description from the first message carefully
+2. Review critically — identify any questions, ambiguities, or missing context
+3. If concerns: Raise them with your client before starting
+4. If no concerns: Create a TodoWrite checklist and proceed
 
-For each task:
+### Step 2: Execute
+
+For each step in the task:
 1. Mark as in_progress
-2. Follow each step exactly (plan has bite-sized steps)
+2. Follow each step exactly (the plan should have bite-sized steps)
 3. Run verifications as specified
 4. Mark as completed
 
-### Step 3: Report
-When batch complete:
+### Step 3: Report and Verify
+
+When the task is complete:
 - Show what was implemented
-- Show verification output
-- Say: "Ready for feedback."
+- Show verification output (test results, build output, etc.)
+- Provide verification steps your client can follow to confirm the work
+- Say: "If everything looks good, move this task to Done."
 
-### Step 4: Continue
-Based on feedback:
-- Apply changes if needed
-- Execute next batch
-- Repeat until complete
+### Step 4: Summarize
 
-### Step 5: Complete Development
-
-After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
+After completing the task, use the `setCompletionSummary` tool with a 1-2 sentence plain language summary of what was accomplished. This summary appears on the task card so your client can see at a glance what happened.
 
 ## When to Stop and Ask for Help
 
 **STOP executing immediately when:**
-- Hit a blocker mid-batch (missing dependency, test fails, instruction unclear)
-- Plan has critical gaps preventing starting
+- You hit a blocker (missing dependency, test failure, unclear instruction)
+- The task description has critical gaps that prevent you from starting
 - You don't understand an instruction
 - Verification fails repeatedly
 
 **Ask for clarification rather than guessing.**
 
-## When to Revisit Earlier Steps
+## When to Revisit the Task Description
 
-**Return to Review (Step 1) when:**
-- Partner updates the plan based on your feedback
-- Fundamental approach needs rethinking
+**Re-read the task description when:**
+- If the project plan is updated, you'll see the changes reflected in the task description
+- Fundamental approach needs rethinking based on what you've discovered
 
-**Don't force through blockers** - stop and ask.
+**Don't force through blockers** — stop and ask.
+
+## Communication
+
+When communicating with your client, follow the system prompt's communication rules — plain language, no unexplained jargon.
 
 ## Remember
-- Review plan critically first
+
+- Review the task critically before starting
 - Follow plan steps exactly
 - Don't skip verifications
-- Reference skills when plan says to
-- Between batches: just report and wait
+- Reference skills when the task says to
 - Stop when blocked, don't guess
-- Never start implementation on main/master branch without explicit user consent
+- End with verification steps and a completion summary
+- Never start implementation on main/master branch without explicit client consent
 
 ## Integration
 
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+**Useful companion skills for code-heavy projects:**
+- **using-git-worktrees** — Set up an isolated workspace before starting
+- **finishing-a-development-branch** — Complete development workflow after the task is done
+
+**Related skills:**
+- **writing-plans** — Creates the project plan that produces tasks like this one

@@ -1,4 +1,4 @@
-import type { PermissionRequest, CredentialRequest, CredentialResponse } from '../../../../../shared/types'
+import type { PermissionRequest, CredentialRequest, CredentialResponse, QuestionRequest, QuestionResponse } from '../../../../../shared/types'
 
 /**
  * Input mode determines which component is rendered in InputContainer
@@ -8,7 +8,7 @@ export type InputMode = 'freeform' | 'structured'
 /**
  * Types of structured input UIs
  */
-export type StructuredInputType = 'permission' | 'credential'
+export type StructuredInputType = 'permission' | 'credential' | 'question'
 
 /**
  * Union type for structured input data
@@ -16,13 +16,14 @@ export type StructuredInputType = 'permission' | 'credential'
 export type StructuredInputData =
   | { type: 'permission'; data: PermissionRequest }
   | { type: 'credential'; data: CredentialRequest }
+  | { type: 'question'; data: QuestionRequest }
 
 /**
  * State for structured input
  */
 export interface StructuredInputState {
   type: StructuredInputType
-  data: PermissionRequest | CredentialRequest
+  data: PermissionRequest | CredentialRequest | QuestionRequest
 }
 
 /**
@@ -37,7 +38,7 @@ export interface PermissionResponse {
 /**
  * Union type for all structured responses
  */
-export type StructuredResponse = PermissionResponse | CredentialResponse
+export type StructuredResponse = PermissionResponse | CredentialResponse | QuestionResponse
 
-// Re-export CredentialResponse for convenience
-export type { CredentialResponse }
+// Re-export CredentialResponse and QuestionResponse for convenience
+export type { CredentialResponse, QuestionResponse }

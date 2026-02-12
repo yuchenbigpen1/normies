@@ -436,6 +436,7 @@ interface ManagedSession {
   taskDescription?: string
   taskTechnicalDetail?: string
   taskFiles?: string[]
+  taskType?: 'task' | 'handoff'
   // Task completion (Normies)
   completionSummary?: string
   // Architecture diagram (Normies)
@@ -983,6 +984,7 @@ export class SessionManager {
             taskDescription: meta.taskDescription,
             taskTechnicalDetail: meta.taskTechnicalDetail,
             taskFiles: meta.taskFiles,
+            taskType: meta.taskType,
             // Thread linking (Normies)
             threadParentSessionId: meta.threadParentSessionId,
             threadMessageId: meta.threadMessageId,
@@ -1057,6 +1059,7 @@ export class SessionManager {
         taskDescription: managed.taskDescription,
         taskTechnicalDetail: managed.taskTechnicalDetail,
         taskFiles: managed.taskFiles,
+        taskType: managed.taskType,
         // Thread linking (Normies)
         threadParentSessionId: managed.threadParentSessionId,
         threadMessageId: managed.threadMessageId,
@@ -1413,6 +1416,7 @@ export class SessionManager {
         taskDescription: m.taskDescription,
         taskTechnicalDetail: m.taskTechnicalDetail,
         taskFiles: m.taskFiles,
+        taskType: m.taskType,
         // Plan reference (Normies)
         planPath: m.planPath,
         // Thread linking (Normies)
@@ -1475,6 +1479,7 @@ export class SessionManager {
       taskDescription: m.taskDescription,
       taskTechnicalDetail: m.taskTechnicalDetail,
       taskFiles: m.taskFiles,
+      taskType: m.taskType,
       planPath: m.planPath,
       // Thread linking (Normies)
       threadParentSessionId: m.threadParentSessionId,
@@ -1537,6 +1542,7 @@ export class SessionManager {
       if (storedSession.taskDescription) managed.taskDescription = storedSession.taskDescription
       if (storedSession.taskTechnicalDetail) managed.taskTechnicalDetail = storedSession.taskTechnicalDetail
       if (storedSession.taskFiles) managed.taskFiles = storedSession.taskFiles
+      if (storedSession.taskType) managed.taskType = storedSession.taskType
       if (storedSession.planPath) managed.planPath = storedSession.planPath
       if (storedSession.diagramPath) managed.diagramPath = storedSession.diagramPath
       if (storedSession.completionSummary) managed.completionSummary = storedSession.completionSummary
@@ -1611,6 +1617,7 @@ export class SessionManager {
       taskDescription: options?.taskDescription,
       taskTechnicalDetail: options?.taskTechnicalDetail,
       taskFiles: options?.taskFiles,
+      taskType: options?.taskType,
       // Thread linking (Normies)
       threadParentSessionId: options?.threadParentSessionId,
       threadMessageId: options?.threadMessageId,
@@ -1663,6 +1670,7 @@ export class SessionManager {
       taskDescription: options?.taskDescription,
       taskTechnicalDetail: options?.taskTechnicalDetail,
       taskFiles: options?.taskFiles,
+      taskType: options?.taskType,
       // Thread linking (Normies)
       threadParentSessionId: options?.threadParentSessionId,
       threadMessageId: options?.threadMessageId,
@@ -1703,6 +1711,7 @@ export class SessionManager {
       taskDescription: options?.taskDescription,
       taskTechnicalDetail: options?.taskTechnicalDetail,
       taskFiles: options?.taskFiles,
+      taskType: options?.taskType,
       // Thread linking (Normies)
       threadParentSessionId: options?.threadParentSessionId,
       threadMessageId: options?.threadMessageId,
@@ -2011,6 +2020,7 @@ Remember: You're providing a second opinion. Help the user understand, question,
             taskDescription: task.description,
             taskTechnicalDetail: task.technicalDetail,
             taskFiles: task.files,
+            taskType: task.taskType,
             // Task sessions start as Todo
             todoState: 'todo',
             // Task sessions use the task-execution system prompt

@@ -1568,7 +1568,6 @@ export function FreeFormInput({
                   const isSelected = currentModel === model.id
                   const descriptions: Record<string, string> = {
                     'claude-opus-4-6': 'Most capable for complex work',
-                    'claude-opus-4-5-20251101': 'Previous generation',
                     'claude-sonnet-4-5-20250929': 'Best for everyday tasks',
                     'claude-haiku-4-5-20251001': 'Fastest for quick answers',
                   }

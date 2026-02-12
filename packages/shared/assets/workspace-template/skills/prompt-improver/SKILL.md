@@ -52,15 +52,17 @@ Based on what's missing, formulate **at most 3 questions**. Less is better.
 
 ### Phase 3: Get Clarification
 
-Use the AskUserQuestion tool:
+Use the `ask_user_question` tool:
 
 ```
-- question: Clear business question ending with ?
-- header: Short label (max 12 chars)
-- multiSelect: false
-- options: 2-4 concrete choices
-  - label: Plain language (1-5 words)
-  - description: What this means for them (one sentence)
+questions: [{
+  question: "Clear business question ending with ?"
+  options: [
+    { label: "Plain language (1-5 words)", description: "What this means for them (one sentence)" },
+    ...2-4 options total
+  ]
+  multiSelect: false
+}]
 ```
 
 ### Phase 4: Proceed with Enriched Context

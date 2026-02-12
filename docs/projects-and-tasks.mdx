@@ -1,21 +1,50 @@
 # Projects and Tasks
 
-Normies can turn a plan into a tracked project with task sessions.
+Normies turns approved plans into tracked projects made of task conversations.
 
-## How It Works
+## Core Model
 
-1. Explore session produces a plan.
-2. Project tasks are created from that plan.
-3. Each task runs as its own conversation.
-4. Task progress is visible in the Projects view.
+A project is a group of related sessions:
+
+- One parent Explore conversation (planning context).
+- Multiple task conversations (execution units).
+
+Each task is independently visible, startable, and reviewable.
+
+## Lifecycle
+
+1. Explore mode produces a plan.
+2. Plan approval triggers task creation.
+3. Tasks appear under the project in the Projects navigation.
+4. User starts tasks intentionally (human-gated execution).
+5. Tasks move through statuses as work progresses.
+6. Completed tasks save a plain-language summary.
 
 ## Why This Helps
 
-- Clear sequencing for multi-step work
-- Better visibility into what is done vs pending
-- Easier handoff and review
+- You can see real progress across a multi-step initiative.
+- You can re-enter work after a break without losing context.
+- You can inspect each task as its own conversation history.
+
+## What You See in the UI
+
+- **Left sidebar**: Projects group with expandable project list.
+- **Middle panel**: Ordered task list with status and subtitle summary.
+- **Right sidebar**: Task description, dependencies, file scope, and context.
+
+## Task Session Metadata
+
+Task sessions track execution-specific context such as:
+
+- Task order index.
+- Dependency links.
+- Parent session link.
+- Task completion summary.
+
+This is what enables project-level progress and task-specific UX.
 
 ## Related Technical References
 
 - `IMPLEMENTATION_SPEC.md` (task architecture)
 - `TASK_PLAN.md` (delivery breakdown)
+- `packages/shared/src/prompts/system.ts` (`getTaskExecutionSystemPrompt`)

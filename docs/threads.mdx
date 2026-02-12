@@ -1,6 +1,6 @@
 # Threads (Second-Opinion Chat)
 
-Threads let users open a side conversation on a specific assistant response.
+Threads let users open a side conversation on a specific assistant response without polluting the main execution flow.
 
 ## Purpose
 
@@ -10,9 +10,29 @@ Threads let users open a side conversation on a specific assistant response.
 
 ## Behavior
 
-- Thread conversation is separate from the main session flow
-- It is intended for discussion, not continuing the main task execution
+- Thread conversation is separate from the main session flow.
+- Threads are discussion-only: critique, clarification, decision support.
+- The thread assistant does not continue primary implementation work.
+- Thread conclusions can be turned into ready-to-paste feedback for the main conversation.
+
+## UX Model
+
+1. Open thread from a specific assistant response.
+2. Discuss that response in the overlay thread context.
+3. Bring decisions back into the main conversation.
+
+Thread sessions are hidden from standard chat lists and are linked to a specific parent message.
+
+## Why Threads Exist
+
+Threads are a built-in quality control and comprehension mechanism:
+
+- Challenge assumptions without derailing execution.
+- Clarify complex technical choices in plain language.
+- Keep the main conversation focused and clean.
 
 ## Related Technical References
 
 - `IMPLEMENTATION_SPEC.md` (Thread/Critique UX)
+- `packages/shared/src/prompts/system.ts` (`getThreadSystemPrompt`)
+- `TASK_PLAN.md` (Phase 5: Thread/Critique UI)

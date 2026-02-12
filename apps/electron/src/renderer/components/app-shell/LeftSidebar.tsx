@@ -64,6 +64,8 @@ export interface SortableConfig {
 export interface LinkItem {
   id: string            // Unique ID for navigation (e.g., 'nav:allChats')
   title: string
+  /** Optional class override for the title text span */
+  titleClassName?: string
   label?: string        // Optional badge (e.g., count)
   icon?: LucideIcon | React.ReactNode  // LucideIcon or custom React element (optional for text-only sub-items)
   iconColor?: string    // Optional color class for the icon
@@ -523,7 +525,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
             )}
           </span>
         ) : null}
-        <span className="flex-1 truncate min-w-0">{link.title}</span>
+        <span className={cn("flex-1 truncate min-w-0", link.titleClassName)}>{link.title}</span>
         {/* After-title element: type indicator icon, right-aligned before count badge, revealed on hover */}
         {link.afterTitle && (
           <span className="ml-auto opacity-0 group-hover/section:opacity-100 group-data-[state=open]:opacity-100 group-data-[edit-active=true]:opacity-100 transition-opacity">

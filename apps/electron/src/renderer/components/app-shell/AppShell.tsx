@@ -115,7 +115,7 @@ import { SourcesListPanel } from "./SourcesListPanel"
 import { SkillsListPanel } from "./SkillsListPanel"
 import { PanelHeader } from "./PanelHeader"
 import { EditPopover, getEditConfig, type EditContextKey } from "@/components/ui/EditPopover"
-import { getDocUrl } from "@normies/shared/docs/doc-links"
+import { getDocUrl, getDocsHomeUrl } from "@normies/shared/docs/doc-links"
 import SettingsNavigator from "@/pages/settings/SettingsNavigator"
 import { RightSidebar } from "./RightSidebar"
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
@@ -1244,6 +1244,19 @@ function AppShellContent({
       : metas.filter(s => !s.hidden)
   }, [sessionMetaMap, activeWorkspaceId])
 
+  // Detect if viewing a handoff task on a completed project — auto-hide session list
+  const isHandoffView = useMemo(() => {
+    if (!isChatsNavigation(navState) || !navState.details) return false
+    const selectedMeta = sessionMetaMap.get(navState.details.sessionId)
+    if (!selectedMeta || selectedMeta.taskType !== 'handoff' || !selectedMeta.projectId) return false
+    const siblings = workspaceSessionMetas.filter(
+      s => s.projectId === selectedMeta.projectId && s.taskIndex != null && s.taskType !== 'handoff'
+    )
+    return siblings.length > 0 && siblings.every(s => s.todoState === 'done')
+  }, [navState, sessionMetaMap, workspaceSessionMetas])
+
+  const effectiveSessionListVisible = isSessionListVisible && !isHandoffView
+
   // Count sessions by todo state (scoped to workspace)
   const isMetaDone = (s: SessionMeta) => s.todoState === 'done' || s.todoState === 'cancelled'
   const flaggedCount = workspaceSessionMetas.filter(s => s.isFlagged).length
@@ -1335,8 +1348,17 @@ function AppShellContent({
   const projects = useMemo(() => {
     // Count done/total tasks per projectId for progress rings
     const taskCounts = new Map<string, { done: number; total: number }>()
+    // Track latest activity across parent + task sessions per project.
+    const projectLastActivity = new Map<string, number>()
     for (const s of workspaceSessionMetas) {
-      if (s.projectId && s.taskIndex != null) {
+      if (s.projectId && !s.threadParentSessionId) {
+        const current = projectLastActivity.get(s.projectId) ?? 0
+        const activityTs = s.lastMessageAt ?? s.createdAt ?? 0
+        if (activityTs > current) {
+          projectLastActivity.set(s.projectId, activityTs)
+        }
+      }
+      if (s.projectId && s.taskIndex != null && s.taskType !== 'handoff') {
         const counts = taskCounts.get(s.projectId) || { done: 0, total: 0 }
         counts.total++
         if (s.todoState === 'done') counts.done++
@@ -1346,7 +1368,12 @@ function AppShellContent({
 
     return workspaceSessionMetas
       .filter(s => s.projectId && s.taskIndex == null && !s.threadParentSessionId)
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .sort((a, b) => {
+        const activityA = projectLastActivity.get(a.projectId!) ?? 0
+        const activityB = projectLastActivity.get(b.projectId!) ?? 0
+        if (activityB !== activityA) return activityB - activityA
+        return (b.createdAt || 0) - (a.createdAt || 0)
+      })
       .map(s => ({
         id: s.projectId!,
         name: s.name || 'Untitled Project',
@@ -1604,9 +1631,9 @@ function AppShellContent({
     onChatMatchInfoChange: handleChatMatchInfoChange,
     // Panel visibility for toolbar button positioning
     isSidebarVisible,
-    isSessionListVisible,
+    isSessionListVisible: effectiveSessionListVisible,
     onToggleSidebar: toggleSidebar,
-  }), [contextValue, handleDeleteSession, sources, skills, labelConfigs, handleSessionLabelsChange, enabledModes, effectiveTodoStates, handleSessionSourcesChange, rightSidebarOpenButton, searchActive, searchQuery, handleChatMatchInfoChange, isSidebarVisible, isSessionListVisible, toggleSidebar])
+  }), [contextValue, handleDeleteSession, sources, skills, labelConfigs, handleSessionLabelsChange, enabledModes, effectiveTodoStates, handleSessionSourcesChange, rightSidebarOpenButton, searchActive, searchQuery, handleChatMatchInfoChange, isSidebarVisible, effectiveSessionListVisible, toggleSidebar])
 
   // Persist expanded folders to localStorage (workspace-scoped)
   React.useEffect(() => {
@@ -2267,6 +2294,7 @@ function AppShellContent({
                     ...projects.map(p => ({
                       id: `nav:project:${p.id}`,
                       title: p.name,
+                      titleClassName: (p.done === p.total && p.total > 0) ? "text-muted-foreground" : undefined,
                       icon: <ProjectProgressRing done={p.done} total={p.total} isDark={isDark} />,
                       iconColorable: false,
                       variant: (chatFilter?.kind === 'project' && chatFilter.projectId === p.id) ? "default" as const : "ghost" as const,
@@ -2384,7 +2412,7 @@ function AppShellContent({
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
                       </StyledDropdownMenuItem>
                       <StyledDropdownMenuSeparator />
-                      <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yuchenzhang/normies#readme')}>
+                      <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocsHomeUrl())}>
                         <ExternalLink className="h-3.5 w-3.5" />
                         <span className="flex-1">All Documentation</span>
                       </StyledDropdownMenuItem>
@@ -2435,8 +2463,8 @@ function AppShellContent({
           <motion.div
             initial={false}
             animate={{
-              width: (effectiveFocusMode || !isSessionListVisible) ? 0 : sessionListWidth + (isSidebarVisible ? sidebarWidth + PANEL_WINDOW_EDGE_SPACING : 0),
-              opacity: (effectiveFocusMode || !isSessionListVisible) ? 0 : 1,
+              width: (effectiveFocusMode || !effectiveSessionListVisible) ? 0 : sessionListWidth + (isSidebarVisible ? sidebarWidth + PANEL_WINDOW_EDGE_SPACING : 0),
+              opacity: (effectiveFocusMode || !effectiveSessionListVisible) ? 0 : 1,
             }}
             transition={isResizing ? { duration: 0 } : springTransition}
             className="h-full shrink-0 overflow-hidden"
@@ -3134,7 +3162,7 @@ function AppShellContent({
           </motion.div>
 
           {/* Session List Resize Handle (hidden in focused mode or when session list is hidden) */}
-          {!effectiveFocusMode && isSessionListVisible && (
+          {!effectiveFocusMode && effectiveSessionListVisible && (
           <div
             ref={sessionListHandleRef}
             onMouseDown={(e) => { e.preventDefault(); setIsResizing('session-list') }}
@@ -3163,7 +3191,7 @@ function AppShellContent({
           <motion.div
             initial={false}
             animate={{
-              paddingLeft: (isSidebarVisible && !isSessionListVisible && !effectiveFocusMode)
+              paddingLeft: (isSidebarVisible && !effectiveSessionListVisible && !effectiveFocusMode)
                 ? sidebarWidth + PANEL_WINDOW_EDGE_SPACING
                 : 0,
             }}
@@ -3172,7 +3200,7 @@ function AppShellContent({
               "flex-1 overflow-hidden min-w-0 bg-foreground-3"
             )}
           >
-            <MainContentPanel isFocusedMode={effectiveFocusMode || (!isSidebarVisible && !isSessionListVisible)} />
+            <MainContentPanel isFocusedMode={effectiveFocusMode || (!isSidebarVisible && !effectiveSessionListVisible)} />
           </motion.div>
 
           {/* Right Sidebar - Inline Mode (≥ 920px) */}

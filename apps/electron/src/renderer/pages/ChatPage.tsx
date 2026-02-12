@@ -17,11 +17,12 @@ import { toast } from 'sonner'
 import { HeaderIconButton } from '@/components/ui/HeaderIconButton'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { StyledDropdownMenuContent, StyledDropdownMenuItem, StyledDropdownMenuSeparator } from '@/components/ui/styled-dropdown'
-import { useAppShellContext, usePendingPermission, usePendingCredential, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
+import { useAppShellContext, usePendingPermission, usePendingCredential, usePendingQuestion, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
 import { rendererPerf } from '@/lib/perf'
 import { routes } from '@/lib/navigate'
 import { ensureSessionMessagesLoadedAtom, loadedSessionsAtom, sessionMetaMapAtom } from '@/atoms/sessions'
 import { getSessionTitle } from '@/utils/session'
+import { getDocsHomeUrl } from '@normies/shared/docs/doc-links'
 
 export interface ChatPageProps {
   sessionId: string
@@ -41,6 +42,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     onOpenUrl,
     onRespondToPermission,
     onRespondToCredential,
+    onRespondToQuestion,
     onMarkSessionRead,
     onMarkSessionUnread,
     onSetActiveViewingSession,
@@ -122,9 +124,10 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, isWindowFocused, onSetActiveViewingSession])
 
-  // Get pending permission and credential for this session
+  // Get pending permission, credential, and question for this session
   const pendingPermission = usePendingPermission(sessionId)
   const pendingCredential = usePendingCredential(sessionId)
+  const pendingQuestion = usePendingQuestion(sessionId)
 
   // Track draft value for this session
   const [inputValue, setInputValue] = React.useState(() => getDraft(sessionId))
@@ -371,7 +374,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
               <span className="flex-1">Stop Sharing</span>
             </StyledDropdownMenuItem>
             <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yuchenzhang/normies#readme')}>
+            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocsHomeUrl())}>
               <Info className="h-3.5 w-3.5" />
               <span className="flex-1">Learn More</span>
             </StyledDropdownMenuItem>
@@ -385,7 +388,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
               <span className="flex-1">Share Online</span>
             </StyledDropdownMenuItem>
             <StyledDropdownMenuSeparator />
-            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yuchenzhang/normies#readme')}>
+            <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocsHomeUrl())}>
               <Info className="h-3.5 w-3.5" />
               <span className="flex-1">Learn More</span>
             </StyledDropdownMenuItem>
@@ -475,6 +478,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
                 onRespondToPermission={onRespondToPermission}
                 pendingCredential={undefined}
                 onRespondToCredential={onRespondToCredential}
+                pendingQuestion={undefined}
+                onRespondToQuestion={onRespondToQuestion}
                 thinkingLevel={sessionOpts.thinkingLevel}
                 onThinkingLevelChange={(level) => setOption('thinkingLevel', level)}
                 ultrathinkEnabled={sessionOpts.ultrathinkEnabled}
@@ -546,6 +551,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
             onRespondToPermission={onRespondToPermission}
             pendingCredential={pendingCredential}
             onRespondToCredential={onRespondToCredential}
+            pendingQuestion={pendingQuestion}
+            onRespondToQuestion={onRespondToQuestion}
             thinkingLevel={sessionOpts.thinkingLevel}
             onThinkingLevelChange={(level) => setOption('thinkingLevel', level)}
             ultrathinkEnabled={sessionOpts.ultrathinkEnabled}

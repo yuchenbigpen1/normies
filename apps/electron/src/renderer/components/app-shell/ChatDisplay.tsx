@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useEffect, useState, useMemo, useCallback } from "react"
+import { useAtomValue } from 'jotai'
 import {
   AlertTriangle,
   Check,
@@ -42,7 +43,7 @@ import {
 } from "@normies/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
-import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
+import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, QuestionRequest, QuestionResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
 import type { PermissionMode } from "@normies/shared/agent/modes"
 import type { ThinkingLevel } from "@normies/shared/agent/thinking-levels"
 import { TurnCard, UserMessageBubble, ResponseCard, groupMessagesByTurn, formatTurnAsMarkdown, formatActivityAsMarkdown, type Turn, type AssistantTurn, type UserTurn, type SystemTurn, type AuthRequestTurn } from "@normies/ui"
@@ -55,7 +56,7 @@ import { InputContainer, type StructuredInputState, type StructuredResponse, typ
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
 import { useBackgroundTasks } from "@/hooks/useBackgroundTasks"
 import { useTurnCardExpansion } from "@/hooks/useTurnCardExpansion"
-import type { SessionMeta } from "@/atoms/sessions"
+import { sessionMetaMapAtom, type SessionMeta } from "@/atoms/sessions"
 import { CHAT_LAYOUT } from "@/config/layout"
 import { flattenLabels } from "@normies/shared/labels"
 
@@ -127,6 +128,10 @@ interface ChatDisplayProps {
   pendingCredential?: CredentialRequest
   /** Callback to respond to credential request */
   onRespondToCredential?: (sessionId: string, requestId: string, response: CredentialResponse) => void
+  /** Pending question request for this session (ask_user_question tool) */
+  pendingQuestion?: QuestionRequest
+  /** Callback to respond to question request */
+  onRespondToQuestion?: (sessionId: string, requestId: string, response: QuestionResponse) => void
   // Thinking level (session-level setting)
   /** Current thinking level ('off', 'think', 'max') */
   thinkingLevel?: ThinkingLevel
@@ -395,6 +400,8 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   onRespondToPermission,
   pendingCredential,
   onRespondToCredential,
+  pendingQuestion,
+  onRespondToQuestion,
   // Thinking level
   thinkingLevel = 'think',
   onThinkingLevelChange,
@@ -478,6 +485,9 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     setExpandedActivityGroups,
   } = useTurnCardExpansion(session?.id)
 
+  // Session metadata map for reading sibling task summaries (handoff task context)
+  const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
+
   // Track which label should auto-open its value popover after being added via # menu.
   // Set when a valued label is selected, cleared once the popover opens.
   const [autoOpenLabelId, setAutoOpenLabelId] = useState<string | null>(null)
@@ -541,13 +551,32 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     return count
   }, [])
 
+  // Messages that should be visible in chat.
+  // Includes a defensive fallback for legacy task kickoff prompts that were stored without hidden=true.
+  const displayMessages = useMemo(() => {
+    if (!session) return []
+    return session.messages.filter((m) => {
+      if (m.hidden) return false
+      if (
+        session.projectId != null &&
+        session.taskIndex != null &&
+        m.role === 'user' &&
+        typeof m.content === 'string' &&
+        m.content.includes('### Instructions\nExecute this task following TDD (red-green-refactor).')
+      ) {
+        return false
+      }
+      return true
+    })
+  }, [session])
+
   // Find ALL individual match occurrences (not just turns)
   // Returns array with unique matchId for each occurrence
   const matchingOccurrences = useMemo(() => {
-    if (!searchQuery.trim() || !session?.messages) return []
+    if (!searchQuery.trim()) return []
     const startTime = performance.now()
     const query = searchQuery.toLowerCase()
-    const turns = groupMessagesByTurn(session.messages)
+    const turns = groupMessagesByTurn(displayMessages)
     const matches: { matchId: string; turnId: string; turnIndex: number; matchIndexInTurn: number }[] = []
 
     for (let turnIndex = 0; turnIndex < turns.length; turnIndex++) {
@@ -591,7 +620,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
       }
     }
     return matches
-  }, [searchQuery, session?.messages, countOccurrences])
+  }, [searchQuery, displayMessages, countOccurrences])
 
   // Auto-expand pagination when search is active to show all matching turns
   // This ensures match count is stable and all matches are highlightable from the start
@@ -600,7 +629,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
     // Find the earliest matching turn index
     const earliestMatchTurnIndex = Math.min(...matchingOccurrences.map(m => m.turnIndex))
-    const totalTurns = groupMessagesByTurn(session?.messages || []).length
+    const totalTurns = groupMessagesByTurn(displayMessages).length
 
     // Calculate how many turns we need to show to include all matches
     // totalTurns - visibleTurnCount = startIndex, so we need visibleTurnCount = totalTurns - earliestMatchTurnIndex + buffer
@@ -609,7 +638,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     if (requiredVisibleCount > visibleTurnCount) {
       setVisibleTurnCount(requiredVisibleCount)
     }
-  }, [isSearchActive, matchingOccurrences, session?.messages, visibleTurnCount])
+  }, [isSearchActive, matchingOccurrences, displayMessages, visibleTurnCount])
 
   // Extract unique turn IDs that have matches (for highlighting)
   const matchingTurnIds = useMemo(() => {
@@ -975,8 +1004,8 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   const threadContextRef = React.useRef<string | null>(null)
   const [threadMessages, setThreadMessages] = useState<Array<{ id: string; role: 'user' | 'assistant'; content: string; timestamp?: number }>>([])
   const [isThreadStreaming, setIsThreadStreaming] = useState(false)
-  // Thread model — defaults to haiku, user can switch via model picker
-  const [threadModel, setThreadModel] = useState('claude-haiku-4-5-20251001')
+  // Thread model — defaults to Opus, user can switch via model picker
+  const [threadModel, setThreadModel] = useState('claude-opus-4-6')
   // Accumulates streaming text for the current assistant response
   const threadStreamingTextRef = React.useRef('')
 
@@ -1327,7 +1356,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     viewport.scrollTop += delta
   }, [])
 
-  // Handle structured input responses (permissions and credentials)
+  // Handle structured input responses (permissions, credentials, and questions)
   const handleStructuredResponse = (response: StructuredResponse) => {
     if (response.type === 'permission' && pendingPermission && onRespondToPermission) {
       const permResponse = response as PermissionResponse
@@ -1344,10 +1373,17 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
         pendingCredential.requestId,
         credResponse
       )
+    } else if (response.type === 'question' && pendingQuestion && onRespondToQuestion) {
+      const questionResponse = response as QuestionResponse
+      onRespondToQuestion(
+        pendingQuestion.sessionId,
+        pendingQuestion.requestId,
+        questionResponse
+      )
     }
   }
 
-  // Build structured input state from pending requests (permissions take priority)
+  // Build structured input state from pending requests (permissions take priority, then credentials, then questions)
   const structuredInput: StructuredInputState | undefined = React.useMemo(() => {
     if (pendingPermission) {
       return { type: 'permission', data: pendingPermission }
@@ -1355,16 +1391,16 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     if (pendingCredential) {
       return { type: 'credential', data: pendingCredential }
     }
+    if (pendingQuestion) {
+      return { type: 'question', data: pendingQuestion }
+    }
     return undefined
-  }, [pendingPermission, pendingCredential])
+  }, [pendingPermission, pendingCredential, pendingQuestion])
 
   // Memoize turn grouping - avoids O(n) iteration on every render/keystroke
   const allTurns = React.useMemo(() => {
-    if (!session) return []
-    // Filter out hidden messages (e.g. silent "Plan approved" triggers) before grouping
-    const visibleMessages = session.messages.filter(m => !m.hidden)
-    return groupMessagesByTurn(visibleMessages, session?.isProcessing)
-  }, [session?.messages, session?.isProcessing])
+    return groupMessagesByTurn(displayMessages, session?.isProcessing)
+  }, [displayMessages, session?.isProcessing])
 
   // Keep ref in sync for scroll handler
   totalTurnCountRef.current = allTurns.length
@@ -1466,6 +1502,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
                     // Full context sent to agent — includes technical detail, files, and instructions
                     const buildExecutionContext = () => {
+                      const isHandoff = session.taskType === 'handoff'
                       const parts: string[] = []
                       parts.push(`## Task ${(session.taskIndex ?? 0) + 1}: ${session.name || 'Untitled Task'}`)
                       if (session.taskDescription) {
@@ -1483,7 +1520,24 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                       if (session.planPath) {
                         parts.push(`\n### Plan Reference\nThe full plan is at: ${session.planPath} — read it if you need broader context.`)
                       }
-                      parts.push(`\n### Instructions\nExecute this task following TDD (red-green-refactor). After completion, write a 2-sentence summary. If you hit the same failure twice, stop and present options.`)
+
+                      // For handoff tasks: inject completion summaries from all sibling tasks
+                      if (isHandoff && session.projectId) {
+                        const siblingTasks = Array.from(sessionMetaMap.values())
+                          .filter(s => s.projectId === session.projectId && s.taskIndex != null && s.taskType !== 'handoff')
+                          .sort((a, b) => (a.taskIndex ?? 0) - (b.taskIndex ?? 0))
+                        if (siblingTasks.length > 0) {
+                          const summaryLines = siblingTasks.map(s => {
+                            const summary = s.completionSummary || '(not yet completed)'
+                            const files = s.taskFiles?.length ? `\n     Files: ${s.taskFiles.join(', ')}` : ''
+                            return `  - **Task ${(s.taskIndex ?? 0) + 1}: ${s.name || 'Untitled'}** — ${summary}${files}`
+                          })
+                          parts.push(`\n### Completed Task Summaries\nHere's what was accomplished in each task:\n${summaryLines.join('\n')}`)
+                        }
+                        parts.push(`\n### Instructions\nThis is a handoff task. Review all completed work, read the project plan, inspect key files, and produce a comprehensive plain-language maintenance guide. Call setCompletionSummary when done.`)
+                      } else {
+                        parts.push(`\n### Instructions\nExecute this task following TDD (red-green-refactor). After completion, write a 2-sentence summary. If you hit the same failure twice, stop and present options.`)
+                      }
                       return parts.join('\n')
                     }
 
@@ -1504,9 +1558,9 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                             onTodoStateChange?.('in-progress')
                             // 2. Switch to execute mode so the agent can work
                             onPermissionModeChange?.('allow-all')
-                            // 3. Send full execution context to agent as a normal user message
-                            // so users can see the kickoff prompt immediately in chat.
-                            window.electronAPI.sendMessage(session.id, buildExecutionContext())
+                            // 3. Send full execution context to agent as a silent user message
+                            // so kickoff instructions are not shown in chat UI.
+                            window.electronAPI.sendMessage(session.id, buildExecutionContext(), undefined, undefined, { silent: true })
                           }}
                         />
                       </div>
@@ -1852,7 +1906,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
               sessionId={session.id}
               currentTodoState={session.todoState || 'todo'}
               disableSend={disableSend}
-              isEmptySession={session.messages.length === 0}
+              isEmptySession={displayMessages.length === 0}
               contextStatus={{
                 isCompacting: session.currentStatus?.statusType === 'compacting',
                 inputTokens: session.tokenUsage?.inputTokens,
@@ -2030,7 +2084,7 @@ function ThreadInput({ onSend, isStreaming, currentModel, onModelChange }: {
   }, [text, isStreaming, onSend])
 
   return (
-    <div className="bg-background/80 backdrop-blur-sm rounded-[16px] border border-border/40 px-3 py-2">
+    <div className="input-container rounded-[12px] shadow-middle bg-background overflow-hidden px-3 py-2">
       <textarea
         ref={inputRef}
         value={text}
@@ -2048,7 +2102,7 @@ function ThreadInput({ onSend, isStreaming, currentModel, onModelChange }: {
         autoFocus
       />
       {/* Bottom row: spacer pushes model picker + send to the right (matches main chat layout) */}
-      <div className="flex items-center pt-1">
+      <div className="flex items-center gap-1 px-2 py-2 border-t border-border/50">
         <div className="flex-1" />
 
         {/* Right side: Model picker + Send — grouped together, never shrink */}

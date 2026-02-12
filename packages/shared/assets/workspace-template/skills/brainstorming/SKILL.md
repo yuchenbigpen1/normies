@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: "Use when the client has a complex idea that needs design exploration before implementation."
 ---
 
 # Brainstorming Ideas Into Designs
@@ -8,6 +8,8 @@ description: "You MUST use this before any creative work - creating features, bu
 ## Overview
 
 Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
+
+Before jumping to design, consider the system prompt's solution-first gate -- explore existing tools, SaaS products, and simpler approaches before proposing custom work.
 
 Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design in small sections (200-300 words), checking after each section whether it looks right so far.
 
@@ -34,15 +36,9 @@ Start by understanding the current project context, then ask questions one at a 
 
 ## After the Design
 
-**Documentation:**
-- Write the validated design to `docs/plans/YYYY-MM-DD-<topic>-design.md`
-- Use elements-of-style:writing-clearly-and-concisely skill if available
-- Commit the design document to git
-
-**Implementation (if continuing):**
-- Ask: "Ready to set up for implementation?"
-- Use superpowers:using-git-worktrees to create isolated workspace
-- Use superpowers:writing-plans to create detailed implementation plan
+Once the design is approved:
+- Use SubmitPlan to present the implementation plan to the client
+- After plan approval, use CreateProjectTasks to create task sessions for each piece of the implementation
 
 ## Key Principles
 

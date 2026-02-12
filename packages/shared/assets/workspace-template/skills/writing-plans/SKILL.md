@@ -7,15 +7,13 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write comprehensive implementation plans assuming the implementing agent has zero context for the codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+Assume they are a skilled developer, but know almost nothing about the toolset or problem domain. Assume they don't know good test design very well.
 
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+When communicating plan details to your client, follow the system prompt's communication rules -- plain language summaries with technical detail available on request.
 
-**Context:** This should be run in a dedicated worktree (created by brainstorming skill).
-
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
+**Announce at start:** "I'm creating an implementation plan for this."
 
 ## Bite-Sized Task Granularity
 
@@ -26,25 +24,39 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 - "Run the tests and make sure they pass" - step
 - "Commit" - step
 
-## Plan Document Header
+## Plan Structure
 
-**Every plan MUST start with this header:**
+**Every plan starts with a summary header, then a list of tasks.**
+
+Use the SubmitPlan tool to present the plan to the user. Write the plan as a markdown file, then call SubmitPlan with the file path. The plan is saved automatically by the session.
 
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+## Summary
+[2-3 sentences: what this builds, the architectural approach, key technologies]
 
-**Goal:** [One sentence describing what this builds]
-
-**Architecture:** [2-3 sentences about approach]
-
-**Tech Stack:** [Key technologies/libraries]
-
----
+## Steps
+1. **Task title** - Plain language summary of what this accomplishes
+2. **Task title** - Plain language summary
+3. ...
 ```
 
-## Task Structure
+## Structuring Tasks for CreateProjectTasks
+
+After the user accepts the plan, tasks are created via CreateProjectTasks. Each task you define in the plan must map to this structure:
+
+- **title**: Plain language name (e.g., "Add user validation middleware")
+- **description**: 1-2 sentence summary of what the task accomplishes and why
+- **technicalDetail**: The full detailed steps (see Task Technical Detail below)
+- **files**: List of file paths this task touches
+- **dependencies**: Which tasks must complete first (by title or index)
+
+Keep tasks independent where possible to allow parallel execution. Only add dependencies when a task genuinely requires another task's output (e.g., "Add API route" depends on "Create database schema").
+
+## Task Technical Detail
+
+This is what goes in the `technicalDetail` field for each task. The implementing agent receives this as their instructions.
 
 ```markdown
 ### Task N: [Component Name]
@@ -91,26 +103,5 @@ git commit -m "feat: add specific feature"
 - Exact file paths always
 - Complete code in plan (not "add validation")
 - Exact commands with expected output
-- Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
-
-## Execution Handoff
-
-After saving the plan, offer execution choice:
-
-**"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
-
-**1. Subagent-Driven (this session)** - I dispatch fresh subagent per task, review between tasks, fast iteration
-
-**2. Parallel Session (separate)** - Open new session with executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Stay in this session
-- Fresh subagent per task + code review
-
-**If Parallel Session chosen:**
-- Guide them to open new session in worktree
-- **REQUIRED SUB-SKILL:** New session uses superpowers:executing-plans
+- The implementing agent has zero context -- spell everything out

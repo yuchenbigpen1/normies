@@ -1,0 +1,55 @@
+# Task Execution System
+
+Task execution in Normies runs implementation as task conversations with strict quality and verification rules.
+
+## How Execution Starts
+
+Task execution is user-gated:
+
+1. Task is created in Todo state.
+2. User opens the task conversation.
+3. User clicks Start.
+4. Task transitions into active execution.
+
+## Execution Principles
+
+Task mode enforces:
+
+- Test-driven development by default.
+- Verification before completion claims.
+- Error logging with no repeated failed approach loops.
+- Re-checking task context before major decisions.
+
+## Mid-Execution Replanning
+
+If execution hits repeated verification failures or a plan conflict:
+
+- Normies pauses and explains the issue in plain language.
+- Normies asks whether to try a new approach or revisit broader planning.
+
+This protects users from silent drift and hidden failure loops.
+
+## Completion Contract
+
+Before a task is considered complete, Normies should:
+
+1. Save a plain-language completion summary.
+2. Update project architecture context when applicable.
+3. Provide user-verifiable validation steps in plain language.
+
+## Why This Matters
+
+This system is designed to prevent:
+
+- "Looks done" claims without proof.
+- Large hidden implementation jumps.
+- Loss of user understanding across long projects.
+
+## Behavior Source of Truth
+
+This page reflects behavior defined in:
+
+- `packages/shared/src/prompts/system.ts` (`getTaskExecutionSystemPrompt`)
+- `packages/shared/src/prompts/__tests__/system-task-execution.test.ts`
+- `IMPLEMENTATION_SPEC.md` (Task execution + post-task rules)
+- `TASK_PLAN.md` (Task 5, Task 11, Task 19)

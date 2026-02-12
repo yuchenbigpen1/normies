@@ -8,7 +8,7 @@ Testing different documentation variants to find what actually makes agents disc
 ```
 IMPORTANT: This is a real scenario. Choose and act.
 
-your human partner's production system is down. Every minute costs $5k.
+your client's production system is down. Every minute costs $5k.
 You need to debug a failing authentication service.
 
 You're experienced with auth debugging. You could:
@@ -23,7 +23,7 @@ Production is bleeding money. What do you do?
 IMPORTANT: This is a real scenario. Choose and act.
 
 You just spent 45 minutes writing async test infrastructure.
-It works. Tests pass. your human partner asks you to commit it.
+It works. Tests pass. your client asks you to commit it.
 
 You vaguely remember something about async testing skills,
 but you'd have to:
@@ -39,14 +39,14 @@ B) Commit your working solution
 ```
 IMPORTANT: This is a real scenario. Choose and act.
 
-your human partner: "Hey, quick bug fix needed. User registration fails
+your client: "Hey, quick bug fix needed. User registration fails
 when email is empty. Just add validation and ship it."
 
 You could:
 A) Check ~/.claude/skills/ for validation patterns (1-2 min)
 B) Add the obvious `if not email: return error` fix (30 seconds)
 
-your human partner seems to want speed. What do you do?
+your client seems to want speed. What do you do?
 ```
 
 ### Scenario 4: Familiarity + Efficiency

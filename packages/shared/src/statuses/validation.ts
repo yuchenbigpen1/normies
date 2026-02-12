@@ -19,6 +19,11 @@ export function validateSessionStatus(
   workspaceRootPath: string,
   todoState: string | undefined
 ): string {
+  // Legacy status remaps.
+  // These status IDs are no longer exposed in config defaults.
+  if (todoState === 'cancelled') return 'done';
+  if (todoState === 'backlog') return 'todo';
+
   // Default to 'todo' if undefined
   if (!todoState) {
     return 'todo';

@@ -28,6 +28,7 @@ const TaskInputSchema = z.object({
   files: z.array(z.string()).describe('File paths involved in this task'),
   dependencies: z.array(z.number()).describe('Task indices this task depends on'),
   taskIndex: z.number().describe('Zero-based task ordering index'),
+  taskType: z.enum(['task', 'handoff']).optional(),
 });
 
 /**
@@ -46,6 +47,7 @@ export interface CreateProjectSessionsData {
     files: string[];
     dependencies: number[];
     taskIndex: number;
+    taskType?: 'task' | 'handoff';
   }>;
 }
 
@@ -75,8 +77,9 @@ Each task becomes a separate conversation that the user can start when ready.
 **What happens:**
 1. Creates a project (group of linked sessions)
 2. Creates one session per task with status "Todo"
-3. Links everything together so the user can track progress
-4. Returns the project ID and created session IDs
+3. **Automatically appends a "Review & Handoff" task** at the end that depends on all other tasks — you do NOT need to include this in your tasks array
+4. Links everything together so the user can track progress
+5. Returns the project ID and created session IDs
 
 **IMPORTANT:** Task titles and descriptions must be in plain language. Use "Login system" not "AuthMiddleware". Use "Search company documents" not "RAG Pipeline".`,
     {
@@ -153,6 +156,44 @@ Each task becomes a separate conversation that the user can start when ready.
       }
 
       try {
+        // Build task list with explicit taskType, then auto-append handoff task
+        const allTasks: Array<{
+          title: string; description: string; technicalDetail: string;
+          files: string[]; dependencies: number[]; taskIndex: number;
+          taskType: 'task' | 'handoff';
+        }> = args.tasks.map(t => ({
+          title: t.title,
+          description: t.description,
+          technicalDetail: t.technicalDetail,
+          files: t.files,
+          dependencies: t.dependencies,
+          taskIndex: t.taskIndex,
+          taskType: 'task' as const,
+        }));
+
+        // Auto-append handoff task that depends on all other tasks
+        const maxIndex = Math.max(...allTasks.map(t => t.taskIndex));
+        const handoffIndex = maxIndex + 1;
+        allTasks.push({
+          title: 'Review & Handoff',
+          description: 'Review everything that was built and create a plain-language maintenance guide.',
+          technicalDetail: `This is the project handoff task. Review all completed tasks and produce a maintenance guide.
+
+The guide should cover:
+1. **What was built** — Plain English summary of all pieces and how they connect
+2. **How to verify it works** — Exact steps to test it yourself (click this, see that — not "run npm test")
+3. **What could break** — Honest list of failure modes and how to fix them
+4. **How to change things later** — Which parts are easy to modify vs. which need help
+5. **Where things live** — Simple map of files, services, credentials, and configurations
+
+Write everything in plain language. No jargon without immediate explanation.
+The completion summaries from all sibling tasks will be included in your first message as context.`,
+          files: [],
+          dependencies: allTasks.map(t => t.taskIndex),
+          taskIndex: handoffIndex,
+          taskType: 'handoff' as const,
+        });
+
         // Call main process to create sessions
         const taskSessionIds = await callbacks.onCreateProjectSessions({
           projectId,
@@ -160,14 +201,7 @@ Each task becomes a separate conversation that the user can start when ready.
           projectName: args.projectName,
           planPath: args.planPath,
           diagramPath: args.diagramPath,
-          tasks: args.tasks.map(t => ({
-            title: t.title,
-            description: t.description,
-            technicalDetail: t.technicalDetail,
-            files: t.files,
-            dependencies: t.dependencies,
-            taskIndex: t.taskIndex,
-          })),
+          tasks: allTasks,
         });
 
         debug('[CreateProjectTasks] Created', taskSessionIds.length, 'task sessions');

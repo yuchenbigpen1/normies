@@ -798,7 +798,7 @@ export function validateAllSkills(workspaceRoot: string): ValidationResult {
 const STATUS_CONFIG_FILE = 'statuses/config.json';
 
 /** Required fixed statuses that must always exist */
-const REQUIRED_FIXED_STATUS_IDS = ['todo', 'done', 'cancelled'] as const;
+const REQUIRED_FIXED_STATUS_IDS = ['todo', 'done'] as const;
 
 /**
  * Status icons are simple strings: emoji characters (e.g., "✅") or URLs.

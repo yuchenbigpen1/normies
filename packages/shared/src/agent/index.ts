@@ -29,6 +29,10 @@ export {
   type SlackOAuthAuthRequest,
   type MicrosoftOAuthAuthRequest,
   type CredentialInputMode,
+  // Question request types (ask_user_question tool)
+  type QuestionRequest,
+  type QuestionItem,
+  type QuestionOption,
 } from './session-scoped-tools.ts';
 
 // Export CreateProjectTasks types (Normies)

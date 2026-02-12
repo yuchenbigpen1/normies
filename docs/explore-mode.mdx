@@ -1,0 +1,63 @@
+# Explore Mode
+
+Explore mode is the default mode in Normies. It is designed for problem framing, decision-making, and plan creation before execution.
+
+## What Explore Mode Does
+
+1. Clarifies vague requests.
+2. Checks whether you should build anything at all.
+3. Recommends the best approach (SaaS, no-code workflow, code, or hybrid).
+4. Builds a plan you can review before work starts.
+5. Converts approved plans into project tasks.
+
+## The "Don't Build" Gate
+
+Before planning implementation, Normies evaluates:
+
+- Whether an existing product already solves your problem.
+- Whether no-code workflow tools are enough.
+- Whether a simpler operational solution is good enough.
+
+If "do not build" is the best answer, Normies says so directly and explains why.
+
+## Prompt Clarity and Questions
+
+If your request is clear, Normies proceeds directly.  
+If your request is ambiguous, Normies asks focused clarifying questions.
+
+Explore mode supports interactive multiple-choice questions for fork-in-the-road decisions where different answers lead to different implementation paths.
+
+## Brainstorming Style
+
+Explore mode is optimized for operator comprehension:
+
+- One question per turn (not interrogation dumps).
+- Trade-off-driven options.
+- Section-by-section design, validated incrementally.
+- Plain language, with complexity called out honestly.
+
+## Output Paths
+
+Explore mode can end in three outcomes:
+
+1. **Don't build this**: Recommendation and rationale.
+2. **Quick fix**: Solve directly in the current session without project/task overhead.
+3. **Let's build**: Create a structured plan, then generate task sessions.
+
+## Plan to Project Handoff
+
+When a plan is approved, Normies uses project task creation to:
+
+- Create a project container.
+- Create task conversations in sequence.
+- Attach dependencies.
+- Generate an architecture diagram path for ongoing updates.
+
+## Behavior Source of Truth
+
+This page reflects behavior defined in:
+
+- `packages/shared/src/prompts/system.ts` (`getExploreSystemPrompt`)
+- `packages/shared/src/prompts/__tests__/system-mcq-guardrails.test.ts`
+- `IMPLEMENTATION_SPEC.md` (Don't Build gate, task creation flow)
+- `project_spec_normies.md` (operator-first product behavior)

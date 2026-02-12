@@ -26,7 +26,7 @@ export type TodoState = string;
  * Built-in status IDs (for TypeScript consumers)
  * These are the default statuses but users can add/remove custom ones
  */
-export type BuiltInStatusId = 'todo' | 'in-progress' | 'needs-review' | 'done' | 'cancelled';
+export type BuiltInStatusId = 'todo' | 'in-progress' | 'needs-review' | 'done';
 
 /**
  * Session token usage tracking
@@ -117,6 +117,8 @@ export interface SessionConfig {
   taskDescription?: string;
   taskTechnicalDetail?: string;
   taskFiles?: string[];
+  // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
+  taskType?: 'task' | 'handoff';
   // Thread linking (Normies)
   threadParentSessionId?: string;
   threadMessageId?: string;
@@ -219,6 +221,8 @@ export interface SessionHeader {
   taskDescription?: string;
   taskTechnicalDetail?: string;
   taskFiles?: string[];
+  // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
+  taskType?: 'task' | 'handoff';
   // Thread linking (Normies)
   threadParentSessionId?: string;
   threadMessageId?: string;
@@ -294,6 +298,8 @@ export interface SessionMetadata {
   taskDescription?: string;
   taskTechnicalDetail?: string;
   taskFiles?: string[];
+  // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
+  taskType?: 'task' | 'handoff';
   // Thread linking (Normies)
   threadParentSessionId?: string;
   threadMessageId?: string;

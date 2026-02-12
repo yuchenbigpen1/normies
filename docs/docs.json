@@ -17,24 +17,37 @@
         ]
       },
       {
+        "group": "Workflow",
+        "pages": [
+          "explore-mode",
+          "projects-and-tasks",
+          "task-execution-system",
+          "threads",
+          "architecture-diagrams"
+        ]
+      },
+      {
         "group": "Core Concepts",
         "pages": [
-          "projects-and-tasks",
-          "threads",
           "sources",
           "skills",
           "permissions"
         ]
       },
       {
-        "group": "More",
+        "group": "Settings",
+        "pages": [
+          "workspaces",
+          "app-settings",
+          "preferences",
+          "themes"
+        ]
+      },
+      {
+        "group": "Operations",
         "pages": [
           "statuses",
-          "labels",
-          "workspaces",
-          "themes",
-          "app-settings",
-          "preferences"
+          "labels"
         ]
       }
     ]

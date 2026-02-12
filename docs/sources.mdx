@@ -1,21 +1,51 @@
 # Sources
 
-Sources connect external data/tools to Normies.
+Sources connect external systems to Normies so the agent can read, search, and act with real business context.
 
-Supported source types:
+## Supported Source Types
+
 - MCP servers
 - REST APIs
 - Local folders
 
-## What to Configure
+## Why Sources Matter
 
-- `config.json` for connection/auth details
-- `permissions.json` for safe defaults in Explore mode
-- `guide.md` with context-specific usage notes
+- They let Normies work with your real tools (CRM, issue trackers, docs, files).
+- They reduce manual copy/paste between systems.
+- They make project and task execution more accurate because the agent can verify against live data.
 
-## Validation
+## Setup Model
 
-After creating a source, run source validation (`source_test`) before considering setup complete.
+Each source generally includes:
+
+- Connection/auth configuration.
+- Optional usage guidance (`guide.md`) tailored to your workflow.
+- Permission rules for safe use in Explore mode.
+
+Normies is designed to configure sources conversationally, then validate before use.
+
+## Explore Mode and Safety
+
+Sources should still be useful in Explore mode:
+
+- Read/search/list operations are typically enabled.
+- Mutating operations should remain blocked unless explicitly allowed.
+
+For source-level MCP permissions, simple patterns are auto-scoped to that source to reduce accidental cross-source access.
+
+## Validation Requirement
+
+After creating or editing a source, run source validation before relying on it.  
+Validation checks schema, connectivity, and missing metadata.
+
+## Recommended Setup Flow
+
+1. Define business goal and scope.
+2. Configure source details and auth.
+3. Add read-safe permissions for Explore mode.
+4. Validate the source.
+5. Authenticate if required.
+6. Test with a real query in the app.
 
 ## Detailed Internal Guide
 

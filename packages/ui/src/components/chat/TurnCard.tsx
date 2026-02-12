@@ -1402,8 +1402,24 @@ export function ResponseCard({
               "pl-4 pr-2.5 py-2 border-t border-border/30 flex items-center justify-between bg-muted/20",
               SIZE_CONFIG.fontSize
             )}>
-              {/* Left side - Copy and View as Markdown */}
+              {/* Left side - Sanity Check, Copy, and View as Markdown */}
               <div className="flex items-center gap-3">
+                {/* Sanity Check button — opens thread overlay */}
+                {onOpenThread && !isStreaming && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenThread(text)}
+                    className={cn(
+                      "h-[26px] px-2.5 rounded-[6px] inline-flex items-center gap-1.5 select-none glass-btn",
+                      hasExistingThread ? "text-foreground/80" : "text-foreground/60 hover:text-foreground/80",
+                      "transition-all duration-150 ease-out",
+                      "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    )}
+                  >
+                    <MessageCircle className={cn(SIZE_CONFIG.iconSize, hasExistingThread && "fill-current")} />
+                    <span>Sanity Check</span>
+                  </button>
+                )}
                 <button
                   onClick={handleCopy}
                   className={cn(
@@ -1441,23 +1457,6 @@ export function ResponseCard({
 
               {/* Right side */}
               <div className="flex items-center gap-3">
-              {/* Sanity Check button — opens thread overlay */}
-              {onOpenThread && !isStreaming && (
-                <button
-                  type="button"
-                  onClick={() => onOpenThread(text)}
-                  className={cn(
-                    "flex items-center gap-1.5 transition-colors select-none",
-                    hasExistingThread
-                      ? "text-muted-foreground hover:text-foreground"
-                      : "text-muted-foreground/60 hover:text-muted-foreground hover:text-foreground",
-                    "focus:outline-none focus-visible:underline"
-                  )}
-                >
-                  <MessageCircle className={cn(SIZE_CONFIG.iconSize, hasExistingThread && "fill-current")} />
-                  <span>Sanity Check</span>
-                </button>
-              )}
               {/* Accept Plan button (only shown for plan variant when it's the last response) */}
               {/* stickyAccept keeps button mounted for 5s after click even if showAcceptPlan becomes false */}
               {isPlan && ((showAcceptPlan && onAccept) || stickyAccept) && (

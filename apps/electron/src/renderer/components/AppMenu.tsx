@@ -24,6 +24,7 @@ import {
 } from "../../shared/menu-schema"
 import type { MenuItem, MenuSection, SettingsMenuItem } from "../../shared/menu-schema"
 import { SETTINGS_ICONS } from "./icons/SettingsIcons"
+import { getDocsHomeUrl } from "@normies/shared/docs/doc-links"
 
 // Map of action handlers for menu items that need custom behavior
 type MenuActionHandlers = {
@@ -245,7 +246,7 @@ export function AppMenu({
               Help
             </StyledDropdownMenuSubTrigger>
             <StyledDropdownMenuSubContent>
-              <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl('https://github.com/yuchenzhang/normies#readme')}>
+              <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocsHomeUrl())}>
                 <Icons.HelpCircle className="h-3.5 w-3.5" />
                 Help & Documentation
                 <Icons.ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />

@@ -187,7 +187,7 @@ export async function rebuildMenu(): Promise<void> {
       submenu: [
         {
           label: 'Help & Documentation',
-          click: () => shell.openExternal('https://github.com/yuchenzhang/normies#readme')
+          click: () => shell.openExternal('https://docs.normies.work')
         },
         {
           label: 'Keyboard Shortcuts',

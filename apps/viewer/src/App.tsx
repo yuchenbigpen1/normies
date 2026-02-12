@@ -218,6 +218,7 @@ export function App() {
           mode="readonly"
           platformActions={platformActions}
           defaultExpanded={false}
+          showBranding={false}
           className="flex-1 min-h-0"
           onActivityClick={handleActivityClick}
         />

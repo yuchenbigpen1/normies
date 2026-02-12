@@ -19,6 +19,7 @@ import type {
   NameChangedEvent,
   PermissionRequestEvent,
   CredentialRequestEvent,
+  QuestionRequestEvent,
   PlanSubmittedEvent,
   StatusEvent,
   InfoEvent,
@@ -619,6 +620,22 @@ export function handleCredentialRequest(
     state,
     effects: [{
       type: 'credential_request',
+      request: event.request,
+    }]
+  }
+}
+
+/**
+ * Handle question_request - return effect for parent to handle
+ */
+export function handleQuestionRequest(
+  state: SessionState,
+  event: QuestionRequestEvent
+): ProcessResult {
+  return {
+    state,
+    effects: [{
+      type: 'question_request',
       request: event.request,
     }]
   }

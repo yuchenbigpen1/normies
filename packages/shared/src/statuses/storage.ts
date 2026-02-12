@@ -37,7 +37,6 @@ export function getDefaultStatusConfig(): WorkspaceStatusConfig {
   // - todo: foreground/50 (muted, ready to work on)
   // - needs-review: info (amber, attention needed)
   // - done: blue (completed)
-  // - cancelled: foreground/50 (muted, inactive)
   //
   // Note: icon is omitted - auto-discovered from statuses/icons/{id}.svg
   return {
@@ -66,14 +65,6 @@ export function getDefaultStatusConfig(): WorkspaceStatusConfig {
         isFixed: true,
         isDefault: false,
         order: 2,
-      },
-      {
-        id: 'cancelled',
-        label: 'Cancelled',
-        category: 'closed',
-        isFixed: true,
-        isDefault: false,
-        order: 3,
       },
     ],
     defaultStatusId: 'todo',
@@ -110,11 +101,46 @@ export function ensureDefaultIconFiles(workspaceRootPath: string): void {
  * Validate status configuration has required fixed statuses
  */
 function validateStatusConfig(config: WorkspaceStatusConfig): boolean {
-  const requiredFixedStatuses = ['todo', 'done', 'cancelled'];
+  const requiredFixedStatuses = ['todo', 'done'];
 
   return requiredFixedStatuses.every(id =>
     config.statuses.some(s => s.id === id && s.isFixed)
   );
+}
+
+/**
+ * Remove legacy statuses we no longer expose.
+ * Returns true if config was modified.
+ */
+function stripLegacyStatuses(config: WorkspaceStatusConfig): boolean {
+  const legacyToReplacement: Record<string, string> = {
+    backlog: 'todo',
+    cancelled: 'done',
+  };
+
+  const beforeCount = config.statuses.length;
+  config.statuses = config.statuses.filter(s => !legacyToReplacement[s.id]);
+
+  // Keep orders dense and stable after removals.
+  config.statuses = [...config.statuses]
+    .sort((a, b) => a.order - b.order)
+    .map((s, i) => ({ ...s, order: i }));
+
+  if (legacyToReplacement[config.defaultStatusId]) {
+    const replacement = legacyToReplacement[config.defaultStatusId];
+    config.defaultStatusId = config.statuses.some(s => s.id === replacement)
+      ? replacement
+      : 'todo';
+  }
+
+  // Ensure defaultStatusId always points to an existing status.
+  if (!config.statuses.some(s => s.id === config.defaultStatusId)) {
+    config.defaultStatusId = config.statuses.some(s => s.id === 'todo')
+      ? 'todo'
+      : (config.statuses[0]?.id ?? 'todo');
+  }
+
+  return beforeCount !== config.statuses.length;
 }
 
 /**
@@ -146,8 +172,10 @@ export function loadStatusConfig(workspaceRootPath: string): WorkspaceStatusConf
     // Auto-migrate old Tailwind class colors (e.g., "text-accent") to new EntityColor format.
     // If migration occurs, write the updated config back to disk.
     const migrated = migrateStatusColors(config);
-    if (migrated) {
-      debug('[loadStatusConfig] Migrated old color format, writing back');
+    const strippedLegacy = stripLegacyStatuses(config);
+    if (migrated || strippedLegacy) {
+      if (migrated) debug('[loadStatusConfig] Migrated old color format, writing back');
+      if (strippedLegacy) debug('[loadStatusConfig] Removed legacy statuses (backlog/cancelled), writing back');
       saveStatusConfig(workspaceRootPath, config);
     }
 

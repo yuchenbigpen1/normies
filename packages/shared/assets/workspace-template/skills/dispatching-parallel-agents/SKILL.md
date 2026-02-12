@@ -9,6 +9,8 @@ description: Use when facing 2+ independent tasks that can be worked on without 
 
 When you have multiple unrelated failures (different test files, different subsystems, different bugs), investigating them sequentially wastes time. Each investigation is independent and can happen in parallel.
 
+When communicating with your client, follow the system prompt's communication rules — plain language, no unexplained jargon.
+
 **Core principle:** Dispatch one agent per independent problem domain. Let them work concurrently.
 
 ## When to Use

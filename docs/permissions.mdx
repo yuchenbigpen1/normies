@@ -4,13 +4,47 @@ Permissions control how much autonomy the agent has.
 
 ## Modes (User View)
 
-- Explore: read-focused
-- Ask to Edit: requests confirmation before changes
-- Execute: can run actions directly
+- **Explore**: discovery and planning mode with safety-first defaults.
+- **Ask to Edit**: changes are proposed, then confirmed before execution.
+- **Execute**: direct execution mode for implementation work.
+
+## How Permissions Fit the Product Flow
+
+1. Most work starts in Explore mode.
+2. Explore gathers context and prepares a plan.
+3. You approve transition into execution behavior.
+4. Task work proceeds with appropriate permission level.
+
+This keeps planning safe while still allowing fast execution when you choose.
 
 ## Configuration
 
 Permissions are defined at app/workspace/source levels and merged at runtime.
+
+Common rule categories include:
+
+- Allowed MCP tool patterns.
+- Allowed API endpoints.
+- Allowed shell command patterns.
+- Optional blocked tools and allowed write paths.
+
+## Explore Mode Defaults
+
+Explore mode is intentionally restrictive for safety:
+
+- Read/search operations are broadly allowed.
+- Mutation-heavy operations are blocked by default.
+- Plan creation is allowed so you can move from exploration to approved execution.
+
+## Source-Level Permission Design
+
+Source permissions should enable meaningful read operations in Explore mode while preventing accidental writes.
+
+For MCP sources, source-level patterns are auto-scoped to reduce leakage across sources.
+
+## UX Requirement: Plain-Language Prompts
+
+When user confirmation is needed, prompts should explain the action in plain language rather than raw command syntax.
 
 ## Detailed Internal Guide
 

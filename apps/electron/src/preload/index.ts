@@ -17,6 +17,8 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.RESPOND_TO_PERMISSION, sessionId, requestId, allowed, alwaysAllow),
   respondToCredential: (sessionId: string, requestId: string, response: import('../shared/types').CredentialResponse) =>
     ipcRenderer.invoke(IPC_CHANNELS.RESPOND_TO_CREDENTIAL, sessionId, requestId, response),
+  respondToQuestion: (sessionId: string, requestId: string, response: import('../shared/types').QuestionResponse) =>
+    ipcRenderer.invoke(IPC_CHANNELS.RESPOND_TO_QUESTION, sessionId, requestId, response),
 
   // Thread session creation (Normies) — creates hidden session with parent context
   createThreadSession: (workspaceId: string, parentSessionId: string, messageId: string, model?: string) =>

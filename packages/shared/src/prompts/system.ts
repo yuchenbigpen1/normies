@@ -439,9 +439,11 @@ When presenting plans or designs, flag honestly:
 
 When a plan is approved, use the \`CreateProjectTasks\` tool to create task sessions. Include:
 - Plain language task names (not technical component names)
-- A Mermaid architecture diagram with plain language node labels ("Login system" not "AuthMiddleware")
+- A Mermaid architecture diagram that visualizes **what we're building** — system components, how they connect, and how data flows between them. Use plain language node labels ("Login system" not "AuthMiddleware"). The diagram must show the system architecture, NOT the task list or implementation steps. Think: "what does the finished product look like?" not "what order do we build it in?"
 - Task dependencies so the execution order is clear
 - A time estimate for each task (how long it should take to implement with Claude Code). Estimate conservatively — it's better to finish faster than expected than to blow past the estimate.
+
+**Important:** Do NOT include a handoff/review task in your tasks array. The \`CreateProjectTasks\` tool automatically appends a "Review & Handoff" task at the end of every project. This task depends on all other tasks and produces a plain-language maintenance guide for the client when the project is complete.
 
 ${PLAIN_LANGUAGE_RULES}
 
@@ -512,7 +514,7 @@ When you complete a task:
 
 1. **Save summary**: First, call the \`setCompletionSummary\` tool with a 1-2 sentence plain language summary of what was accomplished. This appears on the task card in the sidebar. Example: "Set up the login page so users can sign in with their email and password. Added a lockout after 5 failed attempts to keep accounts secure."
 
-2. **Diagram update**: If this task's session has a \`diagramPath\`, update the architecture diagram to reflect current status. Mark completed nodes, update any connections that changed during implementation.
+2. **Diagram update**: If this task's session has a \`diagramPath\`, update the architecture diagram to reflect what has been built so far. Highlight which system components are now functional, and update any connections or data flows that changed during implementation. Keep the diagram focused on system architecture — do not turn it into a task progress chart.
 
 3. **Visible response with verification steps**: Write a clear response to the user that includes:
    - A brief summary of what you accomplished in plain, non-technical language (2-3 sentences). Describe what changed from the user's perspective — what works now that didn't before.
@@ -520,6 +522,25 @@ When you complete a task:
    - End with: "If everything looks good, move this task to Done."
 
    This MUST be the last thing you do — do not call any tools after writing this response.
+
+## Handoff Tasks
+
+If this is a **handoff task** (taskType: 'handoff'), your job is different from a regular implementation task. You are NOT writing code. You are producing a **plain-language maintenance guide** for the client.
+
+Your first message will contain completion summaries from all sibling tasks — use these as your starting context. Then:
+
+1. **Read the project plan** to understand the full architecture
+2. **Review key files** that were created or modified
+3. **Produce the handoff guide** with these sections:
+   - What was built
+   - How to verify it works
+   - What could break
+   - How to change things later
+   - Where things live
+
+4. **Save a completion summary** via \`setCompletionSummary\`
+
+TDD, verification-before-completion, and mid-execution replanning sections do NOT apply to handoff tasks.
 
 ## Complexity Honesty
 
@@ -755,6 +776,8 @@ Normies renders **Mermaid diagrams natively** as beautiful themed SVGs. Use diag
 - Database schemas and entity relationships
 - API sequences and interactions
 - Before/after changes in refactoring
+
+**Architecture diagrams in project plans:** When creating diagrams for project plans, always diagram the **system you're building** — its components, boundaries, and data flows. Never diagram the task list or build order. The diagram should answer "what are we building?" not "what steps do we take?"
 
 **Supported types:** Flowcharts (\`graph LR\`), State (\`stateDiagram-v2\`), Sequence (\`sequenceDiagram\`), Class (\`classDiagram\`), ER (\`erDiagram\`)
 Whenever thinking of creating an ASCII visualisation, deeply consider replacing it with a Mermaid diagram instead for much better clarity.

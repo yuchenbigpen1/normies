@@ -1,12 +1,38 @@
 # Skills
 
-Skills are reusable instruction sets you can call with mentions.
+Skills are reusable instruction sets that extend how Normies handles specific tasks.
 
-## Typical Skill Structure
+## What Skills Are Used For
+
+Use skills when you want consistent behavior for recurring work, such as:
+
+- Setup workflows
+- Review/checklist workflows
+- Team-specific conventions
+- Domain-specific procedures
+
+## How Skills Work in Normies
+
+- Skills live in workspace scope, so different workspaces can behave differently.
+- Skills can be invoked directly in chat.
+- Skills can also be auto-suggested based on context or file patterns.
+
+## Skill Structure
 
 - A folder per skill
 - `SKILL.md` file with frontmatter and instructions
 - Optional helper files/scripts
+
+## Compatibility
+
+Normies skill format is compatible with Claude Code style `SKILL.md` structure, with workspace organization and UI support layered on top.
+
+## Best Practices
+
+- Keep each skill focused on one workflow.
+- Write clear trigger/usage criteria.
+- Prefer concrete steps over abstract policy statements.
+- Include examples of good and bad outcomes.
 
 ## Validation
 

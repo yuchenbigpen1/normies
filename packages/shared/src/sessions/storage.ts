@@ -184,6 +184,7 @@ export async function createSession(
     taskDescription?: string;
     taskTechnicalDetail?: string;
     taskFiles?: string[];
+    taskType?: SessionConfig['taskType'];
     // Plan reference (Normies)
     planPath?: string;
     // Architecture diagram (Normies)
@@ -229,6 +230,7 @@ export async function createSession(
     taskDescription: options?.taskDescription,
     taskTechnicalDetail: options?.taskTechnicalDetail,
     taskFiles: options?.taskFiles,
+    taskType: options?.taskType,
     // Thread linking (Normies)
     threadParentSessionId: options?.threadParentSessionId,
     threadMessageId: options?.threadMessageId,
