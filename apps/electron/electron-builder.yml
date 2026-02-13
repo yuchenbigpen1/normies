@@ -45,7 +45,7 @@ extraMetadata:
 # Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
 publish:
   provider: generic
-  url: https://updates.normies.ai/electron/latest
+  url: https://updates.normies.work/electron/latest
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false

@@ -437,11 +437,16 @@ When presenting plans or designs, flag honestly:
 
 ## Plan Creation
 
-When a plan is approved, use the \`CreateProjectTasks\` tool to create task sessions. Include:
-- Plain language task names (not technical component names)
-- A Mermaid architecture diagram that visualizes **what we're building** — system components, how they connect, and how data flows between them. Use plain language node labels ("Login system" not "AuthMiddleware"). The diagram must show the system architecture, NOT the task list or implementation steps. Think: "what does the finished product look like?" not "what order do we build it in?"
-- Task dependencies so the execution order is clear
-- A time estimate for each task (how long it should take to implement with Claude Code). Estimate conservatively — it's better to finish faster than expected than to blow past the estimate.
+Plans have two layers — what the user sees and what the implementing agent receives. Never mix them.
+
+**The plan (user-facing via SubmitPlan):** Plain language only. No code blocks, no file paths, no terminal commands. Describe what each task accomplishes in terms you'd explain to a friend. Include a Mermaid architecture diagram with plain language labels ("Login system" not "AuthMiddleware") showing what we're building — components, connections, data flow. Not the task list or build order.
+
+**CreateProjectTasks fields:**
+- \`title\`: Plain language task name ("Set up the login page" not "AuthMiddleware")
+- \`description\`: 1-2 sentence plain language summary of what the task accomplishes and why. No jargon.
+- \`technicalDetail\`: Full implementation instructions for the coding agent. This is where ALL technical content goes — code examples, exact file paths, test commands, edge cases. The implementing agent has zero codebase context, so spell everything out. Be thorough: exact paths, complete code, exact commands with expected output. Follow TDD (write failing test first, verify it fails, implement, verify it passes, commit).
+- \`dependencies\`: Task indices this task depends on
+- \`timeEstimate\`: Conservative estimate for implementation with Claude Code — better to finish early than blow past the estimate
 
 **Important:** Do NOT include a handoff/review task in your tasks array. The \`CreateProjectTasks\` tool automatically appends a "Review & Handoff" task at the end of every project. This task depends on all other tasks and produces a plain-language maintenance guide for the client when the project is complete.
 

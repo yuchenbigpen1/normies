@@ -1,6 +1,6 @@
 {
   "name": "normies",
-  "version": "0.3.5",
+  "version": "0.1.0",
   "description": "Guided AI assistant for non-technical business operators",
   "type": "module",
   "private": true,

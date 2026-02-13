@@ -170,6 +170,32 @@ export interface AuthResult {
   workspace?: string;  // For Slack OAuth
 }
 
+/**
+ * Multiple-choice question option for ask_user_question.
+ */
+export interface QuestionOption {
+  label: string;
+  description?: string;
+}
+
+/**
+ * A single multiple-choice question for ask_user_question.
+ */
+export interface QuestionItem {
+  question: string;
+  options: QuestionOption[];
+  multiSelect?: boolean;
+}
+
+/**
+ * Question request payload sent to UI when ask_user_question is invoked.
+ */
+export interface QuestionRequest {
+  requestId: string;
+  sessionId: string;
+  questions: QuestionItem[];
+}
+
 // ============================================================
 // Helper Functions (exported for testing)
 // ============================================================
@@ -243,6 +269,11 @@ export interface SessionScopedToolCallbacks {
    * Saves the completion summary to the session and fires task_completed event.
    */
   onSetCompletionSummary?: (summary: string) => Promise<void>;
+  /**
+   * Called when ask_user_question tool is invoked.
+   * Main process shows MCQ UI and pauses agent until user responds.
+   */
+  onQuestionRequest?: (request: QuestionRequest) => void;
 }
 
 /**
@@ -402,6 +433,92 @@ Brief description of what this plan accomplishes.
         content: [{
           type: 'text' as const,
           text: 'Plan submitted for review. Waiting for user feedback.',
+        }],
+        isError: false,
+      };
+    }
+  );
+}
+
+/**
+ * Create a session-scoped ask_user_question tool.
+ * Used for fork-in-the-road MCQ questions where agent needs user input.
+ */
+export function createAskQuestionTool(sessionId: string) {
+  return tool(
+    'ask_user_question',
+    `Ask the user one or more multiple-choice questions in MCQ format.
+
+Use this when there is a meaningful fork in the road and user preference changes implementation.
+Keep questions short and concrete. Max 3 questions, each with 2-4 options.
+Option descriptions are optional and should clarify tradeoffs when needed.`,
+    {
+      questions: z.array(z.object({
+        question: z.string().describe('Question text shown to the user'),
+        options: z.array(z.object({
+          label: z.string().describe('Short option label (1-5 words)'),
+          description: z.string().optional().describe('Optional one-sentence description of tradeoff/impact'),
+        }))
+          .min(2)
+          .max(4)
+          .describe('2-4 mutually exclusive options'),
+        multiSelect: z.boolean().optional().describe('Allow selecting multiple options'),
+      }))
+        .min(1)
+        .max(3)
+        .describe('1-3 questions to ask the user'),
+    },
+    async (args) => {
+      const callbacks = getSessionScopedToolCallbacks(sessionId);
+      if (!callbacks?.onQuestionRequest) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'No question handler available for this session.',
+          }],
+          isError: true,
+        };
+      }
+
+      const sanitizedQuestions: QuestionItem[] = args.questions.map((q) => ({
+        question: q.question.trim(),
+        options: q.options.map((opt) => ({
+          label: opt.label.trim(),
+          description: opt.description,
+        })),
+        multiSelect: q.multiSelect,
+      }));
+
+      if (sanitizedQuestions.some((q) => q.question.length === 0)) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'Question text cannot be empty.',
+          }],
+          isError: true,
+        };
+      }
+
+      if (sanitizedQuestions.some((q) => q.options.some((opt) => opt.label.length === 0))) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'Option labels cannot be empty.',
+          }],
+          isError: true,
+        };
+      }
+
+      callbacks.onQuestionRequest({
+        requestId: crypto.randomUUID(),
+        sessionId,
+        questions: sanitizedQuestions,
+      });
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: 'Waiting for response from user.',
         }],
         isError: false,
       };
@@ -2223,6 +2340,7 @@ export function getSessionScopedTools(sessionId: string, workspaceRootPath: stri
       version: '1.0.0',
       tools: [
         createSubmitPlanTool(sessionId),
+        ...(systemPromptPreset === 'mini' ? [] : [createAskQuestionTool(sessionId)]),
         // Config validation tool
         createConfigValidateTool(sessionId, workspaceRootPath),
         // Skill validation tool
