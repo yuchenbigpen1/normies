@@ -34,6 +34,8 @@ import type {
 
 import { CONFIG_DIR } from '../config/paths.ts';
 const DEFAULT_WORKSPACES_DIR = join(CONFIG_DIR, 'workspaces');
+const BUNDLED_EXCALIDRAW_SLUG = 'excalidraw';
+const BUNDLED_EXCALIDRAW_ID = 'excalidraw_builtin';
 
 // ============================================================
 // Path Utilities
@@ -287,6 +289,9 @@ export function createWorkspaceAtPath(
     workingDirectory: undefined,
     ...defaults, // User-provided defaults override global defaults
   };
+  // Defensive cleanup: never pre-enable the legacy bundled Excalidraw source.
+  workspaceDefaults.enabledSourceSlugs = (workspaceDefaults.enabledSourceSlugs || [])
+    .filter(slug => slug !== BUNDLED_EXCALIDRAW_SLUG);
 
   const config: WorkspaceConfig = {
     id: `ws_${randomUUID().slice(0, 8)}`,
@@ -312,6 +317,22 @@ export function createWorkspaceAtPath(
       recursive: true,
       force: false, // Don't overwrite if user already has custom versions
     });
+  }
+
+  // Defensive cleanup: if a packaged template/migration seeded the old bundled
+  // Excalidraw source, remove it from newly created workspaces.
+  const excalidrawSourcePath = join(getWorkspaceSourcesPath(rootPath), BUNDLED_EXCALIDRAW_SLUG);
+  const excalidrawConfigPath = join(excalidrawSourcePath, 'config.json');
+  if (existsSync(excalidrawConfigPath)) {
+    try {
+      const raw = readFileSync(excalidrawConfigPath, 'utf-8');
+      const parsed = JSON.parse(raw) as { id?: string };
+      if (parsed.id === BUNDLED_EXCALIDRAW_ID) {
+        rmSync(excalidrawSourcePath, { recursive: true, force: true });
+      }
+    } catch {
+      // Ignore malformed source config and continue workspace creation.
+    }
   }
 
   // Save config

@@ -205,6 +205,31 @@ export interface CredentialResponse {
 }
 
 // ============================================
+// Question Types (ask_user_question tool)
+// ============================================
+
+import type { QuestionRequest as SharedQuestionRequest } from '@normies/shared/agent';
+export type QuestionRequest = SharedQuestionRequest;
+
+/**
+ * A single answer to a question from the user
+ */
+export interface QuestionAnswer {
+  selectedLabels?: string[]
+  freeText?: string
+}
+
+/**
+ * Question response from user (for ask_user_question tool)
+ */
+export interface QuestionResponse {
+  type: 'question'
+  requestId: string
+  answers: QuestionAnswer[]
+  cancelled: boolean
+}
+
+// ============================================
 // Plan Types (SubmitPlan workflow)
 // ============================================
 
@@ -479,6 +504,8 @@ export type SessionEvent =
   | { type: 'session_deleted'; sessionId: string }
   | { type: 'session_shared'; sessionId: string; sharedUrl: string }
   | { type: 'session_unshared'; sessionId: string }
+  // Question request events (ask_user_question tool)
+  | { type: 'question_request'; sessionId: string; request: QuestionRequest }
   // Auth request events (unified auth flow)
   | { type: 'auth_request'; sessionId: string; message: CoreMessage; request: SharedAuthRequest }
   | { type: 'auth_completed'; sessionId: string; requestId: string; success: boolean; cancelled?: boolean; error?: string }
@@ -563,6 +590,7 @@ export const IPC_CHANNELS = {
   GET_TASK_OUTPUT: 'tasks:getOutput',
   RESPOND_TO_PERMISSION: 'sessions:respondToPermission',
   RESPOND_TO_CREDENTIAL: 'sessions:respondToCredential',
+  RESPOND_TO_QUESTION: 'sessions:respondToQuestion',
 
   // Thread session creation (Normies)
   CREATE_THREAD_SESSION: 'sessions:createThread',
@@ -838,6 +866,7 @@ export interface ElectronAPI {
   getTaskOutput(taskId: string): Promise<string | null>
   respondToPermission(sessionId: string, requestId: string, allowed: boolean, alwaysAllow: boolean): Promise<boolean>
   respondToCredential(sessionId: string, requestId: string, response: CredentialResponse): Promise<boolean>
+  respondToQuestion(sessionId: string, requestId: string, response: QuestionResponse): Promise<boolean>
 
   // Thread session creation (Normies) — creates hidden session with parent context
   createThreadSession(workspaceId: string, parentSessionId: string, messageId: string, model?: string): Promise<{ session: Session; threadContext: string }>

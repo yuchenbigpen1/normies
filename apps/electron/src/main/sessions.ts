@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/electron/main'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { rm, readFile } from 'fs/promises'
-import { CraftAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest } from '@normies/shared/agent'
+import { CraftAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest, type QuestionRequest } from '@normies/shared/agent'
 import { sessionLog, isDebugMode, getLogFilePath } from './logger'
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { WindowManager } from './window-manager'
@@ -410,6 +410,9 @@ interface ManagedSession {
   // Pending auth request tracking (for unified auth flow)
   pendingAuthRequestId?: string
   pendingAuthRequest?: AuthRequest
+  // Pending question request tracking (for ask_user_question tool)
+  pendingQuestionRequestId?: string
+  pendingQuestionRequest?: QuestionRequest
   // Auth retry tracking (for mid-session token expiry)
   // Store last sent message/attachments to enable retry after token refresh
   lastSentMessage?: string
@@ -2000,6 +2003,32 @@ Remember: You're providing a second opinion. Help the user understand, question,
         // The UI will call sessionCommand({ type: 'startOAuth' }) when user clicks "Sign in"
       }
 
+      // Wire up onQuestionRequest to pause execution and show MCQ panel
+      managed.agent.onQuestionRequest = (request) => {
+        sessionLog.info(`Question request for session ${managed.id}: ${request.questions.length} questions`)
+
+        // Store pending question request for later resolution
+        managed.pendingQuestionRequestId = request.requestId
+        managed.pendingQuestionRequest = request
+
+        // Force-abort execution (like SubmitPlan and onAuthRequest)
+        if (managed.isProcessing && managed.agent) {
+          sessionLog.info(`Force-aborting after question request for session ${managed.id}`)
+          managed.agent.forceAbort(AbortReason.QuestionRequest)
+          managed.isProcessing = false
+
+          // Send complete event so renderer knows processing stopped
+          this.sendEvent({ type: 'complete', sessionId: managed.id, tokenUsage: managed.tokenUsage }, managed.workspace.id)
+        }
+
+        // Emit question_request event to renderer so it shows the MCQ panel
+        this.sendEvent({
+          type: 'question_request',
+          sessionId: managed.id,
+          request: request,
+        }, managed.workspace.id)
+      }
+
       // Wire up onCreateProjectSessions to create task sessions from Explore agent (Normies)
       managed.agent.onCreateProjectSessions = async (data) => {
         sessionLog.info(`CreateProjectSessions for session ${managed.id}: project="${data.projectName}", ${data.tasks.length} tasks`)
@@ -3534,6 +3563,51 @@ To view this task's output:
       sessionLog.warn(`Cannot respond to credential - no pending request for ${requestId}`)
       return false
     }
+  }
+
+  /**
+   * Respond to a pending question request (ask_user_question tool)
+   * Formats the user's answers into a message and resumes the agent conversation.
+   */
+  async respondToQuestion(sessionId: string, requestId: string, response: import('../shared/types').QuestionResponse): Promise<boolean> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed?.pendingQuestionRequest || managed.pendingQuestionRequestId !== requestId) {
+      sessionLog.warn(`Cannot respond to question - no pending request with id ${requestId} for session ${sessionId}`)
+      return false
+    }
+
+    const questions = managed.pendingQuestionRequest.questions
+    sessionLog.info(`Question response for ${requestId}: cancelled=${response.cancelled}`)
+
+    // Format answers into a user-readable message
+    let messageContent: string
+    if (response.cancelled) {
+      messageContent = '[User skipped the question]'
+    } else {
+      const answerLines: string[] = []
+      for (let i = 0; i < questions.length; i++) {
+        const question = questions[i]!
+        const answer = response.answers[i]
+        if (questions.length > 1) {
+          answerLines.push(`**${question.question}**`)
+        }
+        if (answer?.freeText) {
+          answerLines.push(answer.freeText)
+        } else if (answer?.selectedLabels?.length) {
+          answerLines.push(answer.selectedLabels.join(', '))
+        }
+      }
+      messageContent = answerLines.join('\n')
+    }
+
+    // Clear pending question state
+    managed.pendingQuestionRequestId = undefined
+    managed.pendingQuestionRequest = undefined
+
+    // Send the formatted answer as a new message to resume the conversation
+    await this.sendMessage(sessionId, messageContent, [], [], {})
+
+    return true
   }
 
   /**

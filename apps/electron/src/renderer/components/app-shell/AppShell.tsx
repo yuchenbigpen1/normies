@@ -21,8 +21,6 @@ import {
   DatabaseZap,
   Zap,
   Inbox,
-  Globe,
-  FolderOpen,
   HelpCircle,
   ExternalLink,
   MessageSquare,
@@ -35,7 +33,6 @@ import { PanelLeftRounded } from "../icons/PanelLeftRounded"
 // TodoStateIcons no longer used - icons come from dynamic todoStates
 import { SourceAvatar } from "@/components/ui/source-avatar"
 import { AppMenu } from "../AppMenu"
-import { McpIcon } from "../icons/McpIcon"
 import { cn } from "@/lib/utils"
 import { isMac } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
@@ -1331,18 +1328,6 @@ function AppShellContent({
     return counts
   }, [workspaceSessionMetas, effectiveTodoStates])
 
-  // Count sources by type for the Sources dropdown subcategories
-  const sourceTypeCounts = useMemo(() => {
-    const counts = { api: 0, mcp: 0, local: 0 }
-    for (const source of sources) {
-      const t = source.config.type
-      if (t === 'api' || t === 'mcp' || t === 'local') {
-        counts[t]++
-      }
-    }
-    return counts
-  }, [sources])
-
   // Derive projects list from session metadata (Normies)
   // A project = session with projectId set but no taskIndex (the parent Explore session)
   const projects = useMemo(() => {
@@ -1722,24 +1707,6 @@ function AppShellContent({
     window.electronAPI.reorderStatuses(activeWorkspaceId, orderedIds)
   }, [activeWorkspaceId])
 
-  // Handler for sources view (all sources)
-  const handleSourcesClick = useCallback(() => {
-    navigate(routes.view.sources())
-  }, [])
-
-  // Handlers for source type filter views (subcategories in Sources dropdown)
-  const handleSourcesApiClick = useCallback(() => {
-    navigate(routes.view.sourcesApi())
-  }, [])
-
-  const handleSourcesMcpClick = useCallback(() => {
-    navigate(routes.view.sourcesMcp())
-  }, [])
-
-  const handleSourcesLocalClick = useCallback(() => {
-    navigate(routes.view.sourcesLocal())
-  }, [])
-
   // Handler for skills view
   const handleSkillsClick = useCallback(() => {
     navigate(routes.view.skills())
@@ -1935,16 +1902,11 @@ function AppShellContent({
       result.push({ id: `nav:project:${p.id}`, type: 'nav', action: () => navigate(routes.view.project(p.id)) })
     }
 
-    // 3. Source type items (flat)
-    result.push({ id: 'nav:sources:api', type: 'nav', action: handleSourcesApiClick })
-    result.push({ id: 'nav:sources:mcp', type: 'nav', action: handleSourcesMcpClick })
-    result.push({ id: 'nav:sources:local', type: 'nav', action: handleSourcesLocalClick })
-
-    // 4. Settings
+    // 3. Settings
     result.push({ id: 'nav:settings', type: 'nav', action: () => handleSettingsClick('app') })
 
     return result
-  }, [chatSessions, projects, handleSourcesApiClick, handleSourcesMcpClick, handleSourcesLocalClick, handleSettingsClick])
+  }, [chatSessions, projects, handleSettingsClick])
 
   // Toggle folder expanded state
   const handleToggleFolder = React.useCallback((path: string) => {
@@ -2261,7 +2223,7 @@ function AppShellContent({
                     <span>New Chat</span>
                   </button>
                 </div>
-                {/* Primary Nav: Chats, Projects, Sources */}
+                {/* Primary Nav: Chats, Projects */}
                 {/* pb-4 provides clearance so the last item scrolls above the mask-fade-bottom gradient */}
                 <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 mask-fade-bottom pb-4">
                 <LeftSidebar
@@ -2311,48 +2273,6 @@ function AppShellContent({
                         onDelete: () => handleDeleteSession(p.sessionId),
                       },
                     })),
-                    // --- Sources Section (flat) ---
-                    { id: "separator:sources", type: "separator" as const, label: "Sources" },
-                    {
-                      id: "nav:sources:api",
-                      title: "APIs",
-                      label: String(sourceTypeCounts.api),
-                      icon: Globe,
-                      variant: (sourceFilter?.kind === 'type' && sourceFilter.sourceType === 'api') ? "default" : "ghost",
-                      onClick: handleSourcesApiClick,
-                      dataTutorial: "sources-nav",
-                      contextMenu: {
-                        type: 'sources' as const,
-                        onAddSource: () => openAddSource('api'),
-                        sourceType: 'api',
-                      },
-                    },
-                    {
-                      id: "nav:sources:mcp",
-                      title: "MCPs",
-                      label: String(sourceTypeCounts.mcp),
-                      icon: <McpIcon className="h-[18px] w-[18px]" />,
-                      variant: (sourceFilter?.kind === 'type' && sourceFilter.sourceType === 'mcp') ? "default" : "ghost",
-                      onClick: handleSourcesMcpClick,
-                      contextMenu: {
-                        type: 'sources' as const,
-                        onAddSource: () => openAddSource('mcp'),
-                        sourceType: 'mcp',
-                      },
-                    },
-                    {
-                      id: "nav:sources:local",
-                      title: "Local Folders",
-                      label: String(sourceTypeCounts.local),
-                      icon: FolderOpen,
-                      variant: (sourceFilter?.kind === 'type' && sourceFilter.sourceType === 'local') ? "default" : "ghost",
-                      onClick: handleSourcesLocalClick,
-                      contextMenu: {
-                        type: 'sources' as const,
-                        onAddSource: () => openAddSource('local'),
-                        sourceType: 'local',
-                      },
-                    },
                   ]}
                 />
                 {/* Agent Tree: Hierarchical list of agents */}

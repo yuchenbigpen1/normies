@@ -1228,6 +1228,7 @@ export function shouldAllowToolInMode(
         'mcp__session__mermaid_validate',
         'mcp__session__source_test',
         'mcp__session__call_llm', // Invokes secondary Claude model - no side effects
+        'mcp__session__ask_user_question', // Presents MCQ UI - no state mutation
       ];
       if (readOnlySessionTools.includes(toolName)) {
         return { allowed: true };
