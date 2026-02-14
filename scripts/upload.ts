@@ -1,7 +1,10 @@
 import { createHash } from 'crypto';
-import { promises as fs } from 'fs';
+import { createReadStream, promises as fs } from 'fs';
 import { join } from 'path';
+import { Agent } from 'https';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { Upload } from '@aws-sdk/lib-storage';
 
 type UploadOptions = {
   electron: boolean;
@@ -83,6 +86,9 @@ function inferPlatformKey(filename: string): string | null {
   return null;
 }
 
+// Files above this size use multipart upload (10MB)
+const MULTIPART_THRESHOLD = 10 * 1024 * 1024;
+
 async function putObject(
   client: S3Client,
   bucket: string,
@@ -90,14 +96,39 @@ async function putObject(
   body: Uint8Array | string,
   contentType?: string
 ): Promise<void> {
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    })
-  );
+  const size = typeof body === 'string' ? Buffer.byteLength(body) : body.length;
+
+  if (size > MULTIPART_THRESHOLD) {
+    const upload = new Upload({
+      client,
+      params: {
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      },
+      // 25MB parts, sequential uploads to avoid TLS connection issues
+      partSize: 25 * 1024 * 1024,
+      queueSize: 1,
+    });
+    upload.on('httpUploadProgress', (progress) => {
+      if (progress.loaded && progress.total) {
+        const pct = Math.round((progress.loaded / progress.total) * 100);
+        process.stdout.write(`\r  ${key}: ${pct}%`);
+      }
+    });
+    await upload.done();
+    process.stdout.write(`\r  ${key}: done\n`);
+  } else {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      })
+    );
+  }
 }
 
 async function uploadElectronArtifacts(
@@ -199,6 +230,11 @@ async function main(): Promise<void> {
     region: 'auto',
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
+    requestHandler: new NodeHttpHandler({
+      httpsAgent: new Agent({ keepAlive: false }),
+      connectionTimeout: 30_000,
+      socketTimeout: 300_000,
+    }),
   });
 
   if (options.electron) {
