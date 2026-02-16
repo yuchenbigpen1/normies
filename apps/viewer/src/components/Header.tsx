@@ -2,7 +2,7 @@
  * Header - App header with branding and controls
  */
 
-import { Sun, Moon, X } from 'lucide-react'
+import { Sun, Moon, X, Download } from 'lucide-react'
 
 function NormiesLogo({ className }: { className?: string }) {
   return (
@@ -44,11 +44,13 @@ export function Header({ hasSession, sessionTitle, isDark, onToggleTheme, onClea
     <header className="shrink-0 grid grid-cols-[auto_1fr_auto] items-center px-4 py-3">
       {/* Logo - links to main site */}
       <a
-        href="https://normies.dev"
+        href="https://landing.normies.work/"
         className="hover:opacity-80 transition-opacity"
         title="Normies"
+        target="_blank"
+        rel="noopener noreferrer"
       >
-        <NormiesLogo className="w-7 h-7 rounded" />
+        <NormiesLogo className="w-9 h-9 rounded-lg" />
       </a>
 
       {/* Session title - centered */}
@@ -61,6 +63,17 @@ export function Header({ hasSession, sessionTitle, isDark, onToggleTheme, onClea
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Download CTA */}
+        <a
+          href="https://landing.normies.work/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Download Normies for Free
+        </a>
+
         {/* Clear button (when session is loaded) */}
         {hasSession && (
           <button
