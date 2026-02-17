@@ -3164,6 +3164,17 @@ Remember: You're providing a second opinion. Help the user understand, question,
             return  // Exit function - retry will handle completion
           }
 
+          // Skip normal completion handling if a question request is pending
+          // The onQuestionRequest handler already sent complete + question_request
+          // events to the renderer. This generator-yielded complete would clear
+          // the pending question from the UI before the user can answer it.
+          if (managed.pendingQuestionRequestId) {
+            sessionLog.info('Chat completed but question request is pending, skipping onProcessingStopped')
+            sendSpan.mark('chat.complete.question_pending')
+            sendSpan.end()
+            return  // Exit function - question response will resume processing
+          }
+
           sessionLog.info('Chat completed via complete event')
 
           // Check if we got an assistant response in this turn
