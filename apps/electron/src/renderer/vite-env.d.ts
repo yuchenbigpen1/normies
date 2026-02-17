@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly POSTHOG_API_KEY: string
+}
+
 // Image imports
 declare module "*.png" {
   const src: string

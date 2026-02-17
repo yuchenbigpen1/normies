@@ -26,6 +26,7 @@ import { NavigationProvider } from '@/contexts/NavigationContext'
 import { navigate, routes } from './lib/navigate'
 import { stripMarkdown } from './utils/text'
 import { initRendererPerf } from './lib/perf'
+import { trackEvent } from './lib/posthog'
 import { DEFAULT_MODEL } from '@config/models'
 import {
   initializeSessionsAtom,
@@ -676,6 +677,11 @@ export default function App() {
     // Add to per-session atom and metadata map (no sessionsAtom)
     addSession(session)
 
+    // Track session creation
+    trackEvent('session_started', {
+      permission_mode: session.permissionMode ?? 'ask',
+    })
+
     // Apply session defaults to the unified sessionOptions
     const hasNonDefaultMode = session.permissionMode && session.permissionMode !== 'ask'
     const hasNonDefaultThinking = session.thinkingLevel && session.thinkingLevel !== 'think'
@@ -906,6 +912,9 @@ export default function App() {
         isProcessing: true,
         lastMessageAt: Date.now()
       }))
+
+      // Track message sent (no content — just the event)
+      trackEvent('message_sent')
 
       // Step 6: Send to Claude with processed attachments + stored attachments for persistence
       await window.electronAPI.sendMessage(sessionId, message, processedAttachments, storedAttachments, {

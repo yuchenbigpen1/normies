@@ -46,6 +46,7 @@ function getBuildDefines(): string[] {
     "MICROSOFT_OAUTH_CLIENT_ID",
     "MICROSOFT_OAUTH_CLIENT_SECRET",
     "SENTRY_ELECTRON_INGEST_URL",
+    "POSTHOG_API_KEY",
   ];
 
   return definedVars.map((varName) => {

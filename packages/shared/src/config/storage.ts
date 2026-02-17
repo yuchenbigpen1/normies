@@ -50,6 +50,8 @@ export interface StoredConfig {
   autoCapitalisation?: boolean;  // Auto-capitalize first letter when typing (default: true)
   sendMessageKey?: 'enter' | 'cmd-enter';  // Key to send messages (default: 'enter')
   spellCheck?: boolean;  // Enable spell check in input (default: false)
+  // Analytics
+  analyticsEnabled?: boolean;  // Anonymous usage analytics (default: true)
 }
 
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
@@ -322,6 +324,25 @@ export function setSpellCheck(enabled: boolean): void {
   if (!config) return;
   config.spellCheck = enabled;
   saveConfig(config);
+}
+
+/**
+ * Get whether anonymous usage analytics are enabled.
+ * Defaults to true if not set.
+ */
+export function getAnalyticsEnabled(): boolean {
+  const config = loadStoredConfig()
+  return config?.analyticsEnabled !== false  // Default to true
+}
+
+/**
+ * Set whether anonymous usage analytics are enabled.
+ */
+export function setAnalyticsEnabled(enabled: boolean): void {
+  const config = loadStoredConfig()
+  if (!config) return
+  config.analyticsEnabled = enabled
+  saveConfig(config)
 }
 
 // Note: getDefaultWorkingDirectory/setDefaultWorkingDirectory removed

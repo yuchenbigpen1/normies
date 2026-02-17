@@ -57,6 +57,9 @@ export default function AppSettingsPage() {
   // Notifications state
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
 
+  // Analytics state
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true)
+
   // Auto-update state
   const updateChecker = useUpdateChecker()
   const [isCheckingForUpdates, setIsCheckingForUpdates] = useState(false)
@@ -74,13 +77,15 @@ export default function AppSettingsPage() {
   const loadConnectionInfo = useCallback(async () => {
     if (!window.electronAPI) return
     try {
-      const [billing, notificationsOn] = await Promise.all([
+      const [billing, notificationsOn, analyticsOn] = await Promise.all([
         window.electronAPI.getApiSetup(),
         window.electronAPI.getNotificationsEnabled(),
+        window.electronAPI.getAnalyticsEnabled(),
       ])
       setAuthType(billing.authType)
       setHasCredential(billing.hasCredential)
       setNotificationsEnabled(notificationsOn)
+      setAnalyticsEnabled(analyticsOn)
     } catch (error) {
       console.error('Failed to load settings:', error)
     }
@@ -129,6 +134,17 @@ export default function AppSettingsPage() {
     await window.electronAPI.setNotificationsEnabled(enabled)
   }, [])
 
+  const handleAnalyticsEnabledChange = useCallback(async (enabled: boolean) => {
+    setAnalyticsEnabled(enabled)
+    await window.electronAPI.setAnalyticsEnabled(enabled)
+    // Update PostHog in real-time
+    if (enabled) {
+      import('../../lib/posthog').then(({ optInAnalytics }) => optInAnalytics())
+    } else {
+      import('../../lib/posthog').then(({ optOutAnalytics }) => optOutAnalytics())
+    }
+  }, [])
+
   return (
     <div className="h-full flex flex-col">
       <PanelHeader title="App Settings" leftActions={<NavigationButtons />} actions={<HeaderMenu route={routes.view.settings('app')} helpFeature="app-settings" />} />
@@ -144,6 +160,18 @@ export default function AppSettingsPage() {
                   description="Get notified when AI finishes working in a chat."
                   checked={notificationsEnabled}
                   onCheckedChange={handleNotificationsEnabledChange}
+                />
+              </SettingsCard>
+            </SettingsSection>
+
+            {/* Analytics */}
+            <SettingsSection title="Analytics">
+              <SettingsCard>
+                <SettingsToggle
+                  label="Usage analytics"
+                  description="Send anonymous usage data to help improve Normies."
+                  checked={analyticsEnabled}
+                  onCheckedChange={handleAnalyticsEnabledChange}
                 />
               </SettingsCard>
             </SettingsSection>

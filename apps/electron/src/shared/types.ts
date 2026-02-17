@@ -839,6 +839,11 @@ export const IPC_CHANNELS = {
   MENU_COPY: 'menu:copy',
   MENU_PASTE: 'menu:paste',
   MENU_SELECT_ALL: 'menu:selectAll',
+
+  // Analytics
+  ANALYTICS_GET_MACHINE_ID: 'analytics:getMachineId',
+  ANALYTICS_GET_ENABLED: 'analytics:getEnabled',
+  ANALYTICS_SET_ENABLED: 'analytics:setEnabled',
 } as const
 
 // Re-import types for ElectronAPI
@@ -1132,6 +1137,11 @@ export interface ElectronAPI {
   menuCopy(): Promise<void>
   menuPaste(): Promise<void>
   menuSelectAll(): Promise<void>
+
+  // Analytics
+  getAnalyticsMachineId(): Promise<string>
+  getAnalyticsEnabled(): Promise<boolean>
+  setAnalyticsEnabled(enabled: boolean): Promise<void>
 }
 
 /**

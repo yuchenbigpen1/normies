@@ -13,6 +13,7 @@
  */
 
 import * as React from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { cn } from '@/lib/utils'
 
 // ============================================================================
@@ -173,16 +174,26 @@ export function EmptyStateHint({ hintIndex, className }: EmptyStateHintProps) {
   // Parse all hints once
   const allHints = React.useMemo(() => parseAllHints(), [])
 
-  // Select a hint - either specified index or random on mount
-  const [selectedIndex] = React.useState(() => {
+  // Start at a random index (or specified index)
+  const startIndex = React.useMemo(() => {
     if (hintIndex !== undefined && hintIndex >= 0 && hintIndex < allHints.length) {
       return hintIndex
     }
     return Math.floor(Math.random() * allHints.length)
-  })
+  }, [hintIndex, allHints.length])
 
-  // Update if hintIndex prop changes
-  const displayIndex = hintIndex !== undefined ? hintIndex : selectedIndex
+  const [currentIndex, setCurrentIndex] = React.useState(startIndex)
+
+  // Rotate every 4 seconds (skip if hintIndex is pinned from props)
+  React.useEffect(() => {
+    if (hintIndex !== undefined) return
+    const timer = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % allHints.length)
+    }, 3500)
+    return () => clearInterval(timer)
+  }, [hintIndex, allHints.length])
+
+  const displayIndex = hintIndex !== undefined ? hintIndex : currentIndex
   const hint = allHints[displayIndex % allHints.length]
 
   return (
@@ -190,24 +201,34 @@ export function EmptyStateHint({ hintIndex, className }: EmptyStateHintProps) {
       className={cn(
         'text-center leading-relaxed tracking-tight',
         'max-w-md mx-auto select-none',
-        'text-[20px] font-bold text-black',
+        'text-[20px] font-medium text-foreground/40',
         className
       )}
     >
-      {hint.segments.map((segment, index) => {
-        if (segment.type === 'text') {
-          return <span key={index}>{segment.content}</span>
-        }
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={hint.id}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+        >
+          {hint.segments.map((segment, index) => {
+            if (segment.type === 'text') {
+              return <span key={index}>{segment.content}</span>
+            }
 
-        return (
-          <EntityBadge
-            key={index}
-            entityType={segment.entityType}
-            label={segment.label}
-            provider={segment.provider}
-          />
-        )
-      })}
+            return (
+              <EntityBadge
+                key={index}
+                entityType={segment.entityType}
+                label={segment.label}
+                provider={segment.provider}
+              />
+            )
+          })}
+        </motion.span>
+      </AnimatePresence>
     </div>
   )
 }

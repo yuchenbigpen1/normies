@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
@@ -8,7 +8,14 @@ import { resolve } from 'path'
 // SENTRY_ORG, SENTRY_PROJECT to CI secrets. See CLAUDE.md "Sentry Error Tracking" section.
 // import { sentryVitePlugin } from '@sentry/vite-plugin'
 
+// Load env from monorepo root (Vite's built-in .env loading uses `root` which is src/renderer)
+const monorepoRoot = resolve(__dirname, '../..')
+const env = loadEnv('production', monorepoRoot, '')
+
 export default defineConfig({
+  define: {
+    'import.meta.env.POSTHOG_API_KEY': JSON.stringify(env.POSTHOG_API_KEY || ''),
+  },
   plugins: [
     react({
       babel: {

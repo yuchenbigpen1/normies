@@ -2483,6 +2483,26 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   })
 
   // ============================================================
+  // Analytics
+  // ============================================================
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_GET_MACHINE_ID, async () => {
+    const { createHash } = await import('crypto')
+    const { hostname, homedir } = await import('os')
+    return createHash('sha256').update(hostname() + homedir()).digest('hex').slice(0, 16)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_GET_ENABLED, async () => {
+    const { getAnalyticsEnabled } = await import('@normies/shared/config/storage')
+    return getAnalyticsEnabled()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.ANALYTICS_SET_ENABLED, async (_event, enabled: boolean) => {
+    const { setAnalyticsEnabled } = await import('@normies/shared/config/storage')
+    setAnalyticsEnabled(enabled)
+  })
+
+  // ============================================================
   // Notifications and Badge
   // ============================================================
 

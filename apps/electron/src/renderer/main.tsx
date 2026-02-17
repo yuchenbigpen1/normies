@@ -65,6 +65,23 @@ sentryInit(
   Sentry.init,
 )
 
+// Initialize PostHog analytics (anonymous usage tracking, respects opt-out setting)
+import { initPostHog, identifyAnonymousUser, trackEvent, optOutAnalytics } from './lib/posthog'
+
+window.electronAPI?.getAnalyticsEnabled?.().then((enabled) => {
+  initPostHog()
+  if (!enabled) {
+    optOutAnalytics()
+    return
+  }
+  window.electronAPI?.getAnalyticsMachineId?.().then((machineId) => {
+    if (machineId) {
+      identifyAnonymousUser(machineId)
+      trackEvent('app_opened')
+    }
+  })
+})
+
 /**
  * Minimal fallback UI shown when the entire React tree crashes.
  * Sentry.ErrorBoundary captures the error and sends it to Sentry automatically.

@@ -492,6 +492,14 @@ const api: ElectronAPI = {
   menuCopy: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_COPY),
   menuPaste: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_PASTE),
   menuSelectAll: () => ipcRenderer.invoke(IPC_CHANNELS.MENU_SELECT_ALL),
+
+  // Analytics
+  getAnalyticsMachineId: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_MACHINE_ID) as Promise<string>,
+  getAnalyticsEnabled: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_GET_ENABLED) as Promise<boolean>,
+  setAnalyticsEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ANALYTICS_SET_ENABLED, enabled),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

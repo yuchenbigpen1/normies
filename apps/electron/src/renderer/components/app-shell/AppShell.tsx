@@ -21,7 +21,6 @@ import {
   DatabaseZap,
   Zap,
   Inbox,
-  HelpCircle,
   ExternalLink,
   MessageSquare,
   GitGraph,
@@ -112,7 +111,7 @@ import { SourcesListPanel } from "./SourcesListPanel"
 import { SkillsListPanel } from "./SkillsListPanel"
 import { PanelHeader } from "./PanelHeader"
 import { EditPopover, getEditConfig, type EditContextKey } from "@/components/ui/EditPopover"
-import { getDocUrl, getDocsHomeUrl } from "@normies/shared/docs/doc-links"
+import { FeedbackDialog } from '@/components/ui/FeedbackDialog'
 import SettingsNavigator from "@/pages/settings/SettingsNavigator"
 import { RightSidebar } from "./RightSidebar"
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
@@ -558,6 +557,7 @@ function AppShellContent({
   const [diagramOverlayOpen, setDiagramOverlayOpen] = useState(false)
   const [diagramSvg, setDiagramSvg] = useState('')
   const [diagramCode, setDiagramCode] = useState('')
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   // Window width tracking for responsive behavior
   const [windowWidth, setWindowWidth] = React.useState(window.innerWidth)
@@ -2294,50 +2294,21 @@ function AppShellContent({
                     <Settings className="h-[18px] w-[18px] shrink-0 text-foreground/60" />
                     <span className="truncate">Settings</span>
                   </button>
-                  {/* Help button */}
-                  <DropdownMenu>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              className="flex items-center justify-center h-8 w-8 rounded-[8px] select-none outline-none hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring shrink-0"
-                            >
-                              <HelpCircle className="h-[18px] w-[18px] text-foreground/60" />
-                            </button>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Help & Documentation</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <StyledDropdownMenuContent align="end" side="top" sideOffset={8}>
-                      <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('sources'))}>
-                        <DatabaseZap className="h-3.5 w-3.5" />
-                        <span className="flex-1">Sources</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                      </StyledDropdownMenuItem>
-                      <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('skills'))}>
-                        <Zap className="h-3.5 w-3.5" />
-                        <span className="flex-1">Skills</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                      </StyledDropdownMenuItem>
-                      <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('statuses'))}>
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span className="flex-1">Statuses</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                      </StyledDropdownMenuItem>
-                      <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocUrl('permissions'))}>
-                        <Settings className="h-3.5 w-3.5" />
-                        <span className="flex-1">Permissions</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                      </StyledDropdownMenuItem>
-                      <StyledDropdownMenuSeparator />
-                      <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(getDocsHomeUrl())}>
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        <span className="flex-1">All Documentation</span>
-                      </StyledDropdownMenuItem>
-                    </StyledDropdownMenuContent>
-                  </DropdownMenu>
+                  {/* Feedback button */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => setFeedbackOpen(true)}
+                          className="flex items-center justify-center h-8 w-8 rounded-[8px] select-none outline-none hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring shrink-0"
+                        >
+                          <MessageSquare className="h-[18px] w-[18px] text-foreground/60" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Give Feedback</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
                 </div>
               </div>
             </div>

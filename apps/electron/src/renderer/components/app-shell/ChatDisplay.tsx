@@ -59,6 +59,7 @@ import { useTurnCardExpansion } from "@/hooks/useTurnCardExpansion"
 import { sessionMetaMapAtom, type SessionMeta } from "@/atoms/sessions"
 import { CHAT_LAYOUT } from "@/config/layout"
 import { flattenLabels } from "@normies/shared/labels"
+import { EmptyStateHint } from "@/components/chat/EmptyStateHint"
 
 // ============================================================================
 // Overlay State Types
@@ -1480,6 +1481,12 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                     <div className="absolute inset-0 flex flex-col items-center justify-center select-none gap-1 pointer-events-none">
                       <span className="text-sm text-muted-foreground">What would you like to change?</span>
                       <span className="text-xs text-muted-foreground/50">Just describe it — I'll handle the rest</span>
+                    </div>
+                  )}
+                  {/* Empty state for regular chat - show workflow suggestion hint */}
+                  {!compactMode && turns.length === 0 && session?.taskIndex == null && (
+                    <div className="flex items-center justify-center pt-[30vh] pointer-events-none select-none">
+                      <EmptyStateHint />
                     </div>
                   )}
                   {/* Task brief card - persistent header for task sessions (Normies) */}
