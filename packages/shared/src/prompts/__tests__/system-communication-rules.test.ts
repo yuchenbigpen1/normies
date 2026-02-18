@@ -28,3 +28,28 @@ describe('Communication Rules — no implementation detail dumps', () => {
     expect(prompt).toContain(RULE_SNIPPET);
   });
 });
+
+const TONE_HEADING = '## Tone & Personality';
+const TONE_SNIPPET = 'Hype people up';
+
+describe('Tone & Personality — character brief', () => {
+  it('has the new heading in the explore preset', () => {
+    const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'explore');
+    expect(prompt).toContain(TONE_HEADING);
+  });
+
+  it('has the new heading in the default preset', () => {
+    const prompt = getSystemPrompt();
+    expect(prompt).toContain(TONE_HEADING);
+  });
+
+  it('includes personality bullet points in the default preset', () => {
+    const prompt = getSystemPrompt();
+    expect(prompt).toContain(TONE_SNIPPET);
+  });
+
+  it('does NOT contain the old generic tone section', () => {
+    const prompt = getSystemPrompt();
+    expect(prompt).not.toContain('like a sharp coworker');
+  });
+});
