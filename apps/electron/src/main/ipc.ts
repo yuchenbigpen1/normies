@@ -352,6 +352,10 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         return sessionManager.flagSession(sessionId)
       case 'unflag':
         return sessionManager.unflagSession(sessionId)
+      case 'archive':
+        return sessionManager.archiveSession(sessionId)
+      case 'unarchive':
+        return sessionManager.unarchiveSession(sessionId)
       case 'rename':
         return sessionManager.renameSession(sessionId, command.name)
       case 'setTodoState':
@@ -377,6 +381,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         return sessionManager.setSessionSources(sessionId, command.sourceSlugs)
       case 'setLabels':
         return sessionManager.setSessionLabels(sessionId, command.labels)
+      case 'setFolder':
+        return sessionManager.setSessionFolder(sessionId, command.folderId)
       case 'showInFinder': {
         const sessionPath = sessionManager.getSessionPath(sessionId)
         if (sessionPath) {
@@ -2206,6 +2212,71 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const result = deleteLabel(workspace.rootPath, labelId)
     windowManager.broadcastToAll(IPC_CHANNELS.LABELS_CHANGED, workspaceId)
     return result
+  })
+
+  // ============================================================
+  // Folder Management (Workspace-scoped)
+  // ============================================================
+
+  // List all folders for a workspace
+  ipcMain.handle(IPC_CHANNELS.FOLDERS_LIST, async (_event, workspaceId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { listFolders } = await import('@normies/shared/folders/storage')
+    return listFolders(workspace.rootPath)
+  })
+
+  // Create a new folder in a workspace
+  ipcMain.handle(IPC_CHANNELS.FOLDERS_CREATE, async (_event, workspaceId: string, input: import('@normies/shared/folders').CreateFolderInput) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { createFolder } = await import('@normies/shared/folders/crud')
+    const folder = createFolder(workspace.rootPath, input)
+    windowManager.broadcastToAll(IPC_CHANNELS.FOLDERS_CHANGED, workspaceId)
+    return folder
+  })
+
+  // Update a folder in a workspace
+  ipcMain.handle(IPC_CHANNELS.FOLDERS_UPDATE, async (_event, workspaceId: string, folderId: string, input: import('@normies/shared/folders').UpdateFolderInput) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { updateFolder } = await import('@normies/shared/folders/crud')
+    const folder = updateFolder(workspace.rootPath, folderId, input)
+    windowManager.broadcastToAll(IPC_CHANNELS.FOLDERS_CHANGED, workspaceId)
+    return folder
+  })
+
+  // Delete a folder from a workspace (unassigns all sessions from this folder)
+  ipcMain.handle(IPC_CHANNELS.FOLDERS_DELETE, async (_event, workspaceId: string, folderId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { deleteFolder } = await import('@normies/shared/folders/crud')
+    deleteFolder(workspace.rootPath, folderId)
+
+    // Unassign all sessions from this folder
+    const { listSessions, updateSessionMetadata } = await import('@normies/shared/sessions/storage')
+    const sessions = listSessions(workspace.rootPath)
+    for (const s of sessions) {
+      if (s.folderId === folderId) {
+        await updateSessionMetadata(workspace.rootPath, s.id, { folderId: undefined })
+      }
+    }
+
+    windowManager.broadcastToAll(IPC_CHANNELS.FOLDERS_CHANGED, workspaceId)
+  })
+
+  // Reorder folders in a workspace
+  ipcMain.handle(IPC_CHANNELS.FOLDERS_REORDER, async (_event, workspaceId: string, orderedIds: string[]) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { reorderFolders } = await import('@normies/shared/folders/crud')
+    reorderFolders(workspace.rootPath, orderedIds)
+    windowManager.broadcastToAll(IPC_CHANNELS.FOLDERS_CHANGED, workspaceId)
   })
 
   // List views for a workspace (dynamic expression-based filters stored in views.json)

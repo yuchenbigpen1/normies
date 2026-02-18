@@ -432,8 +432,10 @@ function headerToMetadata(header: SessionHeader, workspaceRootPath: string): Ses
       preview: header.preview,
       sdkSessionId: header.sdkSessionId,
       isFlagged: header.isFlagged,
+      isArchived: header.isArchived,
       todoState: validatedTodoState,
       labels: header.labels,
+      folderId: header.folderId,
       permissionMode: header.permissionMode,
       planCount: planCount > 0 ? planCount : undefined,
       lastMessageRole: header.lastMessageRole,
@@ -566,9 +568,11 @@ export async function updateSessionMetadata(
   sessionId: string,
   updates: Partial<Pick<SessionConfig,
     | 'isFlagged'
+    | 'isArchived'
     | 'name'
     | 'todoState'
     | 'labels'
+    | 'folderId'
     | 'lastReadMessageId'
     | 'hasUnread'
     | 'enabledSourceSlugs'
@@ -583,9 +587,11 @@ export async function updateSessionMetadata(
   if (!session) return;
 
   if (updates.isFlagged !== undefined) session.isFlagged = updates.isFlagged;
+  if (updates.isArchived !== undefined) session.isArchived = updates.isArchived;
   if (updates.name !== undefined) session.name = updates.name;
   if (updates.todoState !== undefined) session.todoState = updates.todoState;
   if (updates.labels !== undefined) session.labels = updates.labels;
+  if (updates.folderId !== undefined) session.folderId = updates.folderId;
   if (updates.enabledSourceSlugs !== undefined) session.enabledSourceSlugs = updates.enabledSourceSlugs;
   if (updates.workingDirectory !== undefined) session.workingDirectory = updates.workingDirectory;
   if (updates.permissionMode !== undefined) session.permissionMode = updates.permissionMode;
@@ -613,6 +619,27 @@ export async function unflagSession(workspaceRootPath: string, sessionId: string
 }
 
 /**
+ * Archive a session
+ */
+export async function archiveSession(workspaceRootPath: string, sessionId: string): Promise<void> {
+  await updateSessionMetadata(workspaceRootPath, sessionId, { isArchived: true });
+}
+
+/**
+ * Unarchive a session
+ */
+export async function unarchiveSession(workspaceRootPath: string, sessionId: string): Promise<void> {
+  await updateSessionMetadata(workspaceRootPath, sessionId, { isArchived: false });
+}
+
+/**
+ * List archived sessions
+ */
+export function listArchivedSessions(workspaceRootPath: string): SessionMetadata[] {
+  return listSessions(workspaceRootPath).filter(s => s.isArchived === true);
+}
+
+/**
  * Set todo state for a session
  */
 export async function setSessionTodoState(
@@ -632,6 +659,17 @@ export async function setSessionLabels(
   labels: string[]
 ): Promise<void> {
   await updateSessionMetadata(workspaceRootPath, sessionId, { labels });
+}
+
+/**
+ * Set folder for a session (or remove from folder with undefined)
+ */
+export async function setSessionFolder(
+  workspaceRootPath: string,
+  sessionId: string,
+  folderId: string | undefined
+): Promise<void> {
+  await updateSessionMetadata(workspaceRootPath, sessionId, { folderId });
 }
 
 // ============================================================

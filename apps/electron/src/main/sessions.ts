@@ -337,6 +337,7 @@ interface ManagedSession {
   // Session name (user-defined or AI-generated)
   name?: string
   isFlagged: boolean
+  isArchived: boolean
   /** Permission mode for this session ('safe', 'ask', 'allow-all') */
   permissionMode?: PermissionMode
   // SDK session ID for conversation continuity
@@ -368,6 +369,8 @@ interface ManagedSession {
   enabledSourceSlugs?: string[]
   // Labels applied to this session (additive tags, many-per-session)
   labels?: string[]
+  // Folder this session belongs to (undefined = unfiled)
+  folderId?: string
   // Working directory for this session (used by agent for bash commands)
   workingDirectory?: string
   // SDK cwd for session storage - set once at creation, never changes.
@@ -957,6 +960,7 @@ export class SessionManager {
             createdAt: meta.createdAt,
             messageCount: meta.messageCount,
             isFlagged: meta.isFlagged ?? false,
+            isArchived: meta.isArchived ?? false,
             permissionMode: meta.permissionMode,
             sdkSessionId: meta.sdkSessionId,
             tokenUsage: meta.tokenUsage,  // From JSONL header (updated on save)
@@ -966,6 +970,7 @@ export class SessionManager {
             hasUnread: meta.hasUnread,  // Explicit unread flag for NEW badge state machine
             enabledSourceSlugs: undefined,  // Loaded with messages
             labels: meta.labels,
+            folderId: meta.folderId,
             workingDirectory: meta.workingDirectory ?? wsDefaultWorkingDir,
             sdkCwd: meta.sdkCwd,
             model: meta.model,
@@ -1035,12 +1040,14 @@ export class SessionManager {
         lastMessageAt: managed.lastMessageAt,  // Preserve actual message time (not persist time)
         sdkSessionId: managed.sdkSessionId,
         isFlagged: managed.isFlagged,
+        isArchived: managed.isArchived,
         permissionMode: managed.permissionMode,
         todoState: managed.todoState,
         lastReadMessageId: managed.lastReadMessageId,  // For unread detection
         hasUnread: managed.hasUnread,  // Explicit unread flag for NEW badge state machine
         enabledSourceSlugs: managed.enabledSourceSlugs,
         labels: managed.labels,
+        folderId: managed.folderId,
         workingDirectory: managed.workingDirectory,
         sdkCwd: managed.sdkCwd,
         thinkingLevel: managed.thinkingLevel,
@@ -1393,6 +1400,7 @@ export class SessionManager {
         messages: [],  // Never send all messages - use getSession(id) for specific session
         isProcessing: m.isProcessing,
         isFlagged: m.isFlagged,
+        isArchived: m.isArchived,
         permissionMode: m.permissionMode,
         thinkingLevel: m.thinkingLevel,
         todoState: m.todoState,
@@ -1403,6 +1411,7 @@ export class SessionManager {
         model: m.model,
         enabledSourceSlugs: m.enabledSourceSlugs,
         labels: m.labels,
+        folderId: m.folderId,
         sharedUrl: m.sharedUrl,
         sharedId: m.sharedId,
         lastMessageRole: m.lastMessageRole,
@@ -1457,6 +1466,7 @@ export class SessionManager {
       messages: m.messages,
       isProcessing: m.isProcessing,
       isFlagged: m.isFlagged,
+      isArchived: m.isArchived,
       permissionMode: m.permissionMode,
       thinkingLevel: m.thinkingLevel,
       todoState: m.todoState,
@@ -1468,6 +1478,7 @@ export class SessionManager {
       sessionFolderPath: getSessionStoragePath(m.workspace.rootPath, m.id),
       enabledSourceSlugs: m.enabledSourceSlugs,
       labels: m.labels,
+      folderId: m.folderId,
       sharedUrl: m.sharedUrl,
       sharedId: m.sharedId,
       lastMessageRole: m.lastMessageRole,
@@ -1650,6 +1661,7 @@ export class SessionManager {
       streamingText: '',
       processingGeneration: 0,
       isFlagged: options?.isFlagged ?? false,
+      isArchived: false,
       todoState: options?.todoState,
       labels: options?.labels,
       permissionMode: defaultPermissionMode,
@@ -1697,6 +1709,7 @@ export class SessionManager {
       messages: [],
       isProcessing: false,
       isFlagged: options?.isFlagged ?? false,
+      isArchived: false,
       permissionMode: defaultPermissionMode,
       todoState: options?.todoState,
       labels: options?.labels,
@@ -2221,6 +2234,26 @@ Remember: You're providing a second opinion. Help the user understand, question,
       await this.flushSession(managed.id)
       // Notify all windows for this workspace
       this.sendEvent({ type: 'session_unflagged', sessionId }, managed.workspace.id)
+    }
+  }
+
+  async archiveSession(sessionId: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (managed) {
+      managed.isArchived = true
+      // Persist in-memory state directly to avoid race with pending queue writes
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
+    }
+  }
+
+  async unarchiveSession(sessionId: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (managed) {
+      managed.isArchived = false
+      // Persist in-memory state directly to avoid race with pending queue writes
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
     }
   }
 
@@ -3656,6 +3689,23 @@ To view this task's output:
         type: 'labels_changed',
         sessionId: managed.id,
         labels: managed.labels,
+      }, managed.workspace.id)
+      // Persist to disk
+      this.persistSession(managed)
+    }
+  }
+
+  /**
+   * Set folder for a session (or remove from folder with undefined)
+   */
+  setSessionFolder(sessionId: string, folderId: string | undefined): void {
+    const managed = this.sessions.get(sessionId)
+    if (managed) {
+      managed.folderId = folderId
+      this.sendEvent({
+        type: 'folder_changed',
+        sessionId: managed.id,
+        folderId: managed.folderId,
       }, managed.workspace.id)
       // Persist to disk
       this.persistSession(managed)

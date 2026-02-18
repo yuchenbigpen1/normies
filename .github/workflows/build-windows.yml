@@ -1,0 +1,62 @@
+name: Build Windows Installer
+
+on:
+  repository_dispatch:
+    types: [build-windows] # Triggered by upload.ts after Mac build is uploaded
+  workflow_dispatch: # Manual trigger from GitHub UI
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.5' # Match pinned version in build-win.ps1
+
+      - name: Restore system.ts from secret
+        shell: bash
+        run: |
+          printf '%s' "${{ secrets.SYSTEM_TS_CONTENT }}" > packages/shared/src/prompts/system.ts
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Windows installer
+        shell: pwsh
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          SLACK_OAUTH_CLIENT_ID: ${{ secrets.SLACK_OAUTH_CLIENT_ID }}
+          SLACK_OAUTH_CLIENT_SECRET: ${{ secrets.SLACK_OAUTH_CLIENT_SECRET }}
+          MICROSOFT_OAUTH_CLIENT_ID: ${{ secrets.MICROSOFT_OAUTH_CLIENT_ID }}
+        run: |
+          cd apps/electron
+          powershell -ExecutionPolicy Bypass -File scripts/build-win.ps1
+
+      - name: Upload Windows installer (GitHub artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: normies-windows-installer
+          path: apps/electron/release/*.exe
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload Windows installer to Cloudflare R2
+        shell: bash
+        env:
+          S3_VERSIONS_BUCKET_ENDPOINT: ${{ secrets.S3_VERSIONS_BUCKET_ENDPOINT }}
+          S3_VERSIONS_BUCKET_NAME: ${{ secrets.S3_VERSIONS_BUCKET_NAME }}
+          S3_VERSIONS_BUCKET_ACCESS_KEY_ID: ${{ secrets.S3_VERSIONS_BUCKET_ACCESS_KEY_ID }}
+          S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY: ${{ secrets.S3_VERSIONS_BUCKET_SECRET_ACCESS_KEY }}
+        run: bun run scripts/upload.ts --electron --latest

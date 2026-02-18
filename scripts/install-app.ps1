@@ -1,9 +1,9 @@
 # Normies Windows Installer
-# Usage: irm https://updates.normies.ai/install-app.ps1 | iex
+# Usage: irm https://updates.normies.work/install-app.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$VERSIONS_URL = if ($env:NORMIES_VERSIONS_URL) { $env:NORMIES_VERSIONS_URL } else { "https://updates.normies.ai/electron" }
+$VERSIONS_URL = if ($env:NORMIES_VERSIONS_URL) { $env:NORMIES_VERSIONS_URL } else { "https://updates.normies.work/electron" }
 $DOWNLOAD_DIR = "$env:TEMP\normies-install"
 $APP_NAME = "Normies"
 

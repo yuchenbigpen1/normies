@@ -166,6 +166,8 @@ export function NavigationProvider({
             return true
           case 'flagged':
             return session.isFlagged === true
+          case 'archive':
+            return session.isArchived === true
           case 'state':
             return session.todoState === filter.stateId
           case 'project':

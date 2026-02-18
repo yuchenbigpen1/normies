@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import * as React from "react"
 import { AnimatePresence, motion, type Variants } from "motion/react"
 import { ChevronRight } from "lucide-react"
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 
 import { cn } from "@/lib/utils"
 import {
@@ -42,14 +43,27 @@ export interface SidebarContextMenuConfig {
   viewId?: string
   /** Handler for "Delete View" action */
   onDeleteView?: (id: string) => void
+  /** Handler for "Rename Folder" action - for folder type */
+  onRenameFolder?: () => void
+  /** Handler for "Delete Folder" action - for folder type */
+  onDeleteFolder?: () => void
 }
 
 /** Context menu configuration for project items (session-level actions) */
 export interface ProjectContextMenuConfig {
   sessionId: string
+  isArchived?: boolean
   onRename: () => void
   onOpenInNewWindow: () => void
+  onArchive: () => void
+  onUnarchive: () => void
   onDelete: () => void
+  /** Available folders for "Move to Folder" submenu */
+  folders?: { id: string; name: string }[]
+  /** Current folder ID (if item is in a folder) */
+  currentFolderId?: string
+  /** Handler to move item to a folder (or remove from folder if folderId is undefined) */
+  onMoveToFolder?: (folderId: string | undefined) => void
 }
 
 /**
@@ -90,6 +104,12 @@ export interface LinkItem {
   sortable?: SortableConfig
   // Optional element rendered after the title (e.g., label type icon), revealed on hover
   afterTitle?: React.ReactNode
+  /** Always-visible indicator element rendered after the title (e.g., unread dot) */
+  indicator?: React.ReactNode
+  /** Make this item draggable (for chat/project items that can be moved to folders) */
+  draggable?: { sessionId: string }
+  /** Make this item a drop target (for folders, unfiled area, or archive) */
+  droppable?: { type: 'folder'; folderId: string } | { type: 'unfiled' } | { type: 'archive' }
 }
 
 export interface SeparatorItem {
@@ -97,6 +117,10 @@ export interface SeparatorItem {
   type: 'separator'
   /** Optional label shown inline with the divider line (e.g. "Projects") */
   label?: string
+  /** Make this separator a drop target (e.g., "Chats" separator for unfiling items) */
+  droppable?: { type: 'folder'; folderId: string } | { type: 'unfiled' } | { type: 'archive' }
+  /** Optional action button shown on hover (e.g., "+" to create folder) */
+  action?: { icon: React.ReactNode; onClick: () => void; ariaLabel: string }
 }
 
 export type SidebarItem = LinkItem | SeparatorItem
@@ -152,6 +176,52 @@ const itemVariants: Variants = {
   },
 }
 
+// ============================================================
+// Drag-and-drop wrappers for folder DnD
+// These wrap sidebar items to make them draggable (sessions) or droppable (folders)
+// ============================================================
+
+/** Wraps a sidebar button to make it draggable for folder assignment */
+function DraggableWrapper({ id, data, children }: {
+  id: string
+  data: { type: 'session'; sessionId: string }
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id,
+    data,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** Wraps a sidebar item to make it a drop target for folder assignment */
+function DroppableWrapper({ id, data, children }: {
+  id: string
+  data: { type: 'folder'; folderId: string } | { type: 'unfiled' } | { type: 'archive' }
+  children: (isOver: boolean) => React.ReactNode
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id,
+    data,
+  })
+
+  return (
+    <div ref={setNodeRef}>
+      {children(isOver)}
+    </div>
+  )
+}
+
 /**
  * LeftSidebar - Vertical list of navigation buttons with icons
  *
@@ -191,7 +261,7 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
       <NavWrapper
         className={cn(
           "grid grid-cols-1 gap-0.5",
-          isNested ? "pl-1 pr-0 relative" : "px-2"
+          isNested ? "pl-1 pr-0 relative text-[13px]" : "px-2 text-[14px]"
         )}
         role="navigation"
         aria-label={isNested ? "Sub navigation" : "Main navigation"}
@@ -207,13 +277,40 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
         {links.map((item) => {
           // Handle separator items
           if (isSeparatorItem(item)) {
-            return item.label ? (
-              <div key={item.id} className="pt-4 pb-1 px-2.5" aria-hidden="true">
+            const separatorContent = item.label ? (
+              <div className="group/sep pt-4 pb-1 px-2.5 flex items-center" aria-hidden="true">
                 <span className="text-[11px] font-semibold tracking-wide text-foreground/35">{item.label}</span>
+                {item.action && (
+                  <button
+                    onClick={item.action.onClick}
+                    aria-label={item.action.ariaLabel}
+                    className="ml-auto opacity-0 group-hover/sep:opacity-100 transition-opacity p-0.5 rounded hover:bg-foreground/[0.07] text-foreground/35 hover:text-foreground/60"
+                  >
+                    {item.action.icon}
+                  </button>
+                )}
               </div>
             ) : (
-              <div key={item.id} className="pt-2" aria-hidden="true" />
+              <div className="pt-2" aria-hidden="true" />
             )
+
+            // Wrap with droppable if configured (e.g., "Chats" separator as unfiled drop target)
+            if (item.droppable) {
+              return (
+                <DroppableWrapper key={item.id} id={`drop:${item.id}`} data={item.droppable}>
+                  {(isOver) => (
+                    <div className={cn(
+                      "rounded-[8px] transition-colors",
+                      isOver && "bg-accent/10 ring-1 ring-accent/30"
+                    )}>
+                      {separatorContent}
+                    </div>
+                  )}
+                </DroppableWrapper>
+              )
+            }
+
+            return <React.Fragment key={item.id}>{separatorContent}</React.Fragment>
           }
 
           const link = item
@@ -236,71 +333,119 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
           // Wrap with context menu if configured, scoped to button only.
           // ContextMenuTrigger with asChild sets data-state="open" on the button
           // so only the clicked item highlights, not the entire section.
-          const content = (
-            <div className="group/section">
-              {link.contextMenu ? (
-                <ContextMenu modal={true}>
-                  <ContextMenuTrigger asChild>
-                    {buttonElement}
-                  </ContextMenuTrigger>
-                  <StyledContextMenuContent>
-                    <ContextMenuProvider>
-                      <SidebarMenu
-                        type={link.contextMenu.type}
-                        statusId={link.contextMenu.statusId}
-                        labelId={link.contextMenu.labelId}
-                        onConfigureStatuses={link.contextMenu.onConfigureStatuses}
-                        onConfigureLabels={link.contextMenu.onConfigureLabels}
-                        onAddLabel={link.contextMenu.onAddLabel}
-                        onDeleteLabel={link.contextMenu.onDeleteLabel}
-                        onAddSource={link.contextMenu.onAddSource}
-                        onAddSkill={link.contextMenu.onAddSkill}
-                        sourceType={link.contextMenu.sourceType}
-                        onConfigureViews={link.contextMenu.onConfigureViews}
-                        viewId={link.contextMenu.viewId}
-                        onDeleteView={link.contextMenu.onDeleteView}
-                      />
-                    </ContextMenuProvider>
-                  </StyledContextMenuContent>
-                </ContextMenu>
-              ) : link.projectContextMenu ? (
-                <ContextMenu modal={true}>
-                  <ContextMenuTrigger asChild>
-                    {buttonElement}
-                  </ContextMenuTrigger>
-                  <StyledContextMenuContent>
-                    <ContextMenuProvider>
-                      <ProjectMenu
-                        sessionId={link.projectContextMenu.sessionId}
-                        onRename={link.projectContextMenu.onRename}
-                        onOpenInNewWindow={link.projectContextMenu.onOpenInNewWindow}
-                        onDelete={link.projectContextMenu.onDelete}
-                      />
-                    </ContextMenuProvider>
-                  </StyledContextMenuContent>
-                </ContextMenu>
-              ) : (
-                buttonElement
-              )}
-              {/* Expandable subitems — outside context menu scope so only the
-                * clicked button gets data-state="open", not nested children */}
-              {link.expandable && link.items && (
-                <AnimatePresence initial={false}>
-                  {link.expanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
-                      animate={{ height: 'auto', opacity: 1, marginTop: 2, marginBottom: isNested ? 4 : 8 }}
-                      exit={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeInOut' }}
-                      className="overflow-hidden"
-                    >
-                      {expandedContent}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              )}
-            </div>
+          //
+          // Folder DnD layers:
+          // - droppable: folder items get a DroppableWrapper with visual highlight on hover
+          // - draggable: chat/project items get a DraggableWrapper for drag initiation
+
+          // Build the button with optional context menu
+          const buttonWithMenu = link.contextMenu ? (
+            <ContextMenu modal={true}>
+              <ContextMenuTrigger asChild>
+                {buttonElement}
+              </ContextMenuTrigger>
+              <StyledContextMenuContent>
+                <ContextMenuProvider>
+                  <SidebarMenu
+                    type={link.contextMenu.type}
+                    statusId={link.contextMenu.statusId}
+                    labelId={link.contextMenu.labelId}
+                    onConfigureStatuses={link.contextMenu.onConfigureStatuses}
+                    onConfigureLabels={link.contextMenu.onConfigureLabels}
+                    onAddLabel={link.contextMenu.onAddLabel}
+                    onDeleteLabel={link.contextMenu.onDeleteLabel}
+                    onAddSource={link.contextMenu.onAddSource}
+                    onAddSkill={link.contextMenu.onAddSkill}
+                    sourceType={link.contextMenu.sourceType}
+                    onConfigureViews={link.contextMenu.onConfigureViews}
+                    viewId={link.contextMenu.viewId}
+                    onDeleteView={link.contextMenu.onDeleteView}
+                    onRenameFolder={link.contextMenu.onRenameFolder}
+                    onDeleteFolder={link.contextMenu.onDeleteFolder}
+                  />
+                </ContextMenuProvider>
+              </StyledContextMenuContent>
+            </ContextMenu>
+          ) : link.projectContextMenu ? (
+            <ContextMenu modal={true}>
+              <ContextMenuTrigger asChild>
+                {buttonElement}
+              </ContextMenuTrigger>
+              <StyledContextMenuContent>
+                <ContextMenuProvider>
+                  <ProjectMenu
+                    sessionId={link.projectContextMenu.sessionId}
+                    isArchived={link.projectContextMenu.isArchived}
+                    onRename={link.projectContextMenu.onRename}
+                    onOpenInNewWindow={link.projectContextMenu.onOpenInNewWindow}
+                    onArchive={link.projectContextMenu.onArchive}
+                    onUnarchive={link.projectContextMenu.onUnarchive}
+                    onDelete={link.projectContextMenu.onDelete}
+                    folders={link.projectContextMenu.folders}
+                    currentFolderId={link.projectContextMenu.currentFolderId}
+                    onMoveToFolder={link.projectContextMenu.onMoveToFolder}
+                  />
+                </ContextMenuProvider>
+              </StyledContextMenuContent>
+            </ContextMenu>
+          ) : (
+            buttonElement
           )
+
+          // Expandable subitems — outside context menu scope so only the
+          // clicked button gets data-state="open", not nested children
+          const expandableSection = link.expandable && link.items ? (
+            <AnimatePresence initial={false}>
+              {link.expanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
+                  animate={{ height: 'auto', opacity: 1, marginTop: 2, marginBottom: isNested ? 4 : 8 }}
+                  exit={{ height: 0, opacity: 0, marginTop: 0, marginBottom: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  {expandedContent}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          ) : null
+
+          // Assemble content with optional drag/drop wrappers
+          let content: React.ReactNode
+
+          if (link.droppable) {
+            // Droppable folder: highlight on hover
+            content = (
+              <DroppableWrapper id={`drop:${link.id}`} data={link.droppable}>
+                {(isOver) => (
+                  <div className={cn(
+                    "group/section rounded-[8px] transition-colors",
+                    isOver && "ring-1 ring-accent/30 bg-accent/10"
+                  )}>
+                    {buttonWithMenu}
+                    {expandableSection}
+                  </div>
+                )}
+              </DroppableWrapper>
+            )
+          } else if (link.draggable) {
+            // Draggable session item
+            content = (
+              <DraggableWrapper id={`drag:${link.id}`} data={{ type: 'session', sessionId: link.draggable.sessionId }}>
+                <div className="group/section">
+                  {buttonWithMenu}
+                  {expandableSection}
+                </div>
+              </DraggableWrapper>
+            )
+          } else {
+            content = (
+              <div className="group/section">
+                {buttonWithMenu}
+                {expandableSection}
+              </div>
+            )
+          }
 
           // For nested items, wrap in motion.div for stagger animation
           return isNested ? (
@@ -422,6 +567,8 @@ function SortableStatusList({ items, onReorder, getItemProps, focusedItemId }: S
                         onConfigureViews={item.contextMenu.onConfigureViews}
                         viewId={item.contextMenu.viewId}
                         onDeleteView={item.contextMenu.onDeleteView}
+                        onRenameFolder={item.contextMenu.onRenameFolder}
+                        onDeleteFolder={item.contextMenu.onDeleteFolder}
                       />
                     </ContextMenuProvider>
                   </StyledContextMenuContent>
@@ -483,7 +630,7 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
         onClick={isOverlay ? undefined : link.onClick}
         data-tutorial={link.dataTutorial}
         className={cn(
-          "group flex w-full items-center gap-2.5 rounded-[8px] text-[14px] font-medium text-left select-none outline-none",
+          "group flex w-full items-center gap-2.5 rounded-[8px] font-medium text-left select-none outline-none",
           "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
           link.compact ? "py-[5px]" : "py-[7px]",
           "px-5",
@@ -526,6 +673,12 @@ const SidebarButton = React.forwardRef<HTMLButtonElement, SidebarButtonProps & R
           </span>
         ) : null}
         <span className={cn("flex-1 truncate min-w-0", link.titleClassName)}>{link.title}</span>
+        {/* Always-visible indicator (e.g., unread dot) — not hover-gated */}
+        {link.indicator && (
+          <span className="ml-1 shrink-0">
+            {link.indicator}
+          </span>
+        )}
         {/* After-title element: type indicator icon, right-aligned before count badge, revealed on hover */}
         {link.afterTitle && (
           <span className="ml-auto opacity-0 group-hover/section:opacity-100 group-data-[state=open]:opacity-100 group-data-[edit-active=true]:opacity-100 transition-opacity">

@@ -18,7 +18,7 @@ export interface ModelDefinition {
 
 export const MODELS: ModelDefinition[] = [
   { id: 'claude-opus-4-6', name: 'Opus 4.6', shortName: 'Opus', description: 'Most capable', contextWindow: 200000 },
-  { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', shortName: 'Sonnet', description: 'Balanced', contextWindow: 200000 },
+  { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', shortName: 'Sonnet', description: 'Balanced', contextWindow: 200000 },
   { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', shortName: 'Haiku', description: 'Fast & efficient', contextWindow: 200000 },
 ];
 
@@ -68,7 +68,7 @@ export function isOpusModel(modelId: string): boolean {
 
 /**
  * Check if a model ID refers to a Claude model.
- * Handles both direct Anthropic IDs (e.g. "claude-sonnet-4-5-20250929")
+ * Handles both direct Anthropic IDs (e.g. "claude-sonnet-4-6")
  * and provider-prefixed IDs (e.g. "anthropic/claude-sonnet-4" via OpenRouter).
  */
 export function isClaudeModel(modelId: string): boolean {

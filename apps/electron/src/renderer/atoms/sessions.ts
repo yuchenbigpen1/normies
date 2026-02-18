@@ -25,6 +25,7 @@ export interface SessionMeta {
   lastMessageAt?: number
   isProcessing?: boolean
   isFlagged?: boolean
+  isArchived?: boolean
   lastReadMessageId?: string
   workingDirectory?: string
   enabledSourceSlugs?: string[]
@@ -42,6 +43,8 @@ export interface SessionMeta {
   hasUnread?: boolean
   /** Labels for filtering (additive tags, many-per-session) */
   labels?: string[]
+  /** Folder ID this session belongs to (undefined = unfiled) */
+  folderId?: string
   /** Permission mode ('safe', 'ask', 'allow-all') — used by view expressions */
   permissionMode?: string
   /** Todo state for filtering */
@@ -119,6 +122,7 @@ export function extractSessionMeta(session: Session): SessionMeta {
     lastMessageAt: session.lastMessageAt,
     isProcessing: session.isProcessing,
     isFlagged: session.isFlagged,
+    isArchived: session.isArchived,
     lastReadMessageId: session.lastReadMessageId,
     workingDirectory: session.workingDirectory,
     enabledSourceSlugs: session.enabledSourceSlugs,
@@ -128,6 +132,7 @@ export function extractSessionMeta(session: Session): SessionMeta {
     // Explicit unread flag - source of truth for NEW badge
     hasUnread: session.hasUnread,
     labels: session.labels,
+    folderId: session.folderId,
     permissionMode: session.permissionMode,
     todoState: session.todoState,
     lastMessageRole: session.lastMessageRole,

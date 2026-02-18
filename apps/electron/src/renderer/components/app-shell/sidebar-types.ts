@@ -46,6 +46,7 @@ export const getSidebarModeKey = (mode: SidebarMode): string => {
   if (mode.type === 'sources') return 'sources'
   if (mode.type === 'settings') return `settings:${mode.subpage}`
   const f = mode.filter
+  if (f.kind === 'archive') return 'archive'
   if (f.kind === 'state') return `state:${f.stateId}`
   return f.kind
 }
@@ -58,6 +59,7 @@ export const parseSidebarModeKey = (key: string): SidebarMode | null => {
   if (key === 'sources') return { type: 'sources' }
   if (key === 'allChats') return { type: 'chats', filter: { kind: 'allChats' } }
   if (key === 'flagged') return { type: 'chats', filter: { kind: 'flagged' } }
+  if (key === 'archive') return { type: 'chats', filter: { kind: 'archive' } }
   if (key.startsWith('state:')) {
     const stateId = key.slice(6)
     if (stateId) return { type: 'chats', filter: { kind: 'state', stateId } }

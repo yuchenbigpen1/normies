@@ -348,6 +348,27 @@ const api: ElectronAPI = {
     }
   },
 
+  // Folder management
+  listFolders: (workspaceId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_LIST, workspaceId),
+  createFolderConfig: (workspaceId: string, input: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_CREATE, workspaceId, input),
+  updateFolderConfig: (workspaceId: string, folderId: string, input: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_UPDATE, workspaceId, folderId, input),
+  deleteFolderConfig: (workspaceId: string, folderId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_DELETE, workspaceId, folderId),
+  reorderFolders: (workspaceId: string, orderedIds: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_REORDER, workspaceId, orderedIds),
+  onFoldersChanged: (callback: (workspaceId: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, workspaceId: string) => {
+      callback(workspaceId)
+    }
+    ipcRenderer.on(IPC_CHANNELS.FOLDERS_CHANGED, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.FOLDERS_CHANGED, handler)
+    }
+  },
+
   // Views (dynamic, expression-based filters stored in views.json)
   listViews: (workspaceId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.VIEWS_LIST, workspaceId),

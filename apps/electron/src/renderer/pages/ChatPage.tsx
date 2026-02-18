@@ -59,6 +59,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     onRenameSession,
     onFlagSession,
     onUnflagSession,
+    onArchiveSession,
+    onUnarchiveSession,
     onTodoStateChange,
     onDeleteSession,
     rightSidebarButton,
@@ -222,6 +224,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   // Priority: name > first user message > preview > "New chat"
   const displayTitle = session ? getSessionTitle(session) : (sessionMeta ? getSessionTitle(sessionMeta) : 'Chat')
   const isFlagged = session?.isFlagged || sessionMeta?.isFlagged || false
+  const isArchived = session?.isArchived || sessionMeta?.isArchived || false
   const sharedUrl = session?.sharedUrl || sessionMeta?.sharedUrl || null
   const currentTodoState = session?.todoState || sessionMeta?.todoState || 'todo'
   const hasMessages = !!(session?.messages?.length || sessionMeta?.lastFinalMessageId)
@@ -255,6 +258,14 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   const handleUnflag = React.useCallback(() => {
     onUnflagSession(sessionId)
   }, [sessionId, onUnflagSession])
+
+  const handleArchive = React.useCallback(() => {
+    onArchiveSession(sessionId)
+  }, [sessionId, onArchiveSession])
+
+  const handleUnarchive = React.useCallback(() => {
+    onUnarchiveSession(sessionId)
+  }, [sessionId, onUnarchiveSession])
 
   const handleMarkUnread = React.useCallback(() => {
     onMarkSessionUnread(sessionId)
@@ -405,6 +416,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
       sessionId={sessionId}
       sessionName={displayTitle}
       isFlagged={isFlagged}
+      isArchived={isArchived}
       sharedUrl={sharedUrl}
       hasMessages={hasMessages}
       hasUnreadMessages={hasUnreadMessages}
@@ -416,6 +428,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
       onRename={handleRename}
       onFlag={handleFlag}
       onUnflag={handleUnflag}
+      onArchive={handleArchive}
+      onUnarchive={handleUnarchive}
       onMarkUnread={handleMarkUnread}
       onTodoStateChange={handleTodoStateChange}
       onOpenInNewWindow={handleOpenInNewWindow}
@@ -425,6 +439,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     sessionId,
     displayTitle,
     isFlagged,
+    isArchived,
     sharedUrl,
     hasMessages,
     hasUnreadMessages,
@@ -436,6 +451,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     handleRename,
     handleFlag,
     handleUnflag,
+    handleArchive,
+    handleUnarchive,
     handleMarkUnread,
     handleTodoStateChange,
     handleOpenInNewWindow,

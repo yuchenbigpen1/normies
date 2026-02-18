@@ -2,7 +2,7 @@
 
 set -e
 
-VERSIONS_URL="${VERSIONS_URL:-https://updates.normies.ai/electron}"
+VERSIONS_URL="${VERSIONS_URL:-https://updates.normies.work/electron}"
 DOWNLOAD_DIR="$HOME/.normies/downloads"
 
 # Colors for output
@@ -377,7 +377,7 @@ ELECTRON_CACHE_ALT="$HOME/.cache/@normies"
 # Verify AppImage exists
 if [ ! -f "$APPIMAGE_PATH" ]; then
     echo "Error: Normies not found at $APPIMAGE_PATH"
-    echo "Reinstall: curl -fsSL https://updates.normies.ai/install-app.sh | bash"
+    echo "Reinstall: curl -fsSL https://updates.normies.work/install-app.sh | bash"
     exit 1
 fi
 

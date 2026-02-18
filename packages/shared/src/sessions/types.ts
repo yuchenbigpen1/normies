@@ -67,12 +67,16 @@ export interface SessionConfig {
   lastMessageAt?: number;
   /** Whether this session is flagged */
   isFlagged?: boolean;
+  /** Whether this session is archived */
+  isArchived?: boolean;
   /** Permission mode for this session ('safe', 'ask', 'allow-all') */
   permissionMode?: PermissionMode;
   /** User-controlled todo state - determines inbox vs completed */
   todoState?: TodoState;
   /** Labels applied to this session (bare IDs or "id::value" entries) */
   labels?: string[];
+  /** Folder this session belongs to (null/undefined = unfiled) */
+  folderId?: string;
   /** ID of last message user has read */
   lastReadMessageId?: string;
   /**
@@ -160,12 +164,16 @@ export interface SessionHeader {
   lastMessageAt?: number;
   /** Whether this session is flagged */
   isFlagged?: boolean;
+  /** Whether this session is archived */
+  isArchived?: boolean;
   /** Permission mode for this session ('safe', 'ask', 'allow-all') */
   permissionMode?: PermissionMode;
   /** User-controlled todo state - determines inbox vs completed */
   todoState?: TodoState;
   /** Labels applied to this session (bare IDs or "id::value" entries) */
   labels?: string[];
+  /** Folder this session belongs to (null/undefined = unfiled) */
+  folderId?: string;
   /** ID of last message user has read */
   lastReadMessageId?: string;
   /**
@@ -253,10 +261,14 @@ export interface SessionMetadata {
   sdkSessionId?: string;
   /** Whether this session is flagged */
   isFlagged?: boolean;
+  /** Whether this session is archived */
+  isArchived?: boolean;
   /** User-controlled todo state */
   todoState?: TodoState;
   /** Labels applied to this session (bare IDs or "id::value" entries) */
   labels?: string[];
+  /** Folder this session belongs to (null/undefined = unfiled) */
+  folderId?: string;
   /** Permission mode for this session */
   permissionMode?: PermissionMode;
   /** Number of plan files for this session */

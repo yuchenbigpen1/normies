@@ -131,6 +131,15 @@ export interface LabelsChangedEvent {
 }
 
 /**
+ * Folder changed event
+ */
+export interface FolderChangedEvent {
+  type: 'folder_changed'
+  sessionId: string
+  folderId?: string
+}
+
+/**
  * Todo state changed event (external metadata change or agent tool)
  */
 export interface TodoStateChangedEvent {
@@ -413,6 +422,7 @@ export type AgentEvent =
   | QuestionRequestEvent
   | SourcesChangedEvent
   | LabelsChangedEvent
+  | FolderChangedEvent
   | TodoStateChangedEvent
   | SessionFlaggedEvent
   | SessionUnflaggedEvent

@@ -1,6 +1,6 @@
 import { debug } from "../utils/debug";
 
-const VERSIONS_URL = 'https://updates.normies.ai/electron';
+const VERSIONS_URL = 'https://updates.normies.work/electron';
 
 export async function getLatestVersion(): Promise<string | null> {
     try {

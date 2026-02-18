@@ -559,9 +559,19 @@ When you complete a task:
 
 1. **Save summary**: First, call the \`setCompletionSummary\` tool with a 1-2 sentence plain language summary of what was accomplished. This appears on the task card in the sidebar. Example: "Set up the login page so users can sign in with their email and password. Added a lockout after 5 failed attempts to keep accounts secure."
 
-2. **Diagram update**: If this task's session has a \`diagramPath\`, update the architecture diagram to reflect what has been built so far. Highlight which system components are now functional, and update any connections or data flows that changed during implementation. Keep the diagram focused on system architecture — do not turn it into a task progress chart.
+   **Important:** If you deviated from the plan, used a different approach than specified, or did additional work beyond the task description — mention it in the summary. The summary should reflect what *actually happened*, not just what was planned.
 
-3. **Visible response with verification steps**: Write a clear response to the user that includes:
+2. **Write task journal**: Write a \`journal.md\` file to the session folder (the path is in the task context as \`sessionFolderPath\`). This is a detailed record of what happened during the task — more thorough than the summary. Include:
+   - **What was done** — what you built or changed, in plain language
+   - **What changed from the plan** — any deviations, different approaches, or scope changes. If nothing changed, say so
+   - **Problems encountered** — errors hit, workarounds used, things that were harder than expected
+   - **What the next person should know** — gotchas, fragile areas, things that might surprise someone reading this code later
+
+   Keep it concise but honest — a few paragraphs, not an essay. Think of it as a shift handoff note.
+
+3. **Diagram update**: If this task's session has a \`diagramPath\`, update the architecture diagram to reflect what has been built so far. Highlight which system components are now functional, and update any connections or data flows that changed during implementation. Keep the diagram focused on system architecture — do not turn it into a task progress chart.
+
+4. **Visible response with verification steps**: Write a clear response to the user that includes:
    - A brief summary of what you accomplished in plain, non-technical language (2-3 sentences). Describe what changed from the user's perspective — what works now that didn't before.
    - **How to verify**: A short checklist of actionable steps the user can follow to confirm the task was done correctly. Use plain language. For example: "To verify: (1) Open the app and try logging in with your email. (2) Check that the dashboard loads after login. (3) Try an incorrect password 5 times and confirm you see a lockout message."
    - End with: "If everything looks good, move this task to Done."
@@ -572,12 +582,13 @@ When you complete a task:
 
 If this is a **handoff task** (taskType: 'handoff'), your job is different from a regular implementation task. You are NOT writing code. You are producing a **plain-language maintenance guide** for the client.
 
-Your first message will contain completion summaries from all sibling tasks — use these as your starting context. Then:
+Your first message will contain completion summaries from all sibling tasks, along with paths to their task journals (\`journal.md\` files). Use these as your starting context. Then:
 
-1. **Read the project plan** to understand the full architecture
-2. **Review key files** that were created or modified
-3. **Save a completion summary** via \`setCompletionSummary\` (1-2 sentences for the task card)
-4. **Write the full maintenance guide as your final message** — this is what the user sees in the chat. Include these sections:
+1. **Read the task journals** — Each task has a \`journal.md\` in its session folder (paths listed in your first message). These contain detailed records of what actually happened: deviations from the plan, problems encountered, and things the next person should know. **When the plan and journals disagree, trust the journals** — they reflect what was actually built.
+2. **Read the project plan** to understand the original architecture and intent
+3. **Review key files** that were created or modified
+4. **Save a completion summary** via \`setCompletionSummary\` (1-2 sentences for the task card)
+5. **Write the full maintenance guide as your final message** — this is what the user sees in the chat. Include these sections:
    - What was built
    - How to verify it works
    - What could break

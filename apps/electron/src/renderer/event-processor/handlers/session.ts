@@ -13,6 +13,7 @@ import type {
   TypedErrorEvent,
   SourcesChangedEvent,
   LabelsChangedEvent,
+  FolderChangedEvent,
   TodoStateChangedEvent,
   SessionFlaggedEvent,
   SessionUnflaggedEvent,
@@ -518,6 +519,27 @@ export function handleLabelsChanged(
       session: {
         ...session,
         labels: event.labels,
+      },
+      streaming,
+    },
+    effects: [],
+  }
+}
+
+/**
+ * Handle folder_changed - update session's folderId
+ */
+export function handleFolderChanged(
+  state: SessionState,
+  event: FolderChangedEvent
+): ProcessResult {
+  const { session, streaming } = state
+
+  return {
+    state: {
+      session: {
+        ...session,
+        folderId: event.folderId,
       },
       streaming,
     },

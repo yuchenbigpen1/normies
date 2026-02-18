@@ -35,6 +35,7 @@ import {
   RefreshCw,
   Tag,
   Check,
+  Archive,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMenuComponents, type MenuComponents } from '@/components/ui/menu-context'
@@ -67,12 +68,16 @@ export interface SessionMenuProps {
   labels?: LabelConfig[]
   /** Callback when labels are toggled (receives full updated labels array) */
   onLabelsChange?: (labels: string[]) => void
+  /** Whether this session is archived */
+  isArchived?: boolean
   /** Whether this is a task item in a project view (simplified menu) */
   isProjectView?: boolean
   /** Callbacks */
   onRename: () => void
   onFlag: () => void
   onUnflag: () => void
+  onArchive: () => void
+  onUnarchive: () => void
   onMarkUnread: () => void
   onTodoStateChange: (state: TodoStateId) => void
   onOpenInNewWindow: () => void
@@ -92,6 +97,7 @@ export function SessionMenu({
   hasUnreadMessages,
   currentTodoState,
   todoStates,
+  isArchived,
   sessionLabels = [],
   labels = [],
   onLabelsChange,
@@ -99,6 +105,8 @@ export function SessionMenu({
   onRename,
   onFlag,
   onUnflag,
+  onArchive,
+  onUnarchive,
   onMarkUnread,
   onTodoStateChange,
   onOpenInNewWindow,
@@ -372,6 +380,19 @@ export function SessionMenu({
         <Copy className="h-3.5 w-3.5" />
         <span className="flex-1">Copy Path</span>
       </MenuItem>
+
+      {/* Archive/Unarchive */}
+      {isArchived ? (
+        <MenuItem onClick={onUnarchive}>
+          <Archive className="h-3.5 w-3.5" />
+          <span className="flex-1">Unarchive</span>
+        </MenuItem>
+      ) : (
+        <MenuItem onClick={onArchive}>
+          <Archive className="h-3.5 w-3.5" />
+          <span className="flex-1">Archive</span>
+        </MenuItem>
+      )}
 
       <Separator />
 

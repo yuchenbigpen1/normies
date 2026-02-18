@@ -26,6 +26,7 @@ import {
   GitGraph,
   FileText,
   MessageSquareText,
+  Archive,
 } from "lucide-react"
 import { PanelRightRounded } from "../icons/PanelRightRounded"
 import { PanelLeftRounded } from "../icons/PanelLeftRounded"
@@ -38,7 +39,7 @@ import { Button } from "@/components/ui/button"
 import { HeaderIconButton } from "@/components/ui/HeaderIconButton"
 import { TopBarButton } from "@/components/ui/TopBarButton"
 import { Separator } from "@/components/ui/separator"
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FullscreenOverlayBase, Markdown, MermaidPreviewOverlay } from "@normies/ui"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FullscreenOverlayBase, Markdown, MermaidPreviewOverlay, Spinner } from "@normies/ui"
 import { renderMermaid } from "@normies/mermaid"
 import {
   DropdownMenu,
@@ -81,7 +82,7 @@ import { useFocusContext } from "@/context/FocusContext"
 import { getSessionTitle } from "@/utils/session"
 import { useSetAtom } from "jotai"
 import type { Session, Workspace, FileAttachment, PermissionRequest, LoadedSource, LoadedSkill, PermissionMode, SourceFilter } from "../../../shared/types"
-import { sessionMetaMapAtom, type SessionMeta } from "@/atoms/sessions"
+import { sessionMetaMapAtom, updateSessionMetaAtom, type SessionMeta } from "@/atoms/sessions"
 import { sourcesAtom } from "@/atoms/sources"
 import { skillsAtom } from "@/atoms/skills"
 import { type TodoStateId, type TodoState, statusConfigsToTodoStates } from "@/config/todo-states"
@@ -118,6 +119,18 @@ import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
 import { hasOpenOverlay } from "@/lib/overlay-detection"
 import { clearSourceIconCaches } from "@/lib/icon-cache"
 import { RenameDialog } from "@/components/ui/rename-dialog"
+import { useFolders } from "@/hooks/useFolders"
+import { Folder, FolderOpen, FolderPlus } from "lucide-react"
+import {
+  DndContext,
+  DragOverlay,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SmartPointerSensor } from '@/components/ui/sortable-list'
 
 /**
  * AppShellProps - Minimal props interface for AppShell component
@@ -173,6 +186,26 @@ function ProjectProgressRing({ done, total, isDark }: { done: number; total: num
       )}
     </svg>
   )
+}
+
+/** Small accent dot for unread sidebar items */
+function UnreadDot() {
+  return <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+}
+
+/** Spinner sized for sidebar icon slot (18x18) */
+function SidebarSpinner() {
+  return (
+    <span className="flex items-center justify-center w-[18px] h-[18px]">
+      <Spinner className="text-[9px]" />
+    </span>
+  )
+}
+
+/** Drop target wrapper for the archive button — highlights when a draggable item hovers over it */
+function ArchiveDropTarget({ children }: { children: (isOver: boolean) => React.ReactNode }) {
+  const { isOver, setNodeRef } = useDroppable({ id: 'drop:nav:archive', data: { type: 'archive' } })
+  return <div ref={setNodeRef}>{children(isOver)}</div>
 }
 
 /**
@@ -503,6 +536,8 @@ function AppShellContent({
     onDeleteSession,
     onFlagSession,
     onUnflagSession,
+    onArchiveSession,
+    onUnarchiveSession,
     onMarkSessionRead,
     onMarkSessionUnread,
     onTodoStateChange,
@@ -597,11 +632,12 @@ function AppShellContent({
 
   // Auto-control session list visibility based on navigation context.
   // - Project views show the task list (three-panel: sidebar + task list + chat)
+  // - Archive view shows the archived items list (three-panel: sidebar + archive list + chat)
   // - Non-project chat views hide it (two-panel: sidebar + chat)
   // - Sources, Skills, Settings always show their list panel
   React.useEffect(() => {
     if (isChatsNavigation(navState)) {
-      setIsSessionListVisible(navState.filter.kind === 'project')
+      setIsSessionListVisible(navState.filter.kind === 'project' || navState.filter.kind === 'archive')
     } else {
       // Sources, Skills, Settings navigators always need their list panel visible
       setIsSessionListVisible(true)
@@ -620,6 +656,7 @@ function AppShellContent({
     switch (chatFilter.kind) {
       case 'allChats': return 'allChats'
       case 'flagged': return 'flagged'
+      case 'archive': return 'archive'
       case 'state': return `state:${chatFilter.stateId}`
       case 'label': return `label:${chatFilter.labelId}`
       case 'view': return `view:${chatFilter.viewId}`
@@ -795,6 +832,18 @@ function AppShellContent({
     open: boolean; sessionId: string; name: string
   }>({ open: false, sessionId: '', name: '' })
 
+  // Folder rename dialog state (isNew distinguishes create vs rename for dialog title)
+  const [folderRenameState, setFolderRenameState] = React.useState<{
+    open: boolean; folderId: string; name: string; isNew: boolean
+  }>({ open: false, folderId: '', name: '', isNew: false })
+
+  // Folder drag-and-drop state (handlers defined after workspaceSessionMetas)
+  const [folderDragActiveId, setFolderDragActiveId] = React.useState<string | null>(null)
+  const [folderDragTitle, setFolderDragTitle] = React.useState<string>('')
+  const folderDndSensors = useSensors(
+    useSensor(SmartPointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
   // Sources state (workspace-scoped)
   const [sources, setSources] = React.useState<LoadedSource[]>([])
   // Sync sources to atom for NavigationContext auto-selection
@@ -963,6 +1012,9 @@ function AppShellContent({
 
   // Views: compiled once on config load, evaluated per session in list/chat
   const { evaluateSession: evaluateViews, viewConfigs } = useViews(activeWorkspace?.id || null)
+
+  // Load folders from workspace config
+  const { folders: folderConfigs } = useFolders(activeWorkspaceId ?? null)
 
   // Build hierarchical label tree from nested config structure
   const labelTree = useMemo(() => buildLabelTree(labelConfigs), [labelConfigs])
@@ -1217,6 +1269,7 @@ function AppShellContent({
   // Use session metadata from Jotai atom (lightweight, no messages)
   // This prevents closures from retaining full message arrays
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
+  const updateSessionMeta = useSetAtom(updateSessionMetaAtom)
 
   // Reload skills when active session's workingDirectory changes (for project-level skills)
   // Skills are loaded from: global (~/.agents/skills/), workspace, and project ({workingDirectory}/.agents/skills/)
@@ -1241,18 +1294,7 @@ function AppShellContent({
       : metas.filter(s => !s.hidden)
   }, [sessionMetaMap, activeWorkspaceId])
 
-  // Detect if viewing a handoff task on a completed project — auto-hide session list
-  const isHandoffView = useMemo(() => {
-    if (!isChatsNavigation(navState) || !navState.details) return false
-    const selectedMeta = sessionMetaMap.get(navState.details.sessionId)
-    if (!selectedMeta || selectedMeta.taskType !== 'handoff' || !selectedMeta.projectId) return false
-    const siblings = workspaceSessionMetas.filter(
-      s => s.projectId === selectedMeta.projectId && s.taskIndex != null && s.taskType !== 'handoff'
-    )
-    return siblings.length > 0 && siblings.every(s => s.todoState === 'done')
-  }, [navState, sessionMetaMap, workspaceSessionMetas])
-
-  const effectiveSessionListVisible = isSessionListVisible && !isHandoffView
+  const effectiveSessionListVisible = isSessionListVisible
 
   // Count sessions by todo state (scoped to workspace)
   const isMetaDone = (s: SessionMeta) => s.todoState === 'done' || s.todoState === 'cancelled'
@@ -1335,6 +1377,10 @@ function AppShellContent({
     const taskCounts = new Map<string, { done: number; total: number }>()
     // Track latest activity across parent + task sessions per project.
     const projectLastActivity = new Map<string, number>()
+    // Track active/unread state per project
+    const projectProcessing = new Map<string, boolean>()
+    const projectUnread = new Map<string, boolean>()
+
     for (const s of workspaceSessionMetas) {
       if (s.projectId && !s.threadParentSessionId) {
         const current = projectLastActivity.get(s.projectId) ?? 0
@@ -1342,6 +1388,11 @@ function AppShellContent({
         if (activityTs > current) {
           projectLastActivity.set(s.projectId, activityTs)
         }
+      }
+      // Aggregate processing/unread from task sessions only (not parent session)
+      if (s.projectId && s.taskIndex != null && !s.threadParentSessionId) {
+        if (s.isProcessing) projectProcessing.set(s.projectId, true)
+        if (s.hasUnread) projectUnread.set(s.projectId, true)
       }
       if (s.projectId && s.taskIndex != null && s.taskType !== 'handoff') {
         const counts = taskCounts.get(s.projectId) || { done: 0, total: 0 }
@@ -1352,7 +1403,7 @@ function AppShellContent({
     }
 
     return workspaceSessionMetas
-      .filter(s => s.projectId && s.taskIndex == null && !s.threadParentSessionId)
+      .filter(s => s.projectId && s.taskIndex == null && !s.threadParentSessionId && !s.isArchived)
       .sort((a, b) => {
         const activityA = projectLastActivity.get(a.projectId!) ?? 0
         const activityB = projectLastActivity.get(b.projectId!) ?? 0
@@ -1364,27 +1415,106 @@ function AppShellContent({
         name: s.name || 'Untitled Project',
         sessionId: s.id,
         ...(taskCounts.get(s.projectId!) || { done: 0, total: 0 }),
+        isProcessing: projectProcessing.get(s.projectId!) ?? false,
+        hasUnread: projectUnread.get(s.projectId!) ?? false,
       }))
   }, [workspaceSessionMetas])
 
   // Handle edge case: project deleted while viewing its tasks → collapse to two-panel
+  // Check both active projects and archived ones (archived projects still exist, just hidden from sidebar)
   React.useEffect(() => {
     if (!isChatsNavigation(navState)) return
     const { filter } = navState
     if (filter.kind !== 'project') return
     const projectExists = projects.some(p => p.id === filter.projectId)
+      || workspaceSessionMetas.some(s => s.projectId === filter.projectId && s.taskIndex == null && !s.threadParentSessionId)
     if (!projectExists) {
       navigate(routes.view.allChats())
     }
-  }, [navState, projects])
+  }, [navState, projects, workspaceSessionMetas])
 
   // Derive chat sessions for sidebar Chats section
-  // Regular conversations: not projects, not tasks, not threads
+  // Regular conversations: not projects, not tasks, not threads, not archived
   const chatSessions = useMemo(() => {
     return workspaceSessionMetas
-      .filter(s => !s.projectId && s.taskIndex == null && !s.threadParentSessionId)
+      .filter(s => !s.projectId && s.taskIndex == null && !s.threadParentSessionId && !s.isArchived)
       .sort((a, b) => (b.lastMessageAt || 0) - (a.lastMessageAt || 0))
   }, [workspaceSessionMetas])
+
+  // Count archived items for sidebar badge
+  const archivedCount = useMemo(() => {
+    return workspaceSessionMetas.filter(s => s.isArchived === true && !s.threadParentSessionId).length
+  }, [workspaceSessionMetas])
+
+  // Group sessions by folder
+  const { folderedChats, unfolderedChats, folderedProjects, unfolderedProjects } = useMemo(() => {
+    const folderedChats = new Map<string, typeof chatSessions>()
+    const unfolderedChats: typeof chatSessions = []
+    const folderedProjects = new Map<string, typeof projects>()
+    const unfolderedProjects: typeof projects = []
+
+    for (const s of chatSessions) {
+      const meta = workspaceSessionMetas.find(m => m.id === s.id)
+      if (meta?.folderId) {
+        if (!folderedChats.has(meta.folderId)) folderedChats.set(meta.folderId, [])
+        folderedChats.get(meta.folderId)!.push(s)
+      } else {
+        unfolderedChats.push(s)
+      }
+    }
+
+    for (const p of projects) {
+      const meta = workspaceSessionMetas.find(m => m.id === p.sessionId)
+      if (meta?.folderId) {
+        if (!folderedProjects.has(meta.folderId)) folderedProjects.set(meta.folderId, [])
+        folderedProjects.get(meta.folderId)!.push(p)
+      } else {
+        unfolderedProjects.push(p)
+      }
+    }
+
+    return { folderedChats, unfolderedChats, folderedProjects, unfolderedProjects }
+  }, [chatSessions, projects, workspaceSessionMetas])
+
+  // Folder drag-and-drop handlers (need workspaceSessionMetas)
+  const handleFolderDragStart = useCallback((event: DragStartEvent) => {
+    setFolderDragActiveId(String(event.active.id))
+    const sessionId = event.active.data.current?.sessionId as string | undefined
+    if (sessionId) {
+      const meta = workspaceSessionMetas.find(m => m.id === sessionId)
+      setFolderDragTitle(meta?.name || meta?.preview || 'Untitled')
+    }
+  }, [workspaceSessionMetas])
+  const handleFolderDragEnd = useCallback((event: DragEndEvent) => {
+    setFolderDragActiveId(null)
+    setFolderDragTitle('')
+    const { active, over } = event
+    if (!active.data.current) return
+    const sessionId = active.data.current.sessionId as string | undefined
+    if (!sessionId) return
+    const meta = workspaceSessionMetas.find(m => m.id === sessionId)
+    const overData = over?.data.current
+
+    if (overData?.type === 'archive') {
+      // Dropped on archive — archive the session
+      onArchiveSession(sessionId)
+      toast.success('Moved to archive')
+    } else if (overData?.type === 'folder') {
+      // Dropped on a folder — move into it
+      if (meta?.folderId === overData.folderId) return // already in this folder
+      const newFolderId = overData.folderId as string
+      updateSessionMeta(sessionId, { folderId: newFolderId })
+      window.electronAPI.sessionCommand(sessionId, { type: 'setFolder', folderId: newFolderId })
+    } else if (meta?.folderId) {
+      // Dropped anywhere else (or no target) while currently in a folder — remove from folder
+      updateSessionMeta(sessionId, { folderId: undefined })
+      window.electronAPI.sessionCommand(sessionId, { type: 'setFolder', folderId: undefined })
+    }
+  }, [workspaceSessionMetas, updateSessionMeta, onArchiveSession])
+  const handleFolderDragCancel = useCallback(() => {
+    setFolderDragActiveId(null)
+    setFolderDragTitle('')
+  }, [])
 
   // Filter session metadata based on sidebar mode and chat filter
   const filteredSessionMetas = useMemo(() => {
@@ -1436,6 +1566,16 @@ function AppShellContent({
         })
         break
       }
+      case 'archive':
+        // Show archived standalone chats + archived project parents. Exclude:
+        // - Thread sessions (hidden everywhere)
+        // - Task sub-sessions (taskIndex != null) — these belong under their project
+        result = workspaceSessionMetas.filter(s =>
+          s.isArchived === true &&
+          !s.threadParentSessionId &&
+          s.taskIndex == null
+        )
+        break
       case 'project':
         // Project view: show task sessions (with taskIndex) matching this projectId
         result = workspaceSessionMetas.filter(s => s.projectId === chatFilter.projectId && s.taskIndex != null)
@@ -1515,6 +1655,15 @@ function AppShellContent({
     }
   }, [session.selected, ensureMessagesLoaded])
 
+  // Clear unread state for all task sessions in a project (called when project is clicked)
+  const clearProjectUnread = useCallback((projectId: string) => {
+    for (const s of workspaceSessionMetas) {
+      if (s.projectId === projectId && s.taskIndex != null && s.hasUnread) {
+        onMarkSessionRead(s.id)
+      }
+    }
+  }, [workspaceSessionMetas, onMarkSessionRead])
+
   // Wrap delete handler to clear selection when deleting the currently selected session
   // This prevents stale state during re-renders that could cause crashes
   const handleDeleteSession = useCallback(async (sessionId: string, skipConfirmation?: boolean): Promise<boolean> => {
@@ -1524,6 +1673,66 @@ function AppShellContent({
     }
     return onDeleteSession(sessionId, skipConfirmation)
   }, [session.selected, setSession, onDeleteSession])
+
+  // Folder CRUD handlers
+  const handleCreateFolder = useCallback(async (section?: 'chats' | 'projects') => {
+    if (!activeWorkspaceId) return
+    try {
+      console.log('[Folders] Creating folder with section:', section)
+      const folder = await window.electronAPI.createFolderConfig(activeWorkspaceId, { name: 'New Folder', section })
+      console.log('[Folders] Created folder:', folder)
+      // Auto-expand the new folder (use section-specific nav ID)
+      const navSuffix = section === 'projects' ? ':projects' : ':chats'
+      setExpandedFolders(prev => { const next = new Set(prev); next.add(`nav:folder:${folder.id}${navSuffix}`); return next })
+      // Open rename dialog so user can type a name immediately
+      requestAnimationFrame(() => {
+        setFolderRenameState({ open: true, folderId: folder.id, name: folder.name, isNew: true })
+      })
+    } catch (err) {
+      console.error('[Folders] Failed to create folder:', err)
+      toast.error('Failed to create folder', { description: err instanceof Error ? err.message : String(err) })
+    }
+  }, [activeWorkspaceId])
+
+  const handleRenameFolder = useCallback(async (folderId: string, name: string) => {
+    if (!activeWorkspaceId) return
+    try {
+      await window.electronAPI.updateFolderConfig(activeWorkspaceId, folderId, { name })
+    } catch (err) {
+      toast.error('Failed to rename folder')
+    }
+  }, [activeWorkspaceId])
+
+  const handleDeleteFolder = useCallback(async (folderId: string) => {
+    if (!activeWorkspaceId) return
+    const folder = folderConfigs.find(f => f.id === folderId)
+    const itemCount = (folderedChats.get(folderId)?.length || 0) + (folderedProjects.get(folderId)?.length || 0)
+    try {
+      await window.electronAPI.deleteFolderConfig(activeWorkspaceId, folderId)
+      if (itemCount > 0) {
+        toast.success(`Folder "${folder?.name}" deleted. ${itemCount} item${itemCount === 1 ? '' : 's'} moved to unfiled.`)
+      } else {
+        toast.success(`Folder "${folder?.name}" deleted.`)
+      }
+    } catch (err) {
+      toast.error('Failed to delete folder')
+    }
+  }, [activeWorkspaceId, folderConfigs, folderedChats, folderedProjects])
+
+  // Helper: folder context menu props for a session (used in projectContextMenu configs)
+  const getFolderMenuProps = useCallback((sessionId: string) => {
+    if (folderConfigs.length === 0) return {}
+    const meta = workspaceSessionMetas.find(m => m.id === sessionId)
+    return {
+      folders: folderConfigs.map(f => ({ id: f.id, name: f.name })),
+      currentFolderId: meta?.folderId,
+      onMoveToFolder: (folderId: string | undefined) => {
+        // Optimistic update for instant sidebar feedback
+        updateSessionMeta(sessionId, { folderId })
+        window.electronAPI.sessionCommand(sessionId, { type: 'setFolder', folderId })
+      },
+    }
+  }, [folderConfigs, workspaceSessionMetas, updateSessionMeta])
 
   // Project view: open plan overlay
   const handleOpenPlan = useCallback(async () => {
@@ -2034,6 +2243,8 @@ function AppShellContent({
     switch (chatFilter.kind) {
       case 'flagged':
         return 'Starred'
+      case 'archive':
+        return 'Archive'
       case 'state': {
         const state = effectiveTodoStates.find(s => s.id === chatFilter.stateId)
         return state?.label || 'All Chats'
@@ -2050,6 +2261,111 @@ function AppShellContent({
         return 'All Chats'
     }
   }, [navState, chatFilter, effectiveTodoStates, labelConfigs, viewConfigs, projects])
+
+  // Show chat-section folders (section === 'chats' or unset) — including empty ones so they're droppable
+  const buildChatFolderItems = useCallback((): any[] => {
+    return folderConfigs
+      .filter(folder => !folder.section || folder.section === 'chats')
+      .map(folder => {
+        const chats = folderedChats.get(folder.id) || []
+        const navId = `nav:folder:${folder.id}:chats`
+
+        const childItems = chats.map(s => ({
+          id: `nav:chat:${s.id}`,
+          title: getSessionTitle(s),
+          icon: s.isProcessing ? <SidebarSpinner /> : MessageSquare,
+          iconColorable: s.isProcessing ? false : undefined,
+          indicator: s.hasUnread ? <UnreadDot /> : undefined,
+          variant: (session.selected === s.id ? 'default' : 'ghost') as 'default' | 'ghost',
+          compact: true,
+          onClick: () => navigate(routes.view.allChats(s.id)),
+          draggable: { sessionId: s.id },
+          projectContextMenu: {
+            sessionId: s.id,
+            onRename: () => setProjectRenameState({ open: true, sessionId: s.id, name: getSessionTitle(s) }),
+            onOpenInNewWindow: () => {
+              if (activeWorkspaceId) window.electronAPI.openSessionInNewWindow(activeWorkspaceId, s.id)
+            },
+            onArchive: () => onArchiveSession(s.id),
+            onUnarchive: () => onUnarchiveSession(s.id),
+            onDelete: () => handleDeleteSession(s.id),
+            ...getFolderMenuProps(s.id),
+          },
+        }))
+
+        return {
+          id: navId,
+          title: folder.name,
+          icon: isExpanded(navId) ? FolderOpen : Folder,
+          variant: 'ghost' as const,
+          compact: true,
+          label: chats.length > 0 ? String(chats.length) : undefined,
+          expandable: true,
+          expanded: isExpanded(navId),
+          onToggle: () => toggleExpanded(navId),
+          items: childItems,
+          droppable: { type: 'folder' as const, folderId: folder.id },
+          contextMenu: {
+            type: 'folder' as const,
+            onRenameFolder: () => setFolderRenameState({ open: true, folderId: folder.id, name: folder.name, isNew: false }),
+            onDeleteFolder: () => handleDeleteFolder(folder.id),
+          },
+        }
+      })
+  }, [folderConfigs, folderedChats, session.selected, activeWorkspaceId, isExpanded, toggleExpanded, handleDeleteSession, handleDeleteFolder, getFolderMenuProps])
+
+  // Show project-section folders (section === 'projects') — including empty ones so they're droppable
+  const buildProjectFolderItems = useCallback((): any[] => {
+    return folderConfigs
+      .filter(folder => folder.section === 'projects')
+      .map(folder => {
+        const projs = folderedProjects.get(folder.id) || []
+        const navId = `nav:folder:${folder.id}:projects`
+
+        const childItems = projs.map(p => ({
+          id: `nav:project:${p.id}`,
+          title: p.name,
+          titleClassName: (p.done === p.total && p.total > 0) ? 'text-muted-foreground' : undefined,
+          icon: p.isProcessing ? <SidebarSpinner /> : <ProjectProgressRing done={p.done} total={p.total} isDark={isDark} />,
+          iconColorable: false,
+          indicator: p.hasUnread ? <UnreadDot /> : undefined,
+          variant: (chatFilter?.kind === 'project' && chatFilter.projectId === p.id) ? 'default' as const : 'ghost' as const,
+          compact: true,
+          onClick: () => { clearProjectUnread(p.id); navigate(routes.view.project(p.id)) },
+          draggable: { sessionId: p.sessionId },
+          projectContextMenu: {
+            sessionId: p.sessionId,
+            onRename: () => setProjectRenameState({ open: true, sessionId: p.sessionId, name: p.name }),
+            onOpenInNewWindow: () => {
+              if (activeWorkspaceId) window.electronAPI.openSessionInNewWindow(activeWorkspaceId, p.sessionId)
+            },
+            onArchive: () => onArchiveSession(p.sessionId),
+            onUnarchive: () => onUnarchiveSession(p.sessionId),
+            onDelete: () => handleDeleteSession(p.sessionId),
+            ...getFolderMenuProps(p.sessionId),
+          },
+        }))
+
+        return {
+          id: navId,
+          title: folder.name,
+          icon: isExpanded(navId) ? FolderOpen : Folder,
+          variant: 'ghost' as const,
+          compact: true,
+          label: projs.length > 0 ? String(projs.length) : undefined,
+          expandable: true,
+          expanded: isExpanded(navId),
+          onToggle: () => toggleExpanded(navId),
+          items: childItems,
+          droppable: { type: 'folder' as const, folderId: folder.id },
+          contextMenu: {
+            type: 'folder' as const,
+            onRenameFolder: () => setFolderRenameState({ open: true, folderId: folder.id, name: folder.name, isNew: false }),
+            onDeleteFolder: () => handleDeleteFolder(folder.id),
+          },
+        }
+      })
+  }, [folderConfigs, folderedProjects, chatFilter, isDark, activeWorkspaceId, isExpanded, toggleExpanded, handleDeleteSession, handleDeleteFolder, getFolderMenuProps, clearProjectUnread])
 
   // Build recursive sidebar items from label tree.
   // Each node renders with condensed height (compact: true) since many labels expected.
@@ -2151,7 +2467,7 @@ function AppShellContent({
               onToggleSidebar={() => setIsSidebarVisible(prev => !prev)}
               onToggleFocusMode={() => setIsFocusModeActive(prev => !prev)}
             />
-            {/* Right-aligned titlebar button — only when sidebar is visible (otherwise shown in panel headers) */}
+            {/* Right-aligned titlebar buttons — only when sidebar is visible (otherwise shown in panel headers) */}
             {isSidebarVisible && (
               <div className="ml-auto flex items-center gap-1">
                 <TopBarButton aria-label="Toggle sidebar" onClick={() => setIsSidebarVisible(prev => !prev)} className="h-9 w-9">
@@ -2211,6 +2527,13 @@ function AppShellContent({
             onKeyDown={handleSidebarKeyDown}
           >
             <div className="flex h-full flex-col pt-[50px] select-none">
+              {/* DndContext wraps both the scrollable nav and the archive button so drag-to-archive works */}
+              <DndContext
+                sensors={folderDndSensors}
+                onDragStart={handleFolderDragStart}
+                onDragEnd={handleFolderDragEnd}
+                onDragCancel={handleFolderDragCancel}
+              >
               {/* Sidebar Top Section */}
               <div className="flex-1 flex flex-col min-h-0">
                 {/* New Chat button - pinned above scrollable nav */}
@@ -2223,7 +2546,6 @@ function AppShellContent({
                     <span>New Chat</span>
                   </button>
                 </div>
-                {/* Primary Nav: Chats, Projects */}
                 {/* pb-4 provides clearance so the last item scrolls above the mask-fade-bottom gradient */}
                 <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 mask-fade-bottom pb-4">
                 <LeftSidebar
@@ -2231,15 +2553,19 @@ function AppShellContent({
                   getItemProps={getSidebarItemProps}
                   focusedItemId={focusedSidebarItemId}
                   links={[
-                    // --- Chats Section (flat, Apple Music-style) ---
-                    { id: "separator:chats", type: "separator" as const, label: "Chats" },
-                    ...chatSessions.map(s => ({
+                    // --- Chats Section: folder groups first, then unfiled ---
+                    { id: "separator:chats", type: "separator" as const, label: "Chats", droppable: { type: 'unfiled' as const }, action: { icon: <FolderPlus className="h-3.5 w-3.5" />, onClick: () => handleCreateFolder('chats'), ariaLabel: "New folder" } },
+                    ...buildChatFolderItems(),
+                    ...unfolderedChats.map(s => ({
                       id: `nav:chat:${s.id}`,
                       title: getSessionTitle(s),
-                      icon: MessageSquare,
+                      icon: s.isProcessing ? <SidebarSpinner /> : MessageSquare,
+                      iconColorable: s.isProcessing ? false : undefined,
+                      indicator: s.hasUnread ? <UnreadDot /> : undefined,
                       variant: (session.selected === s.id ? "default" : "ghost") as "default" | "ghost",
                       compact: true,
                       onClick: () => navigate(routes.view.allChats(s.id)),
+                      draggable: { sessionId: s.id },
                       projectContextMenu: {
                         sessionId: s.id,
                         onRename: () => setProjectRenameState({ open: true, sessionId: s.id, name: getSessionTitle(s) }),
@@ -2248,20 +2574,26 @@ function AppShellContent({
                             window.electronAPI.openSessionInNewWindow(activeWorkspaceId, s.id)
                           }
                         },
+                        onArchive: () => onArchiveSession(s.id),
+                        onUnarchive: () => onUnarchiveSession(s.id),
                         onDelete: () => handleDeleteSession(s.id),
+                        ...getFolderMenuProps(s.id),
                       },
                     })),
-                    // --- Projects Section (flat) ---
-                    { id: "separator:projects", type: "separator" as const, label: "Projects" },
-                    ...projects.map(p => ({
+                    // --- Projects Section: folder groups first, then unfiled ---
+                    { id: "separator:projects", type: "separator" as const, label: "Projects", action: { icon: <FolderPlus className="h-3.5 w-3.5" />, onClick: () => handleCreateFolder('projects'), ariaLabel: "New folder" } },
+                    ...buildProjectFolderItems(),
+                    ...unfolderedProjects.map(p => ({
                       id: `nav:project:${p.id}`,
                       title: p.name,
                       titleClassName: (p.done === p.total && p.total > 0) ? "text-muted-foreground" : undefined,
-                      icon: <ProjectProgressRing done={p.done} total={p.total} isDark={isDark} />,
+                      icon: p.isProcessing ? <SidebarSpinner /> : <ProjectProgressRing done={p.done} total={p.total} isDark={isDark} />,
                       iconColorable: false,
+                      indicator: p.hasUnread ? <UnreadDot /> : undefined,
                       variant: (chatFilter?.kind === 'project' && chatFilter.projectId === p.id) ? "default" as const : "ghost" as const,
                       compact: true,
-                      onClick: () => navigate(routes.view.project(p.id)),
+                      onClick: () => { clearProjectUnread(p.id); navigate(routes.view.project(p.id)) },
+                      draggable: { sessionId: p.sessionId },
                       projectContextMenu: {
                         sessionId: p.sessionId,
                         onRename: () => setProjectRenameState({ open: true, sessionId: p.sessionId, name: p.name }),
@@ -2270,7 +2602,10 @@ function AppShellContent({
                             window.electronAPI.openSessionInNewWindow(activeWorkspaceId, p.sessionId)
                           }
                         },
+                        onArchive: () => onArchiveSession(p.sessionId),
+                        onUnarchive: () => onUnarchiveSession(p.sessionId),
                         onDelete: () => handleDeleteSession(p.sessionId),
+                        ...getFolderMenuProps(p.sessionId),
                       },
                     })),
                   ]}
@@ -2278,11 +2613,46 @@ function AppShellContent({
                 {/* Agent Tree: Hierarchical list of agents */}
                 {/* Agents section removed */}
                 </div>
-              </div>
+                </div>
 
-              {/* Sidebar Bottom Section: Settings + Help */}
-              <div className="mt-auto shrink-0 py-2 px-2">
-                <div className="flex items-center gap-1">
+              {/* Sidebar Bottom Section: Archive + Settings + Help */}
+              <div className="mt-auto shrink-0 px-2">
+                {/* Archive button — inside DndContext so it can be a drop target */}
+                <ArchiveDropTarget>
+                  {(isOver) => (
+                    <div className="pt-2 pb-0.5">
+                      <button
+                        onClick={() => navigate(routes.view.archive())}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-[8px] text-[14px] select-none outline-none py-[5px] px-2.5 transition-colors",
+                          "hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+                          chatFilter?.kind === 'archive' && "bg-foreground/[0.07]",
+                          isOver && "bg-accent/10 ring-1 ring-accent/30"
+                        )}
+                      >
+                        <Archive className="h-[18px] w-[18px] shrink-0 text-foreground/60" />
+                        <span className="truncate flex-1 text-left">Archive</span>
+                        {archivedCount > 0 && (
+                          <span className="text-xs text-muted-foreground tabular-nums">{archivedCount}</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </ArchiveDropTarget>
+                {/* DragOverlay for folder DnD — shows floating clone of dragged item */}
+                <DragOverlay style={{ zIndex: 9999 }}>
+                  {folderDragActiveId ? (
+                    <div
+                      className="rounded-[8px] bg-background px-5 py-[5px] text-[14px] font-medium truncate max-w-[200px]"
+                      style={{
+                        boxShadow: '0 0 0 1px rgba(63, 63, 68, 0.05), 0px 15px 15px 0 rgba(34, 33, 81, 0.25)',
+                      }}
+                    >
+                      {folderDragTitle}
+                    </div>
+                  ) : null}
+                </DragOverlay>
+                <div className="flex items-center gap-1 py-1.5">
                   <button
                     onClick={() => handleSettingsClick('app')}
                     className={cn(
@@ -2311,6 +2681,7 @@ function AppShellContent({
                   <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
                 </div>
               </div>
+              </DndContext>
             </div>
           </div>
         </motion.div>
@@ -2998,6 +3369,8 @@ function AppShellContent({
                   onDelete={handleDeleteSession}
                   onFlag={onFlagSession}
                   onUnflag={onUnflagSession}
+                  onArchive={onArchiveSession}
+                  onUnarchive={onUnarchiveSession}
                   onMarkUnread={onMarkSessionUnread}
                   onTodoStateChange={onTodoStateChange}
                   onRename={onRenameSession}
@@ -3008,6 +3381,8 @@ function AppShellContent({
                       navigate(routes.view.allChats(selectedMeta.id))
                     } else if (chatFilter.kind === 'flagged') {
                       navigate(routes.view.flagged(selectedMeta.id))
+                    } else if (chatFilter.kind === 'archive') {
+                      navigate(routes.view.archive(selectedMeta.id))
                     } else if (chatFilter.kind === 'state') {
                       navigate(routes.view.state(chatFilter.stateId, selectedMeta.id))
                     } else if (chatFilter.kind === 'label') {
@@ -3365,6 +3740,22 @@ function AppShellContent({
           }
         }}
         placeholder="Enter project name..."
+      />
+
+      {/* Folder rename dialog */}
+      <RenameDialog
+        open={folderRenameState.open}
+        onOpenChange={(open) => setFolderRenameState(prev => ({ ...prev, open }))}
+        title={folderRenameState.isNew ? "New Folder" : "Rename Folder"}
+        value={folderRenameState.name}
+        onValueChange={(name) => setFolderRenameState(prev => ({ ...prev, name }))}
+        onSubmit={() => {
+          if (folderRenameState.name.trim()) {
+            handleRenameFolder(folderRenameState.folderId, folderRenameState.name.trim())
+            setFolderRenameState({ open: false, folderId: '', name: '', isNew: false })
+          }
+        }}
+        placeholder="Enter folder name..."
       />
 
       {/* Project plan overlay — fullscreen view of the project plan */}

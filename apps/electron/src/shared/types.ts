@@ -333,6 +333,7 @@ export interface Session {
   isProcessing: boolean
   // Session metadata
   isFlagged?: boolean
+  isArchived?: boolean
   // Advanced options (persisted per session)
   /** Permission mode for this session ('safe', 'ask', 'allow-all') */
   permissionMode?: PermissionMode
@@ -340,6 +341,8 @@ export interface Session {
   todoState?: TodoState
   // Labels (additive tags, many-per-session — bare IDs or "id::value" entries)
   labels?: string[]
+  // Folder this session belongs to (undefined = unfiled)
+  folderId?: string
   // Read/unread tracking - ID of last message user has read
   lastReadMessageId?: string
   /**
@@ -488,6 +491,7 @@ export type SessionEvent =
   // Source events
   | { type: 'sources_changed'; sessionId: string; enabledSourceSlugs: string[] }
   | { type: 'labels_changed'; sessionId: string; labels: string[] }
+  | { type: 'folder_changed'; sessionId: string; folderId?: string }
   // Background task/shell events
   | { type: 'task_backgrounded'; sessionId: string; toolUseId: string; taskId: string; intent?: string; turnId?: string }
   | { type: 'shell_backgrounded'; sessionId: string; toolUseId: string; shellId: string; intent?: string; command?: string; turnId?: string }
@@ -541,6 +545,8 @@ export interface SendMessageOptions {
 export type SessionCommand =
   | { type: 'flag' }
   | { type: 'unflag' }
+  | { type: 'archive' }
+  | { type: 'unarchive' }
   | { type: 'rename'; name: string }
   | { type: 'setTodoState'; state: TodoState }
   | { type: 'markRead' }
@@ -552,6 +558,7 @@ export type SessionCommand =
   | { type: 'updateWorkingDirectory'; dir: string }
   | { type: 'setSources'; sourceSlugs: string[] }
   | { type: 'setLabels'; labels: string[] }
+  | { type: 'setFolder'; folderId: string | undefined }
   | { type: 'showInFinder' }
   | { type: 'copyPath' }
   | { type: 'shareToViewer' }
@@ -758,6 +765,14 @@ export const IPC_CHANNELS = {
   LABELS_CREATE: 'labels:create',
   LABELS_DELETE: 'labels:delete',
   LABELS_CHANGED: 'labels:changed',  // Broadcast event
+
+  // Folder management (workspace-scoped)
+  FOLDERS_LIST: 'folders:list',
+  FOLDERS_CREATE: 'folders:create',
+  FOLDERS_UPDATE: 'folders:update',
+  FOLDERS_DELETE: 'folders:delete',
+  FOLDERS_REORDER: 'folders:reorder',
+  FOLDERS_CHANGED: 'folders:changed',  // Broadcast event
 
   // Views management (workspace-scoped, stored in views.json)
   VIEWS_LIST: 'views:list',
@@ -1056,6 +1071,14 @@ export interface ElectronAPI {
   // Labels change listener (live updates when labels config changes)
   onLabelsChanged(callback: (workspaceId: string) => void): () => void
 
+  // Folders (workspace-scoped)
+  listFolders(workspaceId: string): Promise<import('@normies/shared/folders').FolderConfig[]>
+  createFolderConfig(workspaceId: string, input: import('@normies/shared/folders').CreateFolderInput): Promise<import('@normies/shared/folders').FolderConfig>
+  updateFolderConfig(workspaceId: string, folderId: string, input: import('@normies/shared/folders').UpdateFolderInput): Promise<import('@normies/shared/folders').FolderConfig>
+  deleteFolderConfig(workspaceId: string, folderId: string): Promise<void>
+  reorderFolders(workspaceId: string, orderedIds: string[]): Promise<void>
+  onFoldersChanged(callback: (workspaceId: string) => void): () => void
+
   // Views (workspace-scoped, stored in views.json)
   listViews(workspaceId: string): Promise<import('@normies/shared/views').ViewConfig[]>
   saveViews(workspaceId: string, views: import('@normies/shared/views').ViewConfig[]): Promise<void>
@@ -1235,6 +1258,7 @@ export type RightSidebarPanel =
 export type ChatFilter =
   | { kind: 'allChats' }
   | { kind: 'flagged' }
+  | { kind: 'archive' }
   | { kind: 'state'; stateId: string }
   | { kind: 'label'; labelId: string }
   | { kind: 'view'; viewId: string }

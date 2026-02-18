@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { createReadStream, promises as fs } from 'fs';
+import { execSync } from 'child_process';
 import { join } from 'path';
 import { Agent } from 'https';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -146,12 +147,27 @@ async function uploadElectronArtifacts(
     throw new Error(`No release artifacts found in ${releaseDir}`);
   }
 
-  const versionsBaseUrl = process.env.NORMIES_VERSIONS_URL?.trim() || 'https://updates.normies.ai/electron';
+  const versionsBaseUrl = process.env.NORMIES_VERSIONS_URL?.trim() || 'https://updates.normies.work/electron';
+
+  // Fetch existing manifest so we merge new binaries into it (e.g. Mac + Windows built separately)
+  let existingBinaries: Record<string, BinaryInfo> = {};
+  try {
+    const manifestUrl = `${versionsBaseUrl}/${version}/manifest.json`;
+    const res = await fetch(manifestUrl);
+    if (res.ok) {
+      const existing = (await res.json()) as VersionManifest;
+      existingBinaries = existing.binaries || {};
+      console.log(`[upload] Merging with existing manifest (${Object.keys(existingBinaries).length} binaries already present).`);
+    }
+  } catch {
+    // No existing manifest — starting fresh
+  }
+
   const manifest: VersionManifest = {
     version,
     build_time: new Date().toISOString(),
     build_timestamp: Date.now(),
-    binaries: {},
+    binaries: { ...existingBinaries },
   };
 
   const uploadedKeys: string[] = [];
@@ -212,6 +228,52 @@ async function uploadInstallerScripts(client: S3Client, bucket: string): Promise
   console.log('Uploaded installer scripts (install-app.sh, install-app.ps1).');
 }
 
+function getGitHubToken(): string | null {
+  // Check env vars first
+  const envToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (envToken) return envToken;
+
+  // Fall back to gh CLI auth
+  try {
+    return execSync('gh auth token', { encoding: 'utf8' }).trim();
+  } catch {
+    return null;
+  }
+}
+
+async function triggerWindowsBuild(): Promise<void> {
+  // Don't trigger from CI — the Windows build IS the CI job
+  if (process.env.CI) {
+    return;
+  }
+
+  const token = getGitHubToken();
+  if (!token) {
+    console.warn('[upload] No GitHub token found (set GITHUB_TOKEN or run "gh auth login") — skipping Windows build trigger.');
+    return;
+  }
+
+  const repo = process.env.GITHUB_REPO || 'nicepkg/normies';
+  const url = `https://api.github.com/repos/${repo}/dispatches`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    body: JSON.stringify({ event_type: 'build-windows' }),
+  });
+
+  if (response.ok || response.status === 204) {
+    console.log('[upload] Triggered Windows build on GitHub Actions.');
+  } else {
+    const body = await response.text();
+    console.warn(`[upload] Failed to trigger Windows build (${response.status}): ${body}`);
+  }
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   if (!options.electron && !options.script) {
@@ -258,6 +320,9 @@ async function main(): Promise<void> {
     }
 
     await uploadElectronArtifacts(client, bucket, version, options);
+
+    // After Mac artifacts are uploaded, trigger the Windows CI build
+    await triggerWindowsBuild();
   }
 
   if (options.script) {

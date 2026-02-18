@@ -46,7 +46,7 @@ export interface DetailsProps {
  */
 export interface NavigationData {
   /** All sessions in the current filter */
-  sessions: Array<{ id: string; isFlagged?: boolean; stateId?: string }>
+  sessions: Array<{ id: string; isFlagged?: boolean; isArchived?: boolean; stateId?: string }>
   /** All sources */
   sources: Array<{ slug: string }>
   /** Current chat filter (if in chats mode) */
@@ -132,6 +132,9 @@ export const NavigationRegistry = {
       switch (filter.kind) {
         case 'flagged':
           filtered = ctx.sessions.filter(s => s.isFlagged)
+          break
+        case 'archive':
+          filtered = ctx.sessions.filter(s => s.isArchived)
           break
         case 'state':
           filtered = ctx.sessions.filter(s => s.stateId === filter.stateId)

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { formatDistanceToNow, formatDistanceToNowStrict, isToday, isYesterday, format, startOfDay } from "date-fns"
 import type { Locale } from "date-fns"
-import { MoreHorizontal, Star, Copy, Link2Off, CloudUpload, Globe, RefreshCw, Inbox } from "lucide-react"
+import { MoreHorizontal, Star, Copy, Link2Off, CloudUpload, Globe, RefreshCw, Inbox, Archive } from "lucide-react"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
@@ -231,6 +231,9 @@ function sessionMatchesCurrentFilter(
       if (currentFilter.viewId === '__all__') return matched.length > 0
       return matched.some(v => v.id === currentFilter.viewId)
 
+    case 'archive':
+      return session.isArchived === true
+
     case 'project':
       return session.projectId === currentFilter.projectId && session.taskIndex != null
 
@@ -287,6 +290,8 @@ interface SessionItemProps {
   onTodoStateChange: (sessionId: string, state: TodoStateId) => void
   onFlag?: (sessionId: string) => void
   onUnflag?: (sessionId: string) => void
+  onArchive?: (sessionId: string) => void
+  onUnarchive?: (sessionId: string) => void
   onMarkUnread: (sessionId: string) => void
   onDelete: (sessionId: string, skipConfirmation?: boolean) => Promise<boolean>
   onSelect: () => void
@@ -327,6 +332,8 @@ function SessionItem({
   onTodoStateChange,
   onFlag,
   onUnflag,
+  onArchive,
+  onUnarchive,
   onMarkUnread,
   onDelete,
   onSelect,
@@ -694,6 +701,7 @@ function SessionItem({
                     sessionId={item.id}
                     sessionName={getSessionTitle(item)}
                     isFlagged={item.isFlagged ?? false}
+                    isArchived={item.isArchived ?? false}
                     sharedUrl={item.sharedUrl}
                     hasMessages={hasMessages(item)}
                     hasUnreadMessages={hasUnreadMessages(item)}
@@ -706,6 +714,8 @@ function SessionItem({
                     onRename={() => onRenameClick(item.id, getSessionTitle(item))}
                     onFlag={() => onFlag?.(item.id)}
                     onUnflag={() => onUnflag?.(item.id)}
+                    onArchive={() => onArchive?.(item.id)}
+                    onUnarchive={() => onUnarchive?.(item.id)}
                     onMarkUnread={() => onMarkUnread(item.id)}
                     onTodoStateChange={(state) => onTodoStateChange(item.id, state)}
                     onOpenInNewWindow={onOpenInNewWindow}
@@ -726,6 +736,7 @@ function SessionItem({
               sessionId={item.id}
               sessionName={getSessionTitle(item)}
               isFlagged={item.isFlagged ?? false}
+              isArchived={item.isArchived ?? false}
               sharedUrl={item.sharedUrl}
               hasMessages={hasMessages(item)}
               hasUnreadMessages={hasUnreadMessages(item)}
@@ -738,6 +749,8 @@ function SessionItem({
               onRename={() => onRenameClick(item.id, getSessionTitle(item))}
               onFlag={() => onFlag?.(item.id)}
               onUnflag={() => onUnflag?.(item.id)}
+              onArchive={() => onArchive?.(item.id)}
+              onUnarchive={() => onUnarchive?.(item.id)}
               onMarkUnread={() => onMarkUnread(item.id)}
               onTodoStateChange={(state) => onTodoStateChange(item.id, state)}
               onOpenInNewWindow={onOpenInNewWindow}
@@ -772,6 +785,8 @@ interface SessionListProps {
   onDelete: (sessionId: string, skipConfirmation?: boolean) => Promise<boolean>
   onFlag?: (sessionId: string) => void
   onUnflag?: (sessionId: string) => void
+  onArchive?: (sessionId: string) => void
+  onUnarchive?: (sessionId: string) => void
   onMarkUnread: (sessionId: string) => void
   onTodoStateChange: (sessionId: string, state: TodoStateId) => void
   onRename: (sessionId: string, name: string) => void
@@ -829,6 +844,8 @@ export function SessionList({
   onDelete,
   onFlag,
   onUnflag,
+  onArchive,
+  onUnarchive,
   onMarkUnread,
   onTodoStateChange,
   onRename,
@@ -957,6 +974,9 @@ export function SessionList({
 
   // Detect project view mode for task-specific rendering
   const isProjectView = currentFilter?.kind === 'project'
+
+  // Detect archive view mode for two-section rendering (Chats + Projects)
+  const isArchiveView = currentFilter?.kind === 'archive'
 
   // Sort: by taskIndex in project view, by most recent activity otherwise
   const sortedItems = [...visibleItems].sort((a, b) =>
@@ -1103,11 +1123,31 @@ export function SessionList({
     return { total, done, inProgress }
   }, [isProjectView, searchFilteredItems])
 
+  // Archive view sections: split into "Chats" (no projectId) and "Projects" (has projectId, no taskIndex)
+  const archiveSections = useMemo(() => {
+    if (!isArchiveView) return null
+    const chats: SessionMeta[] = []
+    const projects: SessionMeta[] = []
+    for (const s of paginatedItems) {
+      if (!s.projectId && s.taskIndex == null) {
+        chats.push(s)
+      } else if (s.projectId && s.taskIndex == null) {
+        projects.push(s)
+      }
+      // Task sub-sessions (taskIndex != null) are excluded — they belong under their project
+    }
+    return { chats, projects }
+  }, [isArchiveView, paginatedItems])
+
   // Create flat list for keyboard navigation (maintains order across groups/sections)
   const flatItems = useMemo(() => {
     if (isSearchMode) {
       // Search mode: flat list of matching + other results (no date grouping)
       return [...matchingFilterItems, ...otherResultItems]
+    }
+    // Archive view: chats first, then projects
+    if (archiveSections) {
+      return [...archiveSections.chats, ...archiveSections.projects]
     }
     // Project view: flat list ordered by taskIndex (already sorted above)
     if (isProjectView) {
@@ -1115,7 +1155,7 @@ export function SessionList({
     }
     // Normal mode: flatten date groups
     return dateGroups.flatMap(group => group.sessions)
-  }, [isSearchMode, isProjectView, matchingFilterItems, otherResultItems, dateGroups, paginatedItems])
+  }, [isSearchMode, isProjectView, archiveSections, matchingFilterItems, otherResultItems, dateGroups, paginatedItems])
 
   // Create a lookup map for session ID -> flat index
   const sessionIndexMap = useMemo(() => {
@@ -1140,6 +1180,13 @@ export function SessionList({
       navigate(routes.view.allChats(item.id))
     } else if (currentFilter.kind === 'flagged') {
       navigate(routes.view.flagged(item.id))
+    } else if (currentFilter.kind === 'archive') {
+      // Archived projects → go to project view; archived chats → open within archive
+      if (item.projectId) {
+        navigate(routes.view.project(item.projectId))
+      } else {
+        navigate(routes.view.archive(item.id))
+      }
     } else if (currentFilter.kind === 'state') {
       navigate(routes.view.state(currentFilter.stateId, item.id))
     } else if (currentFilter.kind === 'project') {
@@ -1184,6 +1231,23 @@ export function SessionList({
       } : undefined,
     })
   }, [onFlag, onUnflag])
+
+  const handleArchiveWithToast = useCallback((sessionId: string) => {
+    if (!onArchive) return
+    onArchive(sessionId)
+    toast('Conversation archived', {
+      action: onUnarchive ? {
+        label: 'Undo',
+        onClick: () => onUnarchive(sessionId),
+      } : undefined,
+    })
+  }, [onArchive, onUnarchive])
+
+  const handleUnarchiveWithToast = useCallback((sessionId: string) => {
+    if (!onUnarchive) return
+    onUnarchive(sessionId)
+    toast('Conversation unarchived')
+  }, [onUnarchive])
 
   const handleDeleteWithToast = useCallback(async (sessionId: string): Promise<boolean> => {
     // Confirmation dialog is shown by handleDeleteSession in App.tsx
@@ -1292,6 +1356,23 @@ export function SessionList({
 
   // Empty state - render outside ScrollArea for proper vertical centering
   if (flatItems.length === 0 && !searchActive) {
+    // Archive-specific empty state
+    if (isArchiveView) {
+      return (
+        <Empty className="h-full">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Archive />
+            </EmptyMedia>
+            <EmptyTitle>No archived items</EmptyTitle>
+            <EmptyDescription>
+              Drag chats or projects here, or right-click and choose Archive.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      )
+    }
+
     return (
       <Empty className="h-full">
         <EmptyHeader>
@@ -1394,6 +1475,8 @@ export function SessionList({
                         onTodoStateChange={onTodoStateChange}
                         onFlag={onFlag ? handleFlagWithToast : undefined}
                         onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                        onArchive={onArchive ? handleArchiveWithToast : undefined}
+                        onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
                         onMarkUnread={onMarkUnread}
                         onDelete={handleDeleteWithToast}
                         onSelect={() => {
@@ -1401,6 +1484,8 @@ export function SessionList({
                             navigate(routes.view.allChats(item.id))
                           } else if (currentFilter.kind === 'flagged') {
                             navigate(routes.view.flagged(item.id))
+                          } else if (currentFilter.kind === 'archive') {
+                            navigate(routes.view.archive(item.id))
                           } else if (currentFilter.kind === 'state') {
                             navigate(routes.view.state(currentFilter.stateId, item.id))
                           } else if (currentFilter.kind === 'project') {
@@ -1444,6 +1529,8 @@ export function SessionList({
                         onTodoStateChange={onTodoStateChange}
                         onFlag={onFlag ? handleFlagWithToast : undefined}
                         onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                        onArchive={onArchive ? handleArchiveWithToast : undefined}
+                        onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
                         onMarkUnread={onMarkUnread}
                         onDelete={handleDeleteWithToast}
                         onSelect={() => {
@@ -1451,6 +1538,8 @@ export function SessionList({
                             navigate(routes.view.allChats(item.id))
                           } else if (currentFilter.kind === 'flagged') {
                             navigate(routes.view.flagged(item.id))
+                          } else if (currentFilter.kind === 'archive') {
+                            navigate(routes.view.archive(item.id))
                           } else if (currentFilter.kind === 'state') {
                             navigate(routes.view.state(currentFilter.stateId, item.id))
                           } else if (currentFilter.kind === 'project') {
@@ -1467,6 +1556,94 @@ export function SessionList({
                         onLabelsChange={onLabelsChange}
                         chatMatchCount={isSearchMode ? contentSearchResults.get(item.id)?.matchCount : undefined}
                         isProjectView={isProjectView}
+                      />
+                    )
+                  })}
+                </>
+              )}
+            </>
+          ) : isArchiveView && archiveSections ? (
+            /* Archive mode: two sections - Chats and Projects */
+            <>
+              {archiveSections.chats.length > 0 && (
+                <>
+                  <div className="px-4 pt-4 pb-2">
+                    <span className="text-[11px] font-semibold tracking-wide text-foreground/35">Chats</span>
+                  </div>
+                  {archiveSections.chats.map((item, index) => {
+                    const flatIndex = sessionIndexMap.get(item.id) ?? 0
+                    const itemProps = getItemProps(item, flatIndex)
+                    return (
+                      <SessionItem
+                        key={item.id}
+                        item={item}
+                        index={flatIndex}
+                        itemProps={itemProps}
+                        isSelected={session.selected === item.id}
+                        isLast={flatIndex === flatItems.length - 1}
+                        isFirstInGroup={index === 0}
+                        onKeyDown={handleKeyDown}
+                        onRenameClick={handleRenameClick}
+                        onTodoStateChange={onTodoStateChange}
+                        onFlag={onFlag ? handleFlagWithToast : undefined}
+                        onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                        onArchive={onArchive ? handleArchiveWithToast : undefined}
+                        onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
+                        onMarkUnread={onMarkUnread}
+                        onDelete={handleDeleteWithToast}
+                        onSelect={() => {
+                          navigate(routes.view.archive(item.id))
+                          onSessionSelect?.(item)
+                        }}
+                        onOpenInNewWindow={() => onOpenInNewWindow?.(item)}
+                        permissionMode={sessionOptions?.get(item.id)?.permissionMode}
+                        todoStates={todoStates}
+                        flatLabels={flatLabels}
+                        labels={labels}
+                        onLabelsChange={onLabelsChange}
+                      />
+                    )
+                  })}
+                </>
+              )}
+              {archiveSections.projects.length > 0 && (
+                <>
+                  <div className="px-4 pt-4 pb-2">
+                    <span className="text-[11px] font-semibold tracking-wide text-foreground/35">Projects</span>
+                  </div>
+                  {archiveSections.projects.map((item, index) => {
+                    const flatIndex = sessionIndexMap.get(item.id) ?? 0
+                    const itemProps = getItemProps(item, flatIndex)
+                    return (
+                      <SessionItem
+                        key={item.id}
+                        item={item}
+                        index={flatIndex}
+                        itemProps={itemProps}
+                        isSelected={session.selected === item.id}
+                        isLast={flatIndex === flatItems.length - 1}
+                        isFirstInGroup={index === 0}
+                        onKeyDown={handleKeyDown}
+                        onRenameClick={handleRenameClick}
+                        onTodoStateChange={onTodoStateChange}
+                        onFlag={onFlag ? handleFlagWithToast : undefined}
+                        onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                        onArchive={onArchive ? handleArchiveWithToast : undefined}
+                        onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
+                        onMarkUnread={onMarkUnread}
+                        onDelete={handleDeleteWithToast}
+                        onSelect={() => {
+                          // Navigate to full project view (task list + chat)
+                          if (item.projectId) {
+                            navigate(routes.view.project(item.projectId))
+                          }
+                        }}
+                        onOpenInNewWindow={() => onOpenInNewWindow?.(item)}
+                        permissionMode={sessionOptions?.get(item.id)?.permissionMode}
+                        todoStates={todoStates}
+                        flatLabels={flatLabels}
+                        labels={labels}
+                        onLabelsChange={onLabelsChange}
                       />
                     )
                   })}
@@ -1552,6 +1729,8 @@ export function SessionList({
                     onTodoStateChange={onTodoStateChange}
                     onFlag={onFlag ? handleFlagWithToast : undefined}
                     onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                    onArchive={onArchive ? handleArchiveWithToast : undefined}
+                    onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
                     onMarkUnread={onMarkUnread}
                     onDelete={handleDeleteWithToast}
                     onSelect={() => {
@@ -1593,6 +1772,8 @@ export function SessionList({
                       onTodoStateChange={onTodoStateChange}
                       onFlag={onFlag ? handleFlagWithToast : undefined}
                       onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                      onArchive={onArchive ? handleArchiveWithToast : undefined}
+                      onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
                       onMarkUnread={onMarkUnread}
                       onDelete={handleDeleteWithToast}
                       onSelect={() => {
@@ -1600,6 +1781,8 @@ export function SessionList({
                           navigate(routes.view.allChats(item.id))
                         } else if (currentFilter.kind === 'flagged') {
                           navigate(routes.view.flagged(item.id))
+                        } else if (currentFilter.kind === 'archive') {
+                          navigate(routes.view.archive(item.id))
                         } else if (currentFilter.kind === 'state') {
                           navigate(routes.view.state(currentFilter.stateId, item.id))
                         } else if (currentFilter.kind === 'project') {

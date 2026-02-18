@@ -58,7 +58,7 @@ export interface ParsedCompoundRoute {
  * Known prefixes that indicate a compound route
  */
 const COMPOUND_ROUTE_PREFIXES = [
-  'allChats', 'flagged', 'state', 'label', 'view', 'project', 'sources', 'skills', 'settings'
+  'allChats', 'flagged', 'archive', 'state', 'label', 'view', 'project', 'sources', 'skills', 'settings'
 ]
 
 /**
@@ -169,6 +169,10 @@ export function parseCompoundRoute(route: string): ParsedCompoundRoute | null {
       chatFilter = { kind: 'flagged' }
       detailsStartIndex = 1
       break
+    case 'archive':
+      chatFilter = { kind: 'archive' }
+      detailsStartIndex = 1
+      break
     case 'state':
       if (!segments[1]) return null
       // Cast is safe because we're constructing from URL
@@ -250,6 +254,9 @@ export function buildCompoundRoute(parsed: ParsedCompoundRoute): string {
       break
     case 'flagged':
       base = 'flagged'
+      break
+    case 'archive':
+      base = 'archive'
       break
     case 'state':
       base = `state/${filter.stateId}`
@@ -548,7 +555,7 @@ function convertParsedRouteToNavigationState(parsed: ParsedRoute): NavigationSta
         } else if (filterKind === 'view' && parsed.params.viewId) {
           filter = { kind: 'view', viewId: parsed.params.viewId }
         } else {
-          filter = { kind: filterKind as 'allChats' | 'flagged' }
+          filter = { kind: filterKind as 'allChats' | 'flagged' | 'archive' }
         }
         return {
           navigator: 'chats',
@@ -567,6 +574,12 @@ function convertParsedRouteToNavigationState(parsed: ParsedRoute): NavigationSta
       return {
         navigator: 'chats',
         filter: { kind: 'flagged' },
+        details: null,
+      }
+    case 'archive':
+      return {
+        navigator: 'chats',
+        filter: { kind: 'archive' },
         details: null,
       }
     case 'state':
@@ -637,6 +650,9 @@ export function buildRouteFromNavigationState(state: NavigationState): string {
       break
     case 'flagged':
       base = 'flagged'
+      break
+    case 'archive':
+      base = 'archive'
       break
     case 'state':
       base = `state/${filter.stateId}`

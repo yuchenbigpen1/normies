@@ -97,6 +97,10 @@ export const routes = {
     flagged: (sessionId?: string) =>
       sessionId ? `flagged/chat/${sessionId}` as const : 'flagged' as const,
 
+    /** Archive view (chats navigator, archive filter) */
+    archive: (sessionId?: string) =>
+      sessionId ? `archive/chat/${sessionId}` as const : 'archive' as const,
+
     /** Todo state filter view (chats navigator, state filter) */
     state: (stateId: string, sessionId?: string) =>
       sessionId

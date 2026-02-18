@@ -1528,7 +1528,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                         parts.push(`\n### Plan Reference\nThe full plan is at: ${session.planPath} — read it if you need broader context.`)
                       }
 
-                      // For handoff tasks: inject completion summaries from all sibling tasks
+                      // For handoff tasks: inject completion summaries and journal paths from all sibling tasks
                       if (isHandoff && session.projectId) {
                         const siblingTasks = Array.from(sessionMetaMap.values())
                           .filter(s => s.projectId === session.projectId && s.taskIndex != null && s.taskType !== 'handoff')
@@ -1537,12 +1537,17 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                           const summaryLines = siblingTasks.map(s => {
                             const summary = s.completionSummary || '(not yet completed)'
                             const files = s.taskFiles?.length ? `\n     Files: ${s.taskFiles.join(', ')}` : ''
-                            return `  - **Task ${(s.taskIndex ?? 0) + 1}: ${s.name || 'Untitled'}** — ${summary}${files}`
+                            const journalPath = s.sessionFolderPath ? `\n     Journal: ${s.sessionFolderPath}/journal.md` : ''
+                            return `  - **Task ${(s.taskIndex ?? 0) + 1}: ${s.name || 'Untitled'}** — ${summary}${files}${journalPath}`
                           })
                           parts.push(`\n### Completed Task Summaries\nHere's what was accomplished in each task:\n${summaryLines.join('\n')}`)
                         }
-                        parts.push(`\n### Instructions\nThis is a handoff task. Review all completed work, read the project plan, inspect key files, and produce a comprehensive plain-language maintenance guide. Call setCompletionSummary when done.`)
+                        parts.push(`\n### Instructions\nThis is a handoff task. Review all completed work, read the task journals (journal.md files listed above — these contain detailed records of what actually happened, including deviations from the plan), read the project plan, inspect key files, and produce a comprehensive plain-language maintenance guide. When the plan and journals disagree, trust the journals — they reflect what was actually built. Call setCompletionSummary when done.`)
                       } else {
+                        // For regular tasks: include session folder path so agent knows where to write journal.md
+                        if (session.sessionFolderPath) {
+                          parts.push(`\n### Session Folder\n\`${session.sessionFolderPath}\``)
+                        }
                         parts.push(`\n### Instructions\nExecute this task following TDD (red-green-refactor). After completion, write a 2-sentence summary. If you hit the same failure twice, stop and present options.`)
                       }
                       return parts.join('\n')

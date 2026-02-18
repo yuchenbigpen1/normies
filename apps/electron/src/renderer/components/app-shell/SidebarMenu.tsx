@@ -22,11 +22,12 @@ import {
   Plus,
   Trash2,
   ExternalLink,
+  Pencil,
 } from 'lucide-react'
 import { useMenuComponents } from '@/components/ui/menu-context'
 import { getDocUrl, type DocFeature } from '@normies/shared/docs/doc-links'
 
-export type SidebarMenuType = 'allChats' | 'flagged' | 'status' | 'sources' | 'skills' | 'labels' | 'views' | 'newChat'
+export type SidebarMenuType = 'allChats' | 'flagged' | 'status' | 'sources' | 'skills' | 'labels' | 'views' | 'newChat' | 'folder'
 
 export interface SidebarMenuProps {
   /** Type of sidebar item (determines available menu items) */
@@ -55,6 +56,10 @@ export interface SidebarMenuProps {
   viewId?: string
   /** Handler for "Delete View" action */
   onDeleteView?: (id: string) => void
+  /** Handler for "Rename Folder" action - for folder type */
+  onRenameFolder?: () => void
+  /** Handler for "Delete Folder" action - for folder type */
+  onDeleteFolder?: () => void
 }
 
 /**
@@ -75,6 +80,8 @@ export function SidebarMenu({
   onConfigureViews,
   viewId,
   onDeleteView,
+  onRenameFolder,
+  onDeleteFolder,
 }: SidebarMenuProps) {
   // Get menu components from context (works with both DropdownMenu and ContextMenu)
   const { MenuItem, Separator } = useMenuComponents()
@@ -86,6 +93,29 @@ export function SidebarMenu({
         <AppWindow className="h-3.5 w-3.5" />
         <span className="flex-1">Open in New Window</span>
       </MenuItem>
+    )
+  }
+
+  // Folder: show Rename and Delete
+  if (type === 'folder') {
+    return (
+      <>
+        {onRenameFolder && (
+          <MenuItem onClick={onRenameFolder}>
+            <Pencil className="h-3.5 w-3.5" />
+            <span className="flex-1">Rename Folder</span>
+          </MenuItem>
+        )}
+        {onDeleteFolder && (
+          <>
+            <Separator />
+            <MenuItem onClick={onDeleteFolder}>
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="flex-1">Delete Folder</span>
+            </MenuItem>
+          </>
+        )}
+      </>
     )
   }
 

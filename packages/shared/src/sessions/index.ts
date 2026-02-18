@@ -45,6 +45,8 @@ export {
   updateSessionMetadata,
   flagSession,
   unflagSession,
+  archiveSession,
+  unarchiveSession,
   setSessionTodoState,
   // Pending plan execution (Accept & Compact flow)
   setPendingPlanExecution,
@@ -53,6 +55,7 @@ export {
   getPendingPlanExecution,
   // Session filtering
   listFlaggedSessions,
+  listArchivedSessions,
   listCompletedSessions,
   listInboxSessions,
   // Plan storage
