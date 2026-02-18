@@ -1,7 +1,7 @@
 {
   "name": "normies",
-  "version": "0.1.0",
-  "description": "Guided AI assistant for non-technical business operators",
+  "version": "0.1.2",
+  "description": "Claude Code for people who aren't engineers",
   "type": "module",
   "private": true,
   "workspaces": [

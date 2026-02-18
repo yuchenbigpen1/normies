@@ -1,6 +1,6 @@
 # Normies
 
-Normies is a desktop AI assistant for non-technical operators, built as a fork of Craft Agents and adapted for guided business workflows.
+Normies is a desktop AI assistant for people who aren't engineers — Claude Code with a guide. Built as a fork of Craft Agents.
 
 ## What It Does
 
