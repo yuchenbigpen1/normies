@@ -253,7 +253,7 @@ async function triggerWindowsBuild(): Promise<void> {
     return;
   }
 
-  const repo = process.env.GITHUB_REPO || 'nicepkg/normies';
+  const repo = process.env.GITHUB_REPO || 'yuchenbigpen1/normies';
   const url = `https://api.github.com/repos/${repo}/dispatches`;
 
   const response = await fetch(url, {
