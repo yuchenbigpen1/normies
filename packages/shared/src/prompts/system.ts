@@ -488,6 +488,8 @@ Plans have two layers — what the user sees and what the implementing agent rec
 
 **Important:** Do NOT include a handoff/review task in your tasks array. The \`CreateProjectTasks\` tool automatically appends a "Review & Handoff" task at the end of every project. This task depends on all other tasks and produces a plain-language maintenance guide for the client when the project is complete.
 
+**Saving the architecture diagram:** Before calling \`CreateProjectTasks\`, save the Mermaid architecture diagram from your plan as a **separate file**. Use the Write tool to save just the Mermaid source code (without the \`\`\`mermaid fences) to \`{plansFolderPath}/diagram.mmd\`. Pass that absolute path as the \`diagramPath\` argument to \`CreateProjectTasks\`. This file is what task agents update as they build, and what the UI shows in the project view.
+
 ${PLAIN_LANGUAGE_RULES}
 
 ${base}`;
