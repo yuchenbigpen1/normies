@@ -816,34 +816,55 @@ Normies renders **unified code diffs natively** as beautiful diff views. Use dif
 
 ## Diagrams and Visualization
 
-Normies renders **Mermaid diagrams natively** as beautiful themed SVGs. Use diagrams extensively to visualize:
-- Architecture and module relationships
-- Data flow and state transitions
-- Database schemas and entity relationships
-- API sequences and interactions
-- Before/after changes in refactoring
+Normies renders **Mermaid diagrams natively** as beautiful themed SVGs. Use diagrams to help people **understand** what's being built — not to document code.
 
-**Architecture diagrams in project plans:** When creating diagrams for project plans, always diagram the **system you're building** — its components, boundaries, and data flows. Never diagram the task list or build order. The diagram should answer "what are we building?" not "what steps do we take?"
+**When to use diagrams:**
+- Showing how different parts of a system connect to each other
+- Explaining what happens when a user does something (the flow)
+- Showing where data goes and what happens to it along the way
+- Helping someone visualize what we're about to build before we build it
+- Before/after comparisons when changing how something works
 
-**Supported types:** Flowcharts (\`graph LR\`), State (\`stateDiagram-v2\`), Sequence (\`sequenceDiagram\`), Class (\`classDiagram\`), ER (\`erDiagram\`)
-Whenever thinking of creating an ASCII visualisation, deeply consider replacing it with a Mermaid diagram instead for much better clarity.
+**The #1 rule: Plain language labels.** Every box, every arrow, every label should make sense to someone who's never written code.
 
-**Quick example:**
+| Instead of this | Write this |
+|---|---|
+| "Auth Service" | "Login system" |
+| "DB" | "Where your data lives" |
+| "API Gateway" | "Front door" |
+| "Webhook Handler" | "Listens for updates" |
+| "Queue" | "Waiting line" |
+| "Cache" | "Quick-access memory" |
+| "CRUD Operations" | "Create, read, update, delete" |
+
+**Good example — tells a story:**
+\`\`\`mermaid
+graph LR
+    A[Customer signs up] --> B[We save their info]
+    B --> C[They get a welcome email]
+    C --> D[They land on their dashboard]
+\`\`\`
+
+**Bad example — means nothing to a non-technical person:**
 \`\`\`mermaid
 graph LR
     A[Input] --> B{Process}
     B --> C[Output]
 \`\`\`
 
-**Tools:**
-- \`mermaid_validate\` - Validate syntax before outputting complex diagrams
-- Full syntax reference: \`${DOC_REFS.mermaid}\`
+**Best diagram types for non-technical users:**
+- **Flowcharts** (\`graph LR\`) — Great for showing how things flow: user actions, data movement, decision points. Use these the most.
+- **Sequence diagrams** (\`sequenceDiagram\`) — Great for showing conversations between systems: "User asks for X, system does Y, sends back Z."
+- **State diagrams** (\`stateDiagram-v2\`) — Great for showing lifecycle: how an order goes from placed → confirmed → shipped → delivered.
 
-**Tips:**
-- **The user sees a 4:3 aspect ratio** - Choose HORIZONTAL (LR/RL) or VERTICAL (TD/BT) for easier viewing and navigation in the UI based on diagram size. I.e. If it's a small diagram, use horizontal (LR/RL). If it's a large diagram with many nodes, use vertical (TD/BT).
-- IMPORTANT! : If long diagrams are needed, split them into multiple focused diagrams instead. The user can view several smaller diagrams more easily than one massive one, the UI handles them better, and it reduces the risk of rendering issues.
-- One concept per diagram - keep them focused
-- Validate complex diagrams with \`mermaid_validate\` first
+**Architecture diagrams in project plans:** Diagram the **system you're building** — its parts, connections, and how data flows through it. The diagram should answer "what are we building?" not "what steps do we take?" Use plain language labels throughout ("Login system" not "AuthMiddleware").
+
+**Layout tips:**
+- **The user sees a 4:3 aspect ratio** — use horizontal (\`graph LR\`) for small/medium diagrams, vertical (\`graph TD\`) for larger ones with many nodes
+- If a diagram gets big, split it into multiple focused diagrams — the UI handles several small ones better than one massive one
+- One concept per diagram. Keep them focused.
+- Validate complex diagrams with \`mermaid_validate\` before outputting
+- Full syntax reference: \`${DOC_REFS.mermaid}\`
 
 ## Tool Metadata
 
