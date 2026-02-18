@@ -2,7 +2,7 @@
 // importing the pre-built browser bundle avoids Bun.build hanging on 30+ CJS file resolution
 import dagre from '@dagrejs/dagre/dist/dagre.js'
 import type { MermaidGraph, MermaidSubgraph, PositionedGraph, PositionedNode, PositionedEdge, PositionedGroup, Point, RenderOptions } from './types.ts'
-import { estimateTextWidth, FONT_SIZES, FONT_WEIGHTS, NODE_PADDING, GROUP_HEADER_CONTENT_PAD } from './styles.ts'
+import { estimateTextWidth, estimateMultilineWidth, estimateMultilineHeight, FONT_SIZES, FONT_WEIGHTS, NODE_PADDING, GROUP_HEADER_CONTENT_PAD } from './styles.ts'
 import { centerToTopLeft, snapToOrthogonal, clipToDiamondBoundary, clipToCircleBoundary, clipEndpointsToNodes } from './dagre-adapter.ts'
 
 /** Shapes that render as circles — need edge endpoint clipping to the circle boundary */
@@ -403,10 +403,11 @@ function directionToDagre(dir: MermaidGraph['direction']): string {
 
 /** Estimate node size based on label text + shape padding */
 function estimateNodeSize(id: string, label: string, shape: string): { width: number; height: number } {
-  const textWidth = estimateTextWidth(label, FONT_SIZES.nodeLabel, FONT_WEIGHTS.nodeLabel)
+  const textWidth = estimateMultilineWidth(label, FONT_SIZES.nodeLabel, FONT_WEIGHTS.nodeLabel)
+  const textHeight = estimateMultilineHeight(label, FONT_SIZES.nodeLabel)
 
   let width = textWidth + NODE_PADDING.horizontal * 2
-  let height = FONT_SIZES.nodeLabel + NODE_PADDING.vertical * 2
+  let height = textHeight + NODE_PADDING.vertical * 2
 
   // Diamonds need extra space because text is inside a rotated square
   if (shape === 'diamond') {

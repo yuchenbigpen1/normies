@@ -91,3 +91,33 @@ export const ARROW_HEAD = {
   height: 4.8,
 } as const
 
+/** Line height multiplier for multi-line labels (relative to font size) */
+export const LINE_HEIGHT = 1.3 as const
+
+/**
+ * Split a label on `<br>`, `<br/>`, or `<br />` (case-insensitive).
+ * Returns an array of line strings. Single-line labels return a 1-element array.
+ */
+export function splitLabel(text: string): string[] {
+  return text.split(/<br\s*\/?>/gi)
+}
+
+/**
+ * Estimate the width of a potentially multi-line label.
+ * Returns the width of the widest line.
+ */
+export function estimateMultilineWidth(text: string, fontSize: number, fontWeight: number): number {
+  const lines = splitLabel(text)
+  return Math.max(...lines.map(l => estimateTextWidth(l, fontSize, fontWeight)))
+}
+
+/**
+ * Estimate the height of a potentially multi-line label.
+ * Accounts for line spacing between lines.
+ */
+export function estimateMultilineHeight(text: string, fontSize: number): number {
+  const lines = splitLabel(text)
+  if (lines.length <= 1) return fontSize
+  return fontSize + (lines.length - 1) * fontSize * LINE_HEIGHT
+}
+

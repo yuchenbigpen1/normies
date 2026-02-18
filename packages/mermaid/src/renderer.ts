@@ -1,7 +1,7 @@
 import type { PositionedGraph, PositionedNode, PositionedEdge, PositionedGroup, Point } from './types.ts'
 import type { DiagramColors } from './theme.ts'
 import { svgOpenTag, buildStyleBlock } from './theme.ts'
-import { FONT_SIZES, FONT_WEIGHTS, STROKE_WIDTHS, ARROW_HEAD, estimateTextWidth, TEXT_BASELINE_SHIFT } from './styles.ts'
+import { FONT_SIZES, FONT_WEIGHTS, STROKE_WIDTHS, ARROW_HEAD, estimateTextWidth, estimateMultilineWidth, TEXT_BASELINE_SHIFT, LINE_HEIGHT, splitLabel } from './styles.ts'
 
 // ============================================================================
 // SVG renderer — converts a PositionedGraph into an SVG string.
@@ -168,20 +168,35 @@ function renderEdgeLabel(edge: PositionedEdge, font: string): string {
   // Fall back to geometric midpoint of the edge polyline.
   const mid = edge.labelPosition ?? edgeMidpoint(edge.points)
   const label = edge.label!
-  const textWidth = estimateTextWidth(label, FONT_SIZES.edgeLabel, FONT_WEIGHTS.edgeLabel)
+  const lines = splitLabel(label)
+  const textWidth = estimateMultilineWidth(label, FONT_SIZES.edgeLabel, FONT_WEIGHTS.edgeLabel)
   const padding = 8
 
   // Background pill behind text for readability
   const bgWidth = textWidth + padding * 2
-  const bgHeight = FONT_SIZES.edgeLabel + padding * 2
+  const lineCount = lines.length
+  const textBlockHeight = lineCount <= 1
+    ? FONT_SIZES.edgeLabel
+    : FONT_SIZES.edgeLabel + (lineCount - 1) * FONT_SIZES.edgeLabel * LINE_HEIGHT
+  const bgHeight = textBlockHeight + padding * 2
 
-  return (
+  const bgRect = (
     `<rect x="${mid.x - bgWidth / 2}" y="${mid.y - bgHeight / 2}" ` +
     `width="${bgWidth}" height="${bgHeight}" rx="4" ry="4" ` +
-    `fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />\n` +
-    `<text x="${mid.x}" y="${mid.y}" text-anchor="middle" dy="${TEXT_BASELINE_SHIFT}" ` +
-    `font-size="${FONT_SIZES.edgeLabel}" font-weight="${FONT_WEIGHTS.edgeLabel}" ` +
-    `fill="var(--_text-muted)">${escapeXml(label)}</text>`
+    `fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />`
+  )
+
+  if (lineCount <= 1) {
+    return (
+      bgRect + '\n' +
+      `<text x="${mid.x}" y="${mid.y}" text-anchor="middle" dy="${TEXT_BASELINE_SHIFT}" ` +
+      `font-size="${FONT_SIZES.edgeLabel}" font-weight="${FONT_WEIGHTS.edgeLabel}" ` +
+      `fill="var(--_text-muted)">${escapeXml(label)}</text>`
+    )
+  }
+
+  return bgRect + '\n' + renderMultilineText(
+    mid.x, mid.y, lines, FONT_SIZES.edgeLabel, FONT_WEIGHTS.edgeLabel, 'var(--_text-muted)'
   )
 }
 
@@ -463,10 +478,50 @@ function renderNodeLabel(node: PositionedNode, font: string): string {
   // Resolve text color — inline styles can override the CSS variable default
   const textColor = node.inlineStyle?.color ?? 'var(--_text)'
 
+  const lines = splitLabel(node.label)
+
+  // Single line — use simple text element (unchanged from original)
+  if (lines.length <= 1) {
+    return (
+      `<text x="${cx}" y="${cy}" text-anchor="middle" dy="${TEXT_BASELINE_SHIFT}" ` +
+      `font-size="${FONT_SIZES.nodeLabel}" font-weight="${FONT_WEIGHTS.nodeLabel}" ` +
+      `fill="${textColor}">${escapeXml(node.label)}</text>`
+    )
+  }
+
+  // Multi-line — render as tspan elements vertically centered at (cx, cy)
+  return renderMultilineText(cx, cy, lines, FONT_SIZES.nodeLabel, FONT_WEIGHTS.nodeLabel, textColor)
+}
+
+// ============================================================================
+// Multi-line text rendering
+// ============================================================================
+
+/**
+ * Render a multi-line label as a <text> element with <tspan> children.
+ * The text block is vertically centered at (cx, cy).
+ *
+ * SVG doesn't support automatic line wrapping, so we use <tspan> elements
+ * with dy offsets. The first tspan shifts up to center the block, then each
+ * subsequent tspan shifts down by one line height.
+ */
+function renderMultilineText(
+  cx: number, cy: number, lines: string[],
+  fontSize: number, fontWeight: number, fill: string
+): string {
+  const n = lines.length
+  // First tspan: baseline shift for centering + vertical offset to center the block
+  // 0.35em centers a single line; subtract (n-1) * lineHeight/2 to center the block
+  const firstDy = 0.35 - (n - 1) * LINE_HEIGHT / 2
+  const tspans = lines.map((line, i) => {
+    const dy = i === 0 ? `${firstDy}em` : `${LINE_HEIGHT}em`
+    return `<tspan x="${cx}" dy="${dy}">${escapeXml(line)}</tspan>`
+  }).join('')
+
   return (
-    `<text x="${cx}" y="${cy}" text-anchor="middle" dy="${TEXT_BASELINE_SHIFT}" ` +
-    `font-size="${FONT_SIZES.nodeLabel}" font-weight="${FONT_WEIGHTS.nodeLabel}" ` +
-    `fill="${textColor}">${escapeXml(node.label)}</text>`
+    `<text x="${cx}" y="${cy}" text-anchor="middle" ` +
+    `font-size="${fontSize}" font-weight="${fontWeight}" ` +
+    `fill="${fill}">${tspans}</text>`
   )
 }
 

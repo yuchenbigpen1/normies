@@ -495,3 +495,64 @@ describe('renderSvg – CSS variable theming', () => {
     expect(svg).toContain('fill="var(--_arrow)"')
   })
 })
+
+// ============================================================================
+// Multi-line labels (<br/> support)
+// ============================================================================
+
+describe('renderSvg – multi-line labels', () => {
+  it('renders <br/> in node labels as separate tspan lines', () => {
+    const node = makeNode({ label: 'Line 1<br/>Line 2' })
+    const graph = makeGraph({ nodes: [node] })
+    const svg = renderSvg(graph, lightColors)
+    // Should NOT contain literal <br/> text
+    expect(svg).not.toContain('&lt;br/&gt;')
+    // Should contain two tspan elements
+    expect(svg).toContain('<tspan')
+    expect(svg).toContain('>Line 1</tspan>')
+    expect(svg).toContain('>Line 2</tspan>')
+  })
+
+  it('handles <br> without closing slash', () => {
+    const node = makeNode({ label: 'First<br>Second' })
+    const graph = makeGraph({ nodes: [node] })
+    const svg = renderSvg(graph, lightColors)
+    expect(svg).not.toContain('&lt;br&gt;')
+    expect(svg).toContain('>First</tspan>')
+    expect(svg).toContain('>Second</tspan>')
+  })
+
+  it('handles <br /> with space before slash', () => {
+    const node = makeNode({ label: 'A<br />B' })
+    const graph = makeGraph({ nodes: [node] })
+    const svg = renderSvg(graph, lightColors)
+    expect(svg).not.toContain('&lt;br')
+    expect(svg).toContain('>A</tspan>')
+    expect(svg).toContain('>B</tspan>')
+  })
+
+  it('still renders single-line labels as plain text (no tspan)', () => {
+    const node = makeNode({ label: 'Simple label' })
+    const graph = makeGraph({ nodes: [node] })
+    const svg = renderSvg(graph, lightColors)
+    expect(svg).toContain('>Simple label</text>')
+    expect(svg).not.toContain('<tspan')
+  })
+
+  it('renders <br/> in edge labels as separate tspan lines', () => {
+    const edge = makeEdge({ label: 'Edge<br/>Label' })
+    const graph = makeGraph({ edges: [edge] })
+    const svg = renderSvg(graph, lightColors)
+    expect(svg).not.toContain('&lt;br/&gt;')
+    expect(svg).toContain('>Edge</tspan>')
+    expect(svg).toContain('>Label</tspan>')
+  })
+
+  it('escapes XML in each line of a multi-line label', () => {
+    const node = makeNode({ label: 'A & B<br/>C > D' })
+    const graph = makeGraph({ nodes: [node] })
+    const svg = renderSvg(graph, lightColors)
+    expect(svg).toContain('>A &amp; B</tspan>')
+    expect(svg).toContain('>C &gt; D</tspan>')
+  })
+})
