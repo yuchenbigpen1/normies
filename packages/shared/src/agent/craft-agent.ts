@@ -954,7 +954,8 @@ export class CraftAgent {
                 this.pinnedPreferencesPrompt ?? undefined,
                 this.config.debugMode,
                 this.workspaceRootPath,
-                this.config.session?.workingDirectory
+                this.config.session?.workingDirectory,
+                this.config.systemPromptPreset
               ),
             },
         // Use sdkCwd for SDK session storage - this is set once at session creation and never changes.

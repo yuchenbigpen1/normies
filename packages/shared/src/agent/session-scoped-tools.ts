@@ -2271,7 +2271,9 @@ function createSetCompletionSummaryTool(
 **Input:**
 - \`summary\`: A 1-2 sentence plain language summary of what was accomplished. Write for a non-technical audience.
 
-**Example:** "Set up the login page so users can sign in with their email and password. Added a lockout after 5 failed attempts to keep accounts secure."`,
+**Example:** "Set up the login page so users can sign in with their email and password. Added a lockout after 5 failed attempts to keep accounts secure."
+
+**NOT like this:** "Replaced PLAIN_LANGUAGE_RULES constant with expanded version featuring 7 subsections" — this means nothing to a non-technical person. Describe what changed from the user's perspective, not what you did in the code.`,
     {
       summary: z.string().describe('Plain language summary of what was accomplished (1-2 sentences)'),
     },
