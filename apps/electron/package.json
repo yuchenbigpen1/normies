@@ -1,6 +1,6 @@
 {
   "name": "@normies/electron",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Electron desktop app for Normies",
   "main": "dist/main.cjs",
   "private": true,
