@@ -84,6 +84,12 @@ export const UserPreferencesSchema = z.object({
   timezone: z.string().optional(),  // TODO: Could validate against IANA timezone list
   location: LocationSchema.optional(),
   language: z.string().optional(),
+  company: z.string().optional(),
+  role: z.string().optional(),
+  industry: z.string().optional(),
+  technicalLevel: z.enum(['non-technical', 'somewhat-technical', 'technical']).optional(),
+  tools: z.array(z.string()).optional(),
+  goals: z.array(z.string()).optional(),
   notes: z.string().optional(),
   updatedAt: z.number().int().min(0).optional(),
 });

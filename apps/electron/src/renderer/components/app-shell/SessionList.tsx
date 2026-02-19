@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { formatDistanceToNow, formatDistanceToNowStrict, isToday, isYesterday, format, startOfDay } from "date-fns"
 import type { Locale } from "date-fns"
-import { MoreHorizontal, Star, Copy, Link2Off, CloudUpload, Globe, RefreshCw, Inbox, Archive } from "lucide-react"
+import { MoreHorizontal, Star, Copy, Link2Off, CloudUpload, Globe, RefreshCw, Inbox, Archive, MessageSquare, FolderKanban } from "lucide-react"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
@@ -314,6 +314,10 @@ interface SessionItemProps {
   subtitle?: string
   /** Whether this item is shown in a project task list (hides permission mode badge and timestamp) */
   isProjectView?: boolean
+  /** Whether this item is shown in the archive view (simplified card: icon + title + timestamp only) */
+  isArchiveView?: boolean
+  /** Type of archive item — determines the icon shown ('chat' = MessageSquare, 'project' = FolderKanban) */
+  archiveItemType?: 'chat' | 'project'
 }
 
 /**
@@ -347,6 +351,8 @@ function SessionItem({
   chatMatchCount,
   subtitle,
   isProjectView,
+  isArchiveView,
+  archiveItemType,
 }: SessionItemProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
@@ -420,7 +426,16 @@ function SessionItem({
             onKeyDown(e, item)
           }}
         >
-          {/* Todo State Icon — inline so it aligns with title */}
+          {/* Leading icon — archive view shows chat/project icon, normal view shows todo state */}
+          {isArchiveView ? (
+            <div className="w-5 h-5 shrink-0 flex items-center justify-center text-foreground/40">
+              {archiveItemType === 'project' ? (
+                <FolderKanban className="w-4 h-4" />
+              ) : (
+                <MessageSquare className="w-4 h-4" />
+              )}
+            </div>
+          ) : (
           <Popover modal={true} open={todoMenuOpen} onOpenChange={setTodoMenuOpen}>
             <PopoverTrigger asChild>
               <div
@@ -465,6 +480,7 @@ function SessionItem({
               />
             </PopoverContent>
           </Popover>
+          )}
           {/* Content column */}
           <div className={cn("flex flex-col min-w-0 flex-1", isProjectView ? "gap-2.5" : "gap-1.5")}>
             {/* Title - up to 2 lines, with shimmer during async operations (sharing, title regen, etc.) */}
@@ -477,13 +493,30 @@ function SessionItem({
                 {searchQuery ? highlightMatch(getSessionTitle(item), searchQuery) : getSessionTitle(item)}
               </div>
             </div>
-            {/* Task subtitle — completionSummary or preview in project view, hidden for completed tasks */}
-            {subtitle && !isClosedState && (
+            {/* Task subtitle — completionSummary or preview in project view, hidden for completed tasks and archive view */}
+            {subtitle && !isClosedState && !isArchiveView && (
               <div className={cn("text-xs min-w-0 pr-6", isProjectView ? "text-foreground/70 line-clamp-3" : "text-muted-foreground line-clamp-3")}>
                 {subtitle}
               </div>
             )}
-            {/* Subtitle row — badges scroll horizontally when they overflow */}
+            {/* Archive view: simplified subtitle row — timestamp only */}
+            {isArchiveView ? (
+              <div className="flex items-center text-xs text-foreground/70 w-full -mb-[2px] min-w-0">
+                {item.lastMessageAt && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="shrink-0 text-[11px] text-foreground/40 whitespace-nowrap cursor-default">
+                        {formatDistanceToNowStrict(new Date(item.lastMessageAt), { locale: shortTimeLocale as Locale, roundingMethod: 'floor' })}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" sideOffset={4}>
+                      {formatDistanceToNow(new Date(item.lastMessageAt), { addSuffix: true })}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            ) : (
+            /* Normal subtitle row — badges scroll horizontally when they overflow */
             <div className="flex items-center gap-1.5 text-xs text-foreground/70 w-full -mb-[2px] min-w-0">
               {/* Fixed indicators (Spinner + New) — always visible */}
               {item.isProcessing && (
@@ -658,6 +691,7 @@ function SessionItem({
                 </Tooltip>
               )}
             </div>
+            )}
           </div>
         </button>
 
@@ -1601,6 +1635,8 @@ export function SessionList({
                         flatLabels={flatLabels}
                         labels={labels}
                         onLabelsChange={onLabelsChange}
+                        isArchiveView
+                        archiveItemType="chat"
                       />
                     )
                   })}
@@ -1644,6 +1680,8 @@ export function SessionList({
                         flatLabels={flatLabels}
                         labels={labels}
                         onLabelsChange={onLabelsChange}
+                        isArchiveView
+                        archiveItemType="project"
                       />
                     )
                   })}

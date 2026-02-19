@@ -407,6 +407,7 @@ export interface Session {
   taskDescription?: string
   taskTechnicalDetail?: string
   taskFiles?: string[]
+  taskTimeEstimate?: string
   taskType?: 'task' | 'handoff'
   // Task completion (Normies)
   completionSummary?: string
@@ -458,6 +459,7 @@ export interface CreateSessionOptions {
   taskDescription?: string
   taskTechnicalDetail?: string
   taskFiles?: string[]
+  taskTimeEstimate?: string
   taskType?: 'task' | 'handoff'
   // Plan reference (Normies)
   planPath?: string

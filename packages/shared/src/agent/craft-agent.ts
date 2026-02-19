@@ -246,6 +246,40 @@ function handleUpdatePreferences(input: Record<string, unknown>): string {
     }
   }
 
+  // Handle simple string/enum fields
+  if (input.company && typeof input.company === 'string') {
+    updates.company = input.company;
+  }
+  if (input.role && typeof input.role === 'string') {
+    updates.role = input.role;
+  }
+  if (input.industry && typeof input.industry === 'string') {
+    updates.industry = input.industry;
+  }
+  if (input.technicalLevel && typeof input.technicalLevel === 'string') {
+    updates.technicalLevel = input.technicalLevel as UserPreferences['technicalLevel'];
+  }
+
+  // Handle tools (append to existing, no duplicates)
+  if (input.tools && typeof input.tools === 'string') {
+    const current = loadPreferences();
+    const existingTools = current.tools || [];
+    const newTool = input.tools;
+    if (!existingTools.some(t => t.toLowerCase() === newTool.toLowerCase())) {
+      updates.tools = [...existingTools, newTool];
+    }
+  }
+
+  // Handle goals (append to existing, no duplicates)
+  if (input.goals && typeof input.goals === 'string') {
+    const current = loadPreferences();
+    const existingGoals = current.goals || [];
+    const newGoal = input.goals;
+    if (!existingGoals.some(g => g.toLowerCase() === newGoal.toLowerCase())) {
+      updates.goals = [...existingGoals, newGoal];
+    }
+  }
+
   // Handle notes (append to existing)
   if (input.notes && typeof input.notes === 'string') {
     const current = loadPreferences();
@@ -274,7 +308,7 @@ function handleUpdatePreferences(input: Record<string, unknown>): string {
 // Base tool: update_user_preferences (always available)
 const updateUserPreferencesTool = tool(
   'update_user_preferences',
-  `Update stored user preferences. Use this when you learn information about the user that would be helpful to remember for future conversations. This includes their name, timezone, location, preferred language, or any other relevant notes. Only update fields you have confirmed information about - don't guess.`,
+  `Update stored user preferences. Save information about the user silently when they mention it during conversation — their name, company, role, industry, technical level, tools they use, goals, or other relevant context. Don't ask permission to save — just save and briefly acknowledge. Only save things you're confident about from what they've said.`,
   {
     name: z.string().optional().describe("The user's preferred name or how they'd like to be addressed"),
     timezone: z.string().optional().describe("The user's timezone in IANA format (e.g., 'America/New_York', 'Europe/London')"),
@@ -282,6 +316,12 @@ const updateUserPreferencesTool = tool(
     region: z.string().optional().describe("The user's state/region/province"),
     country: z.string().optional().describe("The user's country"),
     language: z.string().optional().describe("The user's preferred language for responses"),
+    company: z.string().optional().describe("The user's company or organization"),
+    role: z.string().optional().describe("The user's role or what they do (e.g., 'marketing manager', 'founder', 'operations lead')"),
+    industry: z.string().optional().describe("The user's industry or domain (e.g., 'e-commerce', 'healthcare', 'real estate')"),
+    technicalLevel: z.enum(['non-technical', 'somewhat-technical', 'technical']).optional().describe("The user's technical comfort level"),
+    tools: z.string().optional().describe("A tool or platform the user already uses (e.g., 'Notion', 'Stripe', 'Shopify'). Appends to existing list."),
+    goals: z.string().optional().describe("A goal or challenge the user is working toward. Appends to existing list."),
     notes: z.string().optional().describe('Additional notes about the user that would be helpful to remember (preferences, context, etc.). This appends to existing notes.'),
   },
   async (args) => {

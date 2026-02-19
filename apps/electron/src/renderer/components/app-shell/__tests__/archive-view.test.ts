@@ -125,3 +125,34 @@ describe('splitArchiveSections', () => {
     expect(projects).toHaveLength(0)
   })
 })
+
+// ============================================================================
+// Archive item type classification
+// ============================================================================
+
+/**
+ * Determine the archive item type for icon display.
+ * - Items in the chats section get 'chat' type
+ * - Items in the projects section get 'project' type
+ */
+function getArchiveItemType(session: ArchiveableSession): 'chat' | 'project' | null {
+  if (!session.projectId && session.taskIndex == null) return 'chat'
+  if (session.projectId && session.taskIndex == null) return 'project'
+  return null // task sub-sessions are excluded
+}
+
+describe('getArchiveItemType', () => {
+  it('returns "chat" for standalone sessions', () => {
+    expect(getArchiveItemType({ id: '1' })).toBe('chat')
+    expect(getArchiveItemType({ id: '2', isArchived: true })).toBe('chat')
+  })
+
+  it('returns "project" for project parent sessions', () => {
+    expect(getArchiveItemType({ id: '1', projectId: 'proj-a' })).toBe('project')
+  })
+
+  it('returns null for task sub-sessions', () => {
+    expect(getArchiveItemType({ id: '1', projectId: 'proj-a', taskIndex: 0 })).toBeNull()
+    expect(getArchiveItemType({ id: '2', projectId: 'proj-a', taskIndex: 1 })).toBeNull()
+  })
+})

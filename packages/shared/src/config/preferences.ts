@@ -25,6 +25,13 @@ export interface UserPreferences {
   timezone?: string;
   location?: UserLocation;
   language?: string;
+  // Business & personal context the agent learns over time
+  company?: string;        // Company or organization name
+  role?: string;           // Their role or what they do
+  industry?: string;       // Industry or domain they work in
+  technicalLevel?: 'non-technical' | 'somewhat-technical' | 'technical';
+  tools?: string[];        // Tools/platforms they already use
+  goals?: string[];        // What they're trying to achieve
   // Free-form notes the agent learns about the user
   notes?: string;
   // Diff viewer display preferences
@@ -82,7 +89,9 @@ export function formatPreferencesForPrompt(): string {
   const prefs = loadPreferences();
 
   if (Object.keys(prefs).length === 0 ||
-      (!prefs.name && !prefs.timezone && !prefs.location && !prefs.language && !prefs.notes)) {
+      (!prefs.name && !prefs.timezone && !prefs.location && !prefs.language && !prefs.notes &&
+       !prefs.company && !prefs.role && !prefs.industry && !prefs.technicalLevel &&
+       !prefs.tools?.length && !prefs.goals?.length)) {
     return '';
   }
 
@@ -108,6 +117,30 @@ export function formatPreferencesForPrompt(): string {
     lines.push(`- Preferred language: ${prefs.language}`);
   }
 
+  if (prefs.company) {
+    lines.push(`- Company: ${prefs.company}`);
+  }
+
+  if (prefs.role) {
+    lines.push(`- Role: ${prefs.role}`);
+  }
+
+  if (prefs.industry) {
+    lines.push(`- Industry: ${prefs.industry}`);
+  }
+
+  if (prefs.technicalLevel) {
+    lines.push(`- Technical level: ${prefs.technicalLevel}`);
+  }
+
+  if (prefs.tools?.length) {
+    lines.push(`- Tools they use: ${prefs.tools.join(', ')}`);
+  }
+
+  if (prefs.goals?.length) {
+    lines.push(`- Goals: ${prefs.goals.join('; ')}`);
+  }
+
   if (prefs.notes) {
     lines.push('', '### Notes about this user', prefs.notes);
   }
@@ -130,7 +163,14 @@ export function formatPreferencesDisplay(): string {
   const hasLocation = prefs.location && (prefs.location.city || prefs.location.region || prefs.location.country);
   const hasLanguage = !!prefs.language;
   const hasNotes = !!prefs.notes;
-  const hasAnyPrefs = hasName || hasTimezone || hasLocation || hasLanguage || hasNotes;
+  const hasCompany = !!prefs.company;
+  const hasRole = !!prefs.role;
+  const hasIndustry = !!prefs.industry;
+  const hasTechnicalLevel = !!prefs.technicalLevel;
+  const hasTools = !!(prefs.tools && prefs.tools.length > 0);
+  const hasGoals = !!(prefs.goals && prefs.goals.length > 0);
+  const hasAnyPrefs = hasName || hasTimezone || hasLocation || hasLanguage || hasNotes ||
+    hasCompany || hasRole || hasIndustry || hasTechnicalLevel || hasTools || hasGoals;
 
   lines.push('Your preferences help personalise your experience. The assistant uses these to provide more relevant responses (e.g., timezone for scheduling, language for communication).');
   lines.push('');
@@ -151,6 +191,22 @@ export function formatPreferencesDisplay(): string {
     }
 
     lines.push(`- Language: ${prefs.language || '(not set)'}`);
+    lines.push(`- Company: ${prefs.company || '(not set)'}`);
+    lines.push(`- Role: ${prefs.role || '(not set)'}`);
+    lines.push(`- Industry: ${prefs.industry || '(not set)'}`);
+    lines.push(`- Technical level: ${prefs.technicalLevel || '(not set)'}`);
+
+    if (hasTools) {
+      lines.push(`- Tools: ${prefs.tools!.join(', ')}`);
+    } else {
+      lines.push('- Tools: (not set)');
+    }
+
+    if (hasGoals) {
+      lines.push(`- Goals: ${prefs.goals!.join('; ')}`);
+    } else {
+      lines.push('- Goals: (not set)');
+    }
 
     if (hasNotes) {
       lines.push('', '**Notes**', prefs.notes!);

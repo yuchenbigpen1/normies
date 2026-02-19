@@ -121,6 +121,7 @@ export interface SessionConfig {
   taskDescription?: string;
   taskTechnicalDetail?: string;
   taskFiles?: string[];
+  taskTimeEstimate?: string;
   // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
   taskType?: 'task' | 'handoff';
   // Thread linking (Normies)
@@ -229,6 +230,7 @@ export interface SessionHeader {
   taskDescription?: string;
   taskTechnicalDetail?: string;
   taskFiles?: string[];
+  taskTimeEstimate?: string;
   // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
   taskType?: 'task' | 'handoff';
   // Thread linking (Normies)
@@ -310,6 +312,7 @@ export interface SessionMetadata {
   taskDescription?: string;
   taskTechnicalDetail?: string;
   taskFiles?: string[];
+  taskTimeEstimate?: string;
   // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
   taskType?: 'task' | 'handoff';
   // Thread linking (Normies)

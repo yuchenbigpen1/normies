@@ -29,6 +29,7 @@ const TaskInputSchema = z.object({
   dependencies: z.array(z.number()).describe('Task indices this task depends on'),
   taskIndex: z.number().describe('Zero-based task ordering index'),
   taskType: z.enum(['task', 'handoff']).optional(),
+  timeEstimate: z.string().optional().describe('Conservative time estimate (e.g., "~20 min", "~1.5 hours")'),
 });
 
 /**
@@ -48,6 +49,7 @@ export interface CreateProjectSessionsData {
     dependencies: number[];
     taskIndex: number;
     taskType?: 'task' | 'handoff';
+    timeEstimate?: string;
   }>;
 }
 
@@ -160,7 +162,7 @@ Each task becomes a separate conversation that the user can start when ready.
         const allTasks: Array<{
           title: string; description: string; technicalDetail: string;
           files: string[]; dependencies: number[]; taskIndex: number;
-          taskType: 'task' | 'handoff';
+          taskType: 'task' | 'handoff'; timeEstimate?: string;
         }> = args.tasks.map(t => ({
           title: t.title,
           description: t.description,
@@ -169,6 +171,7 @@ Each task becomes a separate conversation that the user can start when ready.
           dependencies: t.dependencies,
           taskIndex: t.taskIndex,
           taskType: 'task' as const,
+          timeEstimate: t.timeEstimate,
         }));
 
         // Auto-append handoff task that depends on all other tasks

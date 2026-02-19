@@ -184,6 +184,7 @@ export async function createSession(
     taskDescription?: string;
     taskTechnicalDetail?: string;
     taskFiles?: string[];
+    taskTimeEstimate?: string;
     taskType?: SessionConfig['taskType'];
     // Plan reference (Normies)
     planPath?: string;
@@ -230,6 +231,7 @@ export async function createSession(
     taskDescription: options?.taskDescription,
     taskTechnicalDetail: options?.taskTechnicalDetail,
     taskFiles: options?.taskFiles,
+    taskTimeEstimate: options?.taskTimeEstimate,
     taskType: options?.taskType,
     // Thread linking (Normies)
     threadParentSessionId: options?.threadParentSessionId,

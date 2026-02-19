@@ -1502,6 +1502,9 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                     if (session.taskDescription) {
                       displayParts.push(`\n${session.taskDescription}`)
                     }
+                    if (session.taskTimeEstimate) {
+                      displayParts.push(`\n**Estimated time:** ${session.taskTimeEstimate}`)
+                    }
                     if (session.taskDependencies && session.taskDependencies.length > 0) {
                       displayParts.push(`\n**Depends on:** ${session.taskDependencies.map((d: number) => `Task ${d + 1}`).join(', ')}`)
                     }

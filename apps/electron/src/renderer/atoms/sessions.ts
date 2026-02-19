@@ -80,6 +80,7 @@ export interface SessionMeta {
   taskDescription?: string
   taskTechnicalDetail?: string
   taskFiles?: string[]
+  taskTimeEstimate?: string
   taskType?: 'task' | 'handoff'
   // Thread linking (Normies)
   threadParentSessionId?: string
@@ -155,6 +156,7 @@ export function extractSessionMeta(session: Session): SessionMeta {
     taskDescription: session.taskDescription,
     taskTechnicalDetail: session.taskTechnicalDetail,
     taskFiles: session.taskFiles,
+    taskTimeEstimate: session.taskTimeEstimate,
     taskType: session.taskType,
     // Thread linking (Normies)
     threadParentSessionId: session.threadParentSessionId,

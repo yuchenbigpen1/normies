@@ -260,6 +260,16 @@ export function SessionMetadataPanel({ sessionId, closeButton }: SessionMetadata
         {/* Task info sections (Normies) — only shown for task sessions */}
         {isTaskSession && (
           <>
+            {/* Time estimate */}
+            {session?.taskTimeEstimate && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5 select-none">
+                  Estimated Time
+                </label>
+                <p className="text-sm text-foreground/80">{session.taskTimeEstimate}</p>
+              </div>
+            )}
+
             {/* Completion summary */}
             {session?.completionSummary && (
               <div>
