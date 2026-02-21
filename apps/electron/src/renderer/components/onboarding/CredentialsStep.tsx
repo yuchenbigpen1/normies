@@ -25,7 +25,7 @@ interface CredentialsStepProps {
   onSubmit: (data: ApiKeySubmitData) => void
   onStartOAuth?: () => void
   onBack: () => void
-  // Two-step OAuth flow
+  // Two-step OAuth flow (Claude only)
   isWaitingForCode?: boolean
   onSubmitAuthCode?: (code: string) => void
   onCancelOAuth?: () => void
@@ -42,11 +42,43 @@ export function CredentialsStep({
   onSubmitAuthCode,
   onCancelOAuth,
 }: CredentialsStepProps) {
-  const isOAuth = apiSetupMethod === 'claude_oauth'
+  const isClaudeOAuth = apiSetupMethod === 'claude_oauth'
+  const isChatGptOAuth = apiSetupMethod === 'chatgpt_oauth'
+  const isOpenAI = apiSetupMethod === 'openai_api_key'
 
-  // --- OAuth flow ---
-  if (isOAuth) {
-    // Waiting for authorization code entry
+  // --- ChatGPT OAuth (single-step — browser opens, no code pasting) ---
+  if (isChatGptOAuth) {
+    return (
+      <StepFormLayout
+        title="Connect ChatGPT Account"
+        description="Use your ChatGPT Plus or Pro subscription with Codex."
+        actions={
+          <>
+            <BackButton onClick={onBack} disabled={status === 'validating'} />
+            <ContinueButton
+              onClick={onStartOAuth}
+              className="gap-2"
+              loading={status === 'validating'}
+              loadingText="Connecting..."
+            >
+              <ExternalLink className="size-4" />
+              Sign in with ChatGPT
+            </ContinueButton>
+          </>
+        }
+      >
+        {/* Error message */}
+        {status === 'error' && errorMessage && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive text-center">
+            {errorMessage}
+          </div>
+        )}
+      </StepFormLayout>
+    )
+  }
+
+  // --- Claude OAuth (two-step — code paste required) ---
+  if (isClaudeOAuth) {
     if (isWaitingForCode) {
       return (
         <StepFormLayout
@@ -108,7 +140,36 @@ export function CredentialsStep({
     )
   }
 
-  // --- API Key flow ---
+  // --- OpenAI API Key ---
+  if (isOpenAI) {
+    return (
+      <StepFormLayout
+        title="OpenAI API Key"
+        description="Enter your OpenAI API key to use Codex models."
+        actions={
+          <>
+            <BackButton onClick={onBack} disabled={status === 'validating'} />
+            <ContinueButton
+              type="submit"
+              form="api-key-form"
+              disabled={false}
+              loading={status === 'validating'}
+              loadingText="Validating..."
+            />
+          </>
+        }
+      >
+        <ApiKeyInput
+          status={status as ApiKeyStatus}
+          errorMessage={errorMessage}
+          onSubmit={onSubmit}
+          providerType="openai"
+        />
+      </StepFormLayout>
+    )
+  }
+
+  // --- Anthropic API Key (default) ---
   return (
     <StepFormLayout
       title="API Configuration"
@@ -130,6 +191,7 @@ export function CredentialsStep({
         status={status as ApiKeyStatus}
         errorMessage={errorMessage}
         onSubmit={onSubmit}
+        providerType="anthropic"
       />
     </StepFormLayout>
   )

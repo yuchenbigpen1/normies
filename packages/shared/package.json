@@ -1,6 +1,6 @@
 {
   "name": "@normies/shared",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "license": "Apache-2.0",
   "description": "Shared business logic for Normies - agent, auth, config, credentials, MCP integration",
   "type": "module",
@@ -55,6 +55,7 @@
   },
   "dependencies": {
     "@normies/core": "workspace:*",
+    "@normies/codex-types": "workspace:*",
     "@normies/mermaid": "workspace:*",
     "@isaacs/ttlcache": "^2.1.4",
     "glob": "^11.0.0",

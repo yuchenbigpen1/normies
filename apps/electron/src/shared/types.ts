@@ -24,6 +24,10 @@ import type { ThinkingLevel } from '@normies/shared/agent/thinking-levels';
 export type { ThinkingLevel };
 export { THINKING_LEVELS, DEFAULT_THINKING_LEVEL } from '@normies/shared/agent/thinking-levels';
 
+// LLM connection types (for model picker + connection-aware UI)
+import type { LlmConnection, LlmConnectionWithStatus } from '@normies/shared/config/llm-connections';
+export type { LlmConnection, LlmConnectionWithStatus };
+
 export type {
   CoreMessage as Message,
   CoreMessageRole as MessageRole,
@@ -419,6 +423,8 @@ export interface Session {
   systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
   /** When true, session is hidden from session list (e.g., mini edit sessions) */
   hidden?: boolean
+  /** LLM connection slug locked to this session after first message */
+  connectionSlug?: string
 }
 
 /**
@@ -506,6 +512,7 @@ export type SessionEvent =
   | { type: 'session_unflagged'; sessionId: string }
   | { type: 'name_changed'; sessionId: string; name?: string }
   | { type: 'session_model_changed'; sessionId: string; model: string | null }
+  | { type: 'session_connection_changed'; sessionId: string; connectionSlug: string }
   | { type: 'todo_state_changed'; sessionId: string; todoState: TodoState }
   | { type: 'session_deleted'; sessionId: string }
   | { type: 'session_shared'; sessionId: string; sharedUrl: string }
@@ -561,6 +568,7 @@ export type SessionCommand =
   | { type: 'setSources'; sourceSlugs: string[] }
   | { type: 'setLabels'; labels: string[] }
   | { type: 'setFolder'; folderId: string | undefined }
+  | { type: 'setConnection'; connectionSlug: string }
   | { type: 'showInFinder' }
   | { type: 'copyPath' }
   | { type: 'shareToViewer' }
@@ -702,6 +710,9 @@ export const IPC_CHANNELS = {
   ONBOARDING_EXCHANGE_CLAUDE_CODE: 'onboarding:exchangeClaudeCode',
   ONBOARDING_HAS_CLAUDE_OAUTH_STATE: 'onboarding:hasClaudeOAuthState',
   ONBOARDING_CLEAR_CLAUDE_OAUTH_STATE: 'onboarding:clearClaudeOAuthState',
+  // ChatGPT OAuth (single-step flow — callback server captures code automatically)
+  CHATGPT_START_OAUTH: 'chatgpt:startOAuth',
+  CHATGPT_CANCEL_OAUTH: 'chatgpt:cancelOAuth',
 
   // Settings - API Setup
   SETTINGS_GET_API_SETUP: 'settings:getApiSetup',
@@ -713,6 +724,18 @@ export const IPC_CHANNELS = {
   SETTINGS_SET_MODEL: 'settings:setModel',
   SESSION_GET_MODEL: 'session:getModel',
   SESSION_SET_MODEL: 'session:setModel',
+  SESSION_SET_CONNECTION: 'session:setConnection',
+
+  // LLM Connections
+  GET_LLM_CONNECTIONS: 'settings:getLlmConnections',
+  LLM_CONNECTION_SAVE: 'LLM_Connection:save',
+  LLM_CONNECTION_DELETE: 'LLM_Connection:delete',
+  LLM_CONNECTION_SET_DEFAULT: 'LLM_Connection:setDefault',
+  LLM_CONNECTION_SET_WORKSPACE_DEFAULT: 'LLM_Connection:setWorkspaceDefault',
+  LLM_CONNECTION_TEST: 'LLM_Connection:test',
+  LLM_CONNECTION_REFRESH_MODELS: 'LLM_Connection:refreshModels',
+  SETUP_LLM_CONNECTION: 'settings:setupLlmConnection',
+  LLM_CONNECTIONS_CHANGED: 'LLM_Connection:changed',
 
   // Folder dialog (for selecting working directory)
   OPEN_FOLDER_DIALOG: 'dialog:openFolder',
@@ -986,17 +1009,35 @@ export interface ElectronAPI {
     mcpCredentials?: { accessToken: string; clientId?: string }  // MCP OAuth credentials
     anthropicBaseUrl?: string | null  // Custom Anthropic API base URL
     customModel?: string | null  // Custom model ID override
+    providerType?: 'anthropic' | 'openai'  // LLM provider type for API key paths
+    chatGptTokens?: { idToken: string; accessToken: string; refreshToken?: string; expiresAt?: number }
   }): Promise<OnboardingSaveResult>
   // Claude OAuth (two-step flow)
   startClaudeOAuth(): Promise<{ success: boolean; authUrl?: string; error?: string }>
   exchangeClaudeCode(code: string): Promise<ClaudeOAuthResult>
   hasClaudeOAuthState(): Promise<boolean>
   clearClaudeOAuthState(): Promise<{ success: boolean }>
+  // ChatGPT OAuth (single-step — opens browser, callback server captures code automatically)
+  startChatGptOAuth(): Promise<{ success: boolean; apiKey?: string; idToken?: string; accessToken?: string; refreshToken?: string; expiresAt?: number; error?: string }>
+  cancelChatGptOAuth(): Promise<{ success: boolean }>
 
   // Settings - API Setup
   getApiSetup(): Promise<ApiSetupInfo>
   updateApiSetup(authType: AuthType, credential?: string, anthropicBaseUrl?: string | null, customModel?: string | null): Promise<void>
   testApiConnection(apiKey: string, baseUrl?: string, modelName?: string): Promise<{ success: boolean; error?: string; modelCount?: number }>
+
+  // LLM Connections (with auth status)
+  getLlmConnections(): Promise<LlmConnectionWithStatus[]>
+
+  // LLM Connection Management
+  saveLlmConnection(connection: LlmConnection, credential?: string): Promise<LlmConnectionWithStatus>
+  deleteLlmConnection(slug: string): Promise<{ success: boolean; error?: string }>
+  setDefaultLlmConnection(slug: string): Promise<void>
+  setWorkspaceDefaultLlmConnection(workspaceId: string, slug: string): Promise<void>
+  testLlmConnection(connection: LlmConnection, credential?: string): Promise<{ success: boolean; error?: string }>
+  refreshLlmConnectionModels(slug: string): Promise<{ success: boolean; models?: Array<import('@normies/shared/config/models').ModelDefinition | string>; error?: string }>
+  setupLlmConnection(connection: LlmConnection, credential?: string): Promise<{ success: boolean; connection?: LlmConnectionWithStatus; error?: string }>
+  onLlmConnectionsChanged(callback: (connections: LlmConnectionWithStatus[]) => void): () => void
 
   // Settings - Model (global default)
   getModel(): Promise<string | null>
@@ -1004,6 +1045,8 @@ export interface ElectronAPI {
   // Session-specific model (overrides global)
   getSessionModel(sessionId: string, workspaceId: string): Promise<string | null>
   setSessionModel(sessionId: string, workspaceId: string, model: string | null): Promise<void>
+  // Session-specific LLM connection (locked after first message)
+  setSessionConnection(sessionId: string, workspaceId: string, connectionSlug: string): Promise<void>
 
   // Workspace Settings (per-workspace configuration)
   getWorkspaceSettings(workspaceId: string): Promise<WorkspaceSettings | null>
@@ -1269,7 +1312,7 @@ export type ChatFilter =
 /**
  * Settings subpage options
  */
-export type SettingsSubpage = 'app' | 'appearance' | 'input' | 'workspace' | 'permissions' | 'labels' | 'shortcuts' | 'preferences'
+export type SettingsSubpage = 'app' | 'ai' | 'appearance' | 'input' | 'workspace' | 'permissions' | 'labels' | 'shortcuts' | 'preferences'
 
 /**
  * Chats navigation state - shows SessionList in navigator
@@ -1438,7 +1481,7 @@ export const parseNavigationStateKey = (key: string): NavigationState | null => 
   if (key === 'settings') return { navigator: 'settings', subpage: 'app' }
   if (key.startsWith('settings:')) {
     const subpage = key.slice(9) as SettingsSubpage
-    if (['app', 'appearance', 'input', 'workspace', 'permissions', 'labels', 'shortcuts', 'preferences'].includes(subpage)) {
+    if (['app', 'ai', 'appearance', 'input', 'workspace', 'permissions', 'labels', 'shortcuts', 'preferences'].includes(subpage)) {
       return { navigator: 'settings', subpage }
     }
   }

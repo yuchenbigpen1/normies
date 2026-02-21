@@ -218,7 +218,7 @@ export const MENU_SECTIONS: MenuSection[] = [EDIT_MENU, VIEW_MENU, WINDOW_MENU]
  * Used by both AppMenu (logo dropdown) and SettingsNavigator (sidebar panel)
  */
 export interface SettingsMenuItem {
-  id: 'app' | 'appearance' | 'input' | 'workspace' | 'permissions' | 'labels' | 'shortcuts' | 'preferences'
+  id: 'app' | 'ai' | 'appearance' | 'input' | 'workspace' | 'permissions' | 'labels' | 'shortcuts' | 'preferences'
   label: string
   icon: string        // Lucide icon name for AppMenu
   description: string // Shown in SettingsNavigator
@@ -233,7 +233,13 @@ export const SETTINGS_ITEMS: SettingsMenuItem[] = [
     id: 'app',
     label: 'App',
     icon: 'ToggleRight',
-    description: 'Notifications, API connection, updates',
+    description: 'Notifications, analytics, updates',
+  },
+  {
+    id: 'ai',
+    label: 'AI',
+    icon: 'Brain',
+    description: 'Connections, models, thinking level',
   },
   {
     id: 'appearance',

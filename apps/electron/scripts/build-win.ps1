@@ -154,6 +154,19 @@ try {
     Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
 }
 
+# 3.5. Copy Codex binary for win32-x64
+Write-Host "Copying Codex binary for win32-x64..."
+$CodexSource = "$RootDir\vendor\codex\win32-x64\codex.exe"
+if (Test-Path $CodexSource) {
+    New-Item -ItemType Directory -Force -Path "$ElectronDir\vendor\codex\win32-x64" | Out-Null
+    Copy-Item -Path $CodexSource -Destination "$ElectronDir\vendor\codex\win32-x64\codex.exe" -Force
+    Write-Host "  Codex binary copied." -ForegroundColor Green
+} else {
+    Write-Host "  WARNING: Codex binary not found at $CodexSource" -ForegroundColor Yellow
+    Write-Host "  Run 'bash scripts/download-codex.sh' to download it."
+    Write-Host "  The app will fall back to a system-installed 'codex' command."
+}
+
 # 4. Copy SDK from root node_modules (monorepo hoisting)
 $SdkSource = "$RootDir\node_modules\@anthropic-ai\claude-agent-sdk"
 if (-not (Test-Path $SdkSource)) {

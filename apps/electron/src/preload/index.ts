@@ -180,12 +180,17 @@ const api: ElectronAPI = {
     mcpCredentials?: { accessToken: string; clientId?: string }
     anthropicBaseUrl?: string | null
     customModel?: string | null
+    providerType?: 'anthropic' | 'openai'
+    chatGptTokens?: { idToken: string; accessToken: string; refreshToken?: string; expiresAt?: number }
   }) => ipcRenderer.invoke(IPC_CHANNELS.ONBOARDING_SAVE_CONFIG, config),
   // Claude OAuth (two-step flow)
   startClaudeOAuth: () => ipcRenderer.invoke(IPC_CHANNELS.ONBOARDING_START_CLAUDE_OAUTH),
   exchangeClaudeCode: (code: string) => ipcRenderer.invoke(IPC_CHANNELS.ONBOARDING_EXCHANGE_CLAUDE_CODE, code),
   hasClaudeOAuthState: () => ipcRenderer.invoke(IPC_CHANNELS.ONBOARDING_HAS_CLAUDE_OAUTH_STATE),
   clearClaudeOAuthState: () => ipcRenderer.invoke(IPC_CHANNELS.ONBOARDING_CLEAR_CLAUDE_OAUTH_STATE),
+  // ChatGPT OAuth (single-step flow)
+  startChatGptOAuth: () => ipcRenderer.invoke(IPC_CHANNELS.CHATGPT_START_OAUTH),
+  cancelChatGptOAuth: () => ipcRenderer.invoke(IPC_CHANNELS.CHATGPT_CANCEL_OAUTH),
 
   // Settings - API Setup
   getApiSetup: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_API_SETUP),
@@ -193,6 +198,32 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE_API_SETUP, authType, credential, anthropicBaseUrl, customModel),
   testApiConnection: (apiKey: string, baseUrl?: string, modelName?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_TEST_API_CONNECTION, apiKey, baseUrl, modelName),
+
+  // LLM Connections
+  getLlmConnections: () => ipcRenderer.invoke(IPC_CHANNELS.GET_LLM_CONNECTIONS),
+
+  // LLM Connection Management
+  saveLlmConnection: (connection: import('../shared/types').LlmConnection, credential?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SAVE, connection, credential),
+  deleteLlmConnection: (slug: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_DELETE, slug),
+  setDefaultLlmConnection: (slug: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SET_DEFAULT, slug),
+  setWorkspaceDefaultLlmConnection: (workspaceId: string, slug: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SET_WORKSPACE_DEFAULT, workspaceId, slug),
+  testLlmConnection: (connection: import('../shared/types').LlmConnection, credential?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_TEST, connection, credential),
+  refreshLlmConnectionModels: (slug: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_REFRESH_MODELS, slug),
+  setupLlmConnection: (connection: import('../shared/types').LlmConnection, credential?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SETUP_LLM_CONNECTION, connection, credential),
+  onLlmConnectionsChanged: (callback: (connections: import('../shared/types').LlmConnectionWithStatus[]) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, connections: import('../shared/types').LlmConnectionWithStatus[]) => {
+      callback(connections)
+    }
+    ipcRenderer.on(IPC_CHANNELS.LLM_CONNECTIONS_CHANGED, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.LLM_CONNECTIONS_CHANGED, handler)
+  },
 
   // Settings - Model (global default)
   getModel: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_MODEL),
@@ -202,6 +233,9 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.SESSION_GET_MODEL, sessionId, workspaceId),
   setSessionModel: (sessionId: string, workspaceId: string, model: string | null) =>
     ipcRenderer.invoke(IPC_CHANNELS.SESSION_SET_MODEL, sessionId, workspaceId, model),
+  // Session-specific LLM connection (locked after first message)
+  setSessionConnection: (sessionId: string, workspaceId: string, connectionSlug: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SESSION_SET_CONNECTION, sessionId, workspaceId, connectionSlug),
 
   // Workspace Settings (per-workspace configuration)
   getWorkspaceSettings: (workspaceId: string) =>

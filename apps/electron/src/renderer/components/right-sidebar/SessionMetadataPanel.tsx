@@ -11,7 +11,7 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAtomValue } from 'jotai'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, GitGraph } from 'lucide-react'
 import { PanelHeader } from '../app-shell/PanelHeader'
 import { useSession as useSessionData, useAppShellContext } from '@/context/AppShellContext'
 import { Input } from '../ui/input'
@@ -25,6 +25,8 @@ import * as storage from '@/lib/local-storage'
 export interface SessionMetadataPanelProps {
   sessionId?: string
   closeButton?: React.ReactNode
+  /** Optional callback to open the project diagram overlay */
+  onOpenDiagram?: (() => void) | null
 }
 
 // Default and constraints for metadata section height
@@ -73,7 +75,7 @@ function useDebouncedCallback<T extends (...args: any[]) => void>(
 /**
  * Panel displaying session metadata with minimal styling
  */
-export function SessionMetadataPanel({ sessionId, closeButton }: SessionMetadataPanelProps) {
+export function SessionMetadataPanel({ sessionId, closeButton, onOpenDiagram }: SessionMetadataPanelProps) {
   const { onRenameSession, todoStates = [] } = useAppShellContext()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -219,6 +221,19 @@ export function SessionMetadataPanel({ sessionId, closeButton }: SessionMetadata
   return (
     <div ref={containerRef} className="h-full flex flex-col">
       <PanelHeader title={isTaskSession ? 'Task Info' : 'Chat Info'} actions={closeButton} />
+
+      {/* View Diagram button — shown for project sessions with a diagram */}
+      {onOpenDiagram && (
+        <div className="px-3 pt-1 pb-1 shrink-0">
+          <button
+            onClick={onOpenDiagram}
+            className="flex w-full items-center justify-center gap-2 rounded-[8px] py-[7px] px-3 text-[13px] font-medium bg-foreground/[0.06] hover:bg-foreground/[0.1] transition-colors select-none outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <GitGraph className="h-3.5 w-3.5" />
+            <span>View Diagram</span>
+          </button>
+        </div>
+      )}
 
       {/* Metadata section (Name + Notes) - fixed height based on state */}
       <div

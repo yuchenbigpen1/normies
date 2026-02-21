@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import type { ThemeOverrides } from '@config/theme'
 import { useSetAtom, useStore, useAtomValue } from 'jotai'
-import type { Session, Workspace, SessionEvent, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, QuestionRequest, QuestionResponse, SetupNeeds, TodoState, NewChatActionParams, ContentBadge } from '../shared/types'
+import type { Session, Workspace, SessionEvent, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, QuestionRequest, QuestionResponse, SetupNeeds, TodoState, NewChatActionParams, ContentBadge, LlmConnectionWithStatus } from '../shared/types'
 import type { SessionOptions, SessionOptionUpdates } from './hooks/useSessionOptions'
 import { defaultSessionOptions, mergeSessionOptions } from './hooks/useSessionOptions'
 import { generateMessageId } from '../shared/types'
@@ -184,6 +184,8 @@ export default function App() {
   // Custom model override from API connection settings (OpenRouter, Ollama, etc.)
   // When set, the Anthropic model selector is hidden and this model is shown instead.
   const [customModel, setCustomModel] = useState<string | null>(null)
+  // All configured LLM connections with auth status
+  const [llmConnections, setLlmConnections] = useState<LlmConnectionWithStatus[]>([])
   const [menuNewChatTrigger, setMenuNewChatTrigger] = useState(0)
   // Permission requests per session (queue to handle multiple concurrent requests)
   const [pendingPermissions, setPendingPermissions] = useState<Map<string, PermissionRequest[]>>(new Map())
@@ -268,6 +270,12 @@ export default function App() {
     setCustomModel(billing.customModel || null)
   }, [])
 
+  // Re-fetch LLM connections (call after onboarding or settings change)
+  const refreshLlmConnections = useCallback(async () => {
+    const connections = await window.electronAPI.getLlmConnections()
+    setLlmConnections(connections)
+  }, [])
+
   // Handle onboarding completion
   const handleOnboardingComplete = useCallback(async () => {
     // Reload workspaces after onboarding
@@ -287,9 +295,13 @@ export default function App() {
 
   // Onboarding hook — onConfigSaved fires immediately when billing is saved,
   // ensuring customModel context updates before the wizard closes.
+  const handleOnboardingConfigSaved = useCallback(async () => {
+    await Promise.all([refreshCustomModel(), refreshLlmConnections()])
+  }, [refreshCustomModel, refreshLlmConnections])
+
   const onboarding = useOnboarding({
     onComplete: handleOnboardingComplete,
-    onConfigSaved: refreshCustomModel,
+    onConfigSaved: handleOnboardingConfigSaved,
     initialSetupNeeds: setupNeeds || undefined,
   })
 
@@ -409,6 +421,8 @@ export default function App() {
     window.electronAPI.getApiSetup().then((billing) => {
       setCustomModel(billing.customModel || null)
     })
+    // Load LLM connections with auth status
+    window.electronAPI.getLlmConnections().then(setLlmConnections)
     // Load persisted input drafts into ref (no re-render needed)
     window.electronAPI.getAllDrafts().then((drafts) => {
       if (Object.keys(drafts).length > 0) {
@@ -1286,6 +1300,8 @@ export default function App() {
     activeWorkspaceSlug: windowWorkspaceSlug,
     currentModel,
     customModel,
+    llmConnections,
+    refreshLlmConnections,
     pendingPermissions,
     pendingCredentials,
     pendingQuestions,
@@ -1333,6 +1349,8 @@ export default function App() {
     windowWorkspaceSlug,
     currentModel,
     customModel,
+    llmConnections,
+    refreshLlmConnections,
     pendingPermissions,
     pendingCredentials,
     pendingQuestions,

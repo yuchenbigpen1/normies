@@ -311,8 +311,11 @@ export function getSystemPrompt(
   debugMode?: DebugModeConfig,
   workspaceRootPath?: string,
   workingDirectory?: string,
-  preset?: SystemPromptPreset | string
+  preset?: SystemPromptPreset | string,
+  backendName?: string
 ): string {
+  const resolvedBackendName = backendName ?? 'Claude Code';
+
   // Use mini agent prompt for quick edits (pass workspace root for config paths)
   if (preset === 'mini') {
     debug('[getSystemPrompt] 🤖 Generating MINI agent system prompt for workspace:', workspaceRootPath);
@@ -322,7 +325,7 @@ export function getSystemPrompt(
   // Normies: Route to specialized prompts based on preset
   if (preset === 'task-execution') {
     debug('[getSystemPrompt] 🔧 Generating TASK EXECUTION system prompt');
-    return getTaskExecutionSystemPrompt(workspaceRootPath);
+    return getTaskExecutionSystemPrompt(workspaceRootPath, resolvedBackendName);
   }
 
   if (preset === 'thread') {
@@ -336,7 +339,7 @@ export function getSystemPrompt(
     const preferences = pinnedPreferencesPrompt ?? formatPreferencesForPrompt();
     const debugContext = debugMode?.enabled ? formatDebugModeContext(debugMode.logFilePath) : '';
     const projectContextFiles = getProjectContextFilesPrompt(workingDirectory);
-    const explorePrompt = getExploreSystemPrompt(workspaceRootPath);
+    const explorePrompt = getExploreSystemPrompt(workspaceRootPath, resolvedBackendName);
     return `${explorePrompt}${preferences}${debugContext}${projectContextFiles}`;
   }
 
@@ -348,7 +351,7 @@ export function getSystemPrompt(
     const preferences = pinnedPreferencesPrompt ?? formatPreferencesForPrompt();
     const debugContext = debugMode?.enabled ? formatDebugModeContext(debugMode.logFilePath) : '';
     const projectContextFiles = getProjectContextFilesPrompt(workingDirectory);
-    const explorePrompt = getExploreSystemPrompt(workspaceRootPath);
+    const explorePrompt = getExploreSystemPrompt(workspaceRootPath, resolvedBackendName);
     const fullPrompt = `${explorePrompt}${preferences}${debugContext}${projectContextFiles}`;
     debug('[getSystemPrompt] full prompt length:', fullPrompt.length);
     return fullPrompt;
@@ -422,8 +425,8 @@ You're not an assistant — you're the technical friend everyone wishes they had
  * Includes: consultant role, Don't Build gate, brainstorming flow, plan creation,
  * complexity honesty, plain language rules, MCP platform awareness.
  */
-function getExploreSystemPrompt(workspaceRootPath?: string): string {
-  const base = getCraftAssistantPrompt(workspaceRootPath);
+function getExploreSystemPrompt(workspaceRootPath?: string, backendName?: string): string {
+  const base = getCraftAssistantPrompt(workspaceRootPath, backendName);
   return `You're the technical friend everyone wishes they had. Your job is to help people who aren't engineers turn their ideas and problems into working solutions — whether that means recommending the right tool, wiring up an automation, building something custom, or honestly telling them "you don't need to build anything." You translate between what people want and what technology can do. You speak in plain language, you're honest about what's hard, and you never assume building is the answer.
 
 ## Prompt Clarity Check
@@ -477,7 +480,17 @@ When presenting plans or designs, flag honestly:
 
 Plans have two layers — what the user sees and what the implementing agent receives. Never mix them.
 
-**The plan (user-facing via SubmitPlan):** Plain language only. No code blocks, no file paths, no terminal commands. Describe what each task accomplishes in terms you'd explain to a friend. Include a Mermaid architecture diagram with plain language labels ("Login system" not "AuthMiddleware") showing what we're building — components, connections, data flow. Also include a numbered task list with a one-sentence description and time estimate per task (e.g., "1. Set up the login page — ~30 min"). No build order jargon, no dependency notation.
+**The plan (user-facing via SubmitPlan):** Plain language only. No code blocks, no file paths, no terminal commands. Must include all three of these sections:
+
+1. **What we're building** — A short paragraph describing the end result. What will work that doesn't work now?
+2. **Architecture diagram** — A Mermaid diagram with plain language labels ("Login system" not "AuthMiddleware") showing components, connections, and data flow.
+3. **Task list** — A numbered list where each task has: a one-sentence plain-language description and a time estimate. Format exactly like this:
+   \`\`\`
+   1. Set up the login page — ~30 min
+   2. Connect to the database — ~45 min
+   3. Build the dashboard — ~1.5 hours
+   \`\`\`
+   No jargon, no dependency notation, no technical detail.
 
 **CreateProjectTasks fields:**
 - \`title\`: Plain language task name ("Set up the login page" not "AuthMiddleware")
@@ -500,8 +513,8 @@ ${base}`;
  * Includes: TDD, verification before completion, error logging, re-read plan,
  * post-task summary, diagram update, mid-execution replanning, plain language rules.
  */
-function getTaskExecutionSystemPrompt(workspaceRootPath?: string): string {
-  const base = getCraftAssistantPrompt(workspaceRootPath);
+function getTaskExecutionSystemPrompt(workspaceRootPath?: string, backendName?: string): string {
+  const base = getCraftAssistantPrompt(workspaceRootPath, backendName);
   return `You are executing a specific task from a project plan. Follow the task description carefully and completely.
 
 ## Test-Driven Development (TDD)
@@ -715,7 +728,8 @@ function getCraftAgentEnvironmentMarker(): string {
  * This prompt is intentionally concise - detailed documentation lives in
  * ${APP_ROOT}/docs/ and is read on-demand when topics come up.
  */
-function getCraftAssistantPrompt(workspaceRootPath?: string): string {
+function getCraftAssistantPrompt(workspaceRootPath?: string, backendName?: string): string {
+  const resolvedBackendName = backendName ?? 'Claude Code';
   // Default to ${APP_ROOT}/workspaces/{id} if no path provided
   const workspacePath = workspaceRootPath || `${APP_ROOT}/workspaces/{id}`;
 
@@ -734,7 +748,7 @@ You are Normies - the AI assistant for people who aren't engineers. You help peo
 **Core capabilities:**
 - **Connect external sources** - MCP servers, REST APIs, local filesystems. Users can integrate Linear, GitHub, Craft, custom APIs, and more.
 - **Automate workflows** - Combine data from multiple sources to create unique, powerful workflows.
-- **Code** - You are powered by Claude Code, so you can write and execute code (Python, Bash) to manipulate data, call APIs, and automate tasks.
+- **Code** - You are powered by ${resolvedBackendName}, so you can write and execute code (Python, Bash) to manipulate data, call APIs, and automate tasks.
 
 ## External Sources
 
@@ -904,5 +918,22 @@ All MCP tools require two metadata fields (schema-enforced):
 - **\`_displayName\`** (required): Short name for the action (2-4 words), e.g., "List Folders", "Search Documents"
 - **\`_intent\`** (required): Brief description of what you're trying to accomplish (1-2 sentences)
 
-These help with UI feedback and result summarization.`;
+These help with UI feedback and result summarization.${resolvedBackendName === 'Codex' ? `
+
+## Planning Tools (Codex)
+
+Two distinct plan tools exist for different audiences:
+- **\`update_plan\`** — Updates the live task board visible to the agent. Use this during execution to track progress (mark tasks in_progress, completed, etc.).
+- **\`SubmitPlan\`** — Presents a plan to the user for approval. Use this only when the user needs to review and accept the plan before work begins.
+
+**Important — no heredocs:** The Codex sandbox blocks heredoc syntax (\`<<EOF\`). When creating plan files with shell commands, use single quotes and printf instead:
+\`printf '%s\\n' 'line one' 'line two' > plan.md\`
+
+## MCP Tool Naming (Codex)
+
+MCP tools follow the naming convention \`mcp__{slug}__{tool}\` — two underscores on each side of the source slug. For example, a Linear source with slug \`linear\` exposes tools like \`mcp__linear__list_issues\`.
+
+- **Do NOT call \`list_mcp_resources\`** — it is not available and will error.
+- OAuth tools (e.g., \`source_google_oauth_trigger\`) are available when a source requires authentication.
+- **Run \`source_test\` at most once per source** per session — it's a network call and repeated use wastes time.` : ''}`;
 }

@@ -12,7 +12,7 @@
  */
 
 import { getCredentialManager } from '../credentials/index.ts';
-import { loadStoredConfig, getActiveWorkspace, type AuthType, type Workspace } from '../config/storage.ts';
+import { loadStoredConfig, getActiveWorkspace, getLlmConnections, type AuthType, type Workspace } from '../config/storage.ts';
 import { refreshClaudeToken, isTokenExpired } from './claude-token.ts';
 import { debug } from '../utils/debug.ts';
 import type { AuthState, SetupNeeds, MigrationInfo } from './types.ts';
@@ -226,10 +226,15 @@ export function getSetupNeeds(state: AuthState): SetupNeeds {
   // Need credentials if billing type is set but credentials are missing
   const needsCredentials = state.billing.type !== null && !state.billing.hasCredentials;
 
+  // Check if any LLM connections exist (new multi-provider system).
+  // If an LLM connection is configured, the user has completed setup
+  // regardless of legacy billing state.
+  const hasLlmConnections = getLlmConnections().length > 0;
+
   return {
-    needsBillingConfig,
-    needsCredentials,
-    isFullyConfigured: !needsBillingConfig && !needsCredentials,
+    needsBillingConfig: needsBillingConfig && !hasLlmConnections,
+    needsCredentials: needsCredentials && !hasLlmConnections,
+    isFullyConfigured: (!needsBillingConfig && !needsCredentials) || hasLlmConnections,
     needsMigration: state.billing.migrationRequired,
   };
 }

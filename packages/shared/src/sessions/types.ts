@@ -97,6 +97,8 @@ export interface SessionConfig {
   sharedId?: string;
   /** Model to use for this session (overrides global config if set) */
   model?: string;
+  /** LLM connection slug locked to this session (undefined = use global default) */
+  connectionSlug?: string;
   /** Thinking level for this session ('off', 'think', 'max') */
   thinkingLevel?: ThinkingLevel;
   /**
@@ -195,6 +197,8 @@ export interface SessionHeader {
   sharedId?: string;
   /** Model to use for this session (overrides global config if set) */
   model?: string;
+  /** LLM connection slug locked to this session (undefined = use global default) */
+  connectionSlug?: string;
   /** Thinking level for this session ('off', 'think', 'max') */
   thinkingLevel?: ThinkingLevel;
   /**
@@ -287,6 +291,8 @@ export interface SessionMetadata {
   lastMessageRole?: 'user' | 'assistant' | 'plan' | 'tool' | 'error';
   /** Model to use for this session (overrides global config if set) */
   model?: string;
+  /** LLM connection slug locked to this session (undefined = use global default) */
+  connectionSlug?: string;
   /** Thinking level for this session ('off', 'think', 'max') */
   thinkingLevel?: ThinkingLevel;
   /** ID of last message user has read - for unread detection */

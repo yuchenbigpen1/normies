@@ -3305,14 +3305,19 @@ function AppShellContent({
                       {...getEditConfig('add-skill', activeWorkspace.rootPath)}
                     />
                   )}
-                  {/* Project view: Diagram and Plan buttons */}
+                  {/* Project view: Planning Chat and Plan buttons */}
                   {chatFilter?.kind === 'project' && (
                     <>
-                      {projectDiagramPath && (
+                      {projectParentSessionId && (
                         <HeaderIconButton
-                          icon={<GitGraph className="h-[18px] w-[18px]" />}
-                          tooltip="View Diagram"
-                          onClick={handleOpenDiagram}
+                          icon={<MessageSquareText className="h-[18px] w-[18px]" />}
+                          tooltip="Planning Chat"
+                          onClick={() => {
+                            if (session.selected) {
+                              setPlanReturnRoute(routes.view.project(chatFilter.projectId, session.selected))
+                            }
+                            navigate(routes.view.allChats(projectParentSessionId))
+                          }}
                         />
                       )}
                       {projectPlanPath && (
@@ -3520,6 +3525,7 @@ function AppShellContent({
                     panel={{ type: 'sessionMetadata' }}
                     sessionId={isChatsNavigation(navState) && navState.details ? navState.details.sessionId : undefined}
                     closeButton={rightSidebarCloseButton}
+                    onOpenDiagram={projectDiagramPath ? handleOpenDiagram : null}
                   />
                 </motion.div>
               </motion.div>
@@ -3553,6 +3559,7 @@ function AppShellContent({
                         panel={{ type: 'sessionMetadata' }}
                         sessionId={isChatsNavigation(navState) && navState.details ? navState.details.sessionId : undefined}
                         closeButton={rightSidebarCloseButton}
+                        onOpenDiagram={projectDiagramPath ? handleOpenDiagram : null}
                       />
                     </div>
                   </motion.div>

@@ -16,15 +16,17 @@ export interface RightSidebarProps {
   sessionId?: string
   /** Close button to display in panel header */
   closeButton?: React.ReactNode
+  /** Optional callback to open the project diagram (shown in header when available) */
+  onOpenDiagram?: (() => void) | null
 }
 
 /**
  * Routes right sidebar content based on panel type
  */
-export function RightSidebar({ panel, sessionId, closeButton }: RightSidebarProps) {
+export function RightSidebar({ panel, sessionId, closeButton, onOpenDiagram }: RightSidebarProps) {
   switch (panel.type) {
     case 'sessionMetadata':
-      return <SessionMetadataPanel sessionId={sessionId} closeButton={closeButton} />
+      return <SessionMetadataPanel sessionId={sessionId} closeButton={closeButton} onOpenDiagram={onOpenDiagram} />
 
     case 'files':
       // TODO: Implement SessionFilesPanel

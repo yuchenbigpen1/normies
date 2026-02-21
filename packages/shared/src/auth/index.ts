@@ -10,3 +10,5 @@ export * from './microsoft-oauth.ts';
 export * from './oauth.ts';
 export * from './pkce.ts';
 export * from './state.ts';
+export * from './chatgpt-oauth.ts';
+export * from './chatgpt-oauth-config.ts';

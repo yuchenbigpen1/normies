@@ -113,6 +113,20 @@ unzip -o "$TEMP_DIR/${BUN_DOWNLOAD}.zip" -d "$TEMP_DIR"
 cp "$TEMP_DIR/${BUN_DOWNLOAD}/bun" "$ELECTRON_DIR/vendor/bun/"
 chmod +x "$ELECTRON_DIR/vendor/bun/bun"
 
+# 3.5. Copy Codex binary for linux-${ARCH}
+echo "Copying Codex binary for linux-${ARCH}..."
+CODEX_SOURCE="$ROOT_DIR/vendor/codex/linux-${ARCH}"
+if [ -d "$CODEX_SOURCE" ] && [ -f "$CODEX_SOURCE/codex" ]; then
+    mkdir -p "$ELECTRON_DIR/vendor/codex/linux-${ARCH}"
+    cp "$CODEX_SOURCE/codex" "$ELECTRON_DIR/vendor/codex/linux-${ARCH}/"
+    chmod +x "$ELECTRON_DIR/vendor/codex/linux-${ARCH}/codex"
+    echo "  Codex binary copied."
+else
+    echo "  WARNING: Codex binary not found at $CODEX_SOURCE/codex"
+    echo "  Run './scripts/download-codex.sh' from the repository root to download it."
+    echo "  The app will fall back to a system-installed 'codex' command."
+fi
+
 # 4. Copy SDK from root node_modules (monorepo hoisting)
 # Note: The SDK is hoisted to root node_modules by the package manager.
 # We copy it here because electron-builder only sees apps/electron/.

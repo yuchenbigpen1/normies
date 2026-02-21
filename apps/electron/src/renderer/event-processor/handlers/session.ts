@@ -31,6 +31,7 @@ import type {
   WorkingDirectoryChangedEvent,
   PermissionModeChangedEvent,
   SessionModelChangedEvent,
+  SessionConnectionChangedEvent,
   UserMessageEvent,
   SessionSharedEvent,
   SessionUnsharedEvent,
@@ -413,6 +414,24 @@ export function handleSessionModelChanged(
   return {
     state: {
       session: { ...session, model: event.model ?? undefined },
+      streaming,
+    },
+    effects: [],
+  }
+}
+
+/**
+ * Handle session_connection_changed - update session connection slug
+ */
+export function handleSessionConnectionChanged(
+  state: SessionState,
+  event: SessionConnectionChangedEvent
+): ProcessResult {
+  const { session, streaming } = state
+
+  return {
+    state: {
+      session: { ...session, connectionSlug: event.connectionSlug },
       streaming,
     },
     effects: [],

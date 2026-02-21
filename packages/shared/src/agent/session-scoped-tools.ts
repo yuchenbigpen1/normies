@@ -415,6 +415,19 @@ Brief description of what this plan accomplishes.
         };
       }
 
+      // Validate plan includes time estimates (e.g., "~20 min", "~1.5 hours", "~2h")
+      const hasTimeEstimates = /~\s*\d+(\.\d+)?\s*(min|hour|hr|h\b)/i.test(planContent);
+      if (!hasTimeEstimates) {
+        debug('[SubmitPlan] Plan rejected — missing time estimates');
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'Plan rejected: missing time estimates. Each task in the plan must include a time estimate (e.g., "~30 min", "~1.5 hours"). Update the plan file to add estimates, then call SubmitPlan again.',
+          }],
+          isError: true,
+        };
+      }
+
       // Store the plan file path
       setLastPlanFilePath(sessionId, args.planPath);
 

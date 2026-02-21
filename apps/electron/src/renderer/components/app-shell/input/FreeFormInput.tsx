@@ -10,6 +10,7 @@ import {
   DatabaseZap,
   ChevronDown,
   Loader2,
+  AlertCircle,
 } from 'lucide-react'
 import { Icon_Home, Icon_Folder } from '@normies/ui'
 
@@ -53,7 +54,14 @@ import { cn } from '@/lib/utils'
 import { isMac, PATH_SEP, getPathBasename } from '@/lib/platform'
 import { applySmartTypography } from '@/lib/smart-typography'
 import { AttachmentPreview } from '../AttachmentPreview'
-import { MODELS, getModelShortName, getModelContextWindow, isClaudeModel } from '@config/models'
+import { MODELS, OPENAI_MODELS, getModelShortName, getModelContextWindow, isClaudeModel, type ModelDefinition } from '@config/models'
+import {
+  resolveEffectiveConnectionSlug,
+  groupConnectionsByProvider,
+  isAnthropicProvider as isAnthropicProviderType,
+  isCompatProvider,
+} from '@config/llm-connections'
+import { ConnectionIcon } from '@/components/icons/ConnectionIcon'
 import { useOptionalAppShellContext } from '@/context/AppShellContext'
 import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
 import { SourceAvatar } from '@/components/ui/source-avatar'
@@ -189,6 +197,13 @@ export interface FreeFormInputProps {
   compactMode?: boolean
   /** Input variant: 'full' (default) or 'stripped' (thread overlay — hides attachments, sources, directory, context badge but keeps model picker) */
   variant?: 'full' | 'stripped'
+  // Connection selection (hierarchical connection → model selector)
+  /** Current LLM connection slug (locked after first message) */
+  currentConnection?: string
+  /** Callback when connection changes (only works when session is empty) */
+  onConnectionChange?: (connectionSlug: string) => void
+  /** When true, the session's locked connection has been removed */
+  connectionUnavailable?: boolean
 }
 
 /**
@@ -240,6 +255,9 @@ export function FreeFormInput({
   contextStatus,
   compactMode = false,
   variant = 'full',
+  currentConnection,
+  onConnectionChange,
+  connectionUnavailable = false,
 }: FreeFormInputProps) {
   // Stripped mode: thread overlay variant — hides chrome but keeps model picker
   const isStripped = variant === 'stripped'
@@ -248,6 +266,60 @@ export function FreeFormInput({
   // Uses optional variant so playground (no provider) doesn't crash.
   const appShellCtx = useOptionalAppShellContext()
   const customModel = appShellCtx?.customModel ?? null
+  // Determine the active LLM connection via hierarchical resolution
+  const llmConnections = appShellCtx?.llmConnections ?? []
+
+  // Effective connection: session → global default → first connection
+  const effectiveConnectionSlug = resolveEffectiveConnectionSlug(
+    currentConnection, undefined, llmConnections
+  )
+  const effectiveConnectionDetails = React.useMemo(() => {
+    if (!effectiveConnectionSlug) return null
+    return llmConnections.find(c => c.slug === effectiveConnectionSlug) ?? null
+  }, [llmConnections, effectiveConnectionSlug])
+
+  // Group connections by provider for hierarchical dropdown
+  const connectionsByProvider = React.useMemo(() =>
+    groupConnectionsByProvider(llmConnections),
+    [llmConnections]
+  )
+
+  // Compat provider with single model: lock to that model (no picker)
+  const connectionDefaultModel = React.useMemo(() => {
+    const conn = effectiveConnectionDetails
+    if (!conn) return null
+    if (!isCompatProvider(conn.providerType)) return null
+    if (conn.models && conn.models.length > 1) return null
+    return conn.defaultModel ?? null
+  }, [effectiveConnectionDetails])
+
+  // Available models from effective connection
+  const availableModels = React.useMemo((): Array<ModelDefinition | string> => {
+    if (connectionUnavailable) return []
+    const connection = effectiveConnectionDetails
+    if (!connection) return MODELS // Safety fallback
+    return connection.models?.length
+      ? connection.models
+      : (isAnthropicProviderType(connection.providerType) ? MODELS : OPENAI_MODELS)
+  }, [effectiveConnectionDetails, connectionUnavailable])
+
+  // Is the effective provider Anthropic-family (for thinking selector)
+  const isEffectiveAnthropicProvider = effectiveConnectionDetails
+    ? isAnthropicProviderType(effectiveConnectionDetails.providerType)
+    : true
+
+  // Model display name for trigger button
+  const currentModelDisplayName = React.useMemo(() => {
+    if (customModel) return getModelShortName(customModel)
+    for (const m of availableModels) {
+      if (typeof m === 'string') {
+        if (m === currentModel) return getModelShortName(m)
+      } else {
+        if (m.id === currentModel) return m.shortName
+      }
+    }
+    return getModelShortName(currentModel)
+  }, [customModel, currentModel, availableModels])
   // Access todoStates and onTodoStateChange from context for the # menu state picker
   const todoStates = appShellCtx?.todoStates ?? []
   const onTodoStateChange = appShellCtx?.onTodoStateChange
@@ -1538,20 +1610,41 @@ export function FreeFormInput({
                     type="button"
                     className={cn(
                       "inline-flex items-center h-7 px-1.5 gap-0.5 text-[13px] shrink-0 rounded-[6px] hover:bg-foreground/5 transition-colors select-none",
-                      modelDropdownOpen && "bg-foreground/5"
+                      modelDropdownOpen && "bg-foreground/5",
+                      connectionUnavailable && "text-destructive",
                     )}
                   >
-                    {/* Show custom model name when a custom API connection is active */}
-                    {getModelShortName(customModel || currentModel)}
-                    {!customModel && <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />}
+                    {connectionUnavailable ? (
+                      <>
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        Unavailable
+                      </>
+                    ) : (
+                      <>
+                        {effectiveConnectionDetails && llmConnections.length > 1 && (
+                          <ConnectionIcon connection={effectiveConnectionDetails} size={14} showTooltip />
+                        )}
+                        {currentModelDisplayName}
+                        {!customModel && !connectionDefaultModel && <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />}
+                      </>
+                    )}
                   </button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
               <TooltipContent side="top">Model</TooltipContent>
             </Tooltip>
             <StyledDropdownMenuContent side="top" align="end" sideOffset={8} className="min-w-[240px]">
-              {/* When custom model is active, show it as a static item instead of Anthropic options */}
-              {customModel ? (
+              {/* Mode 1: Connection unavailable — session's connection was deleted */}
+              {connectionUnavailable ? (
+                <StyledDropdownMenuItem disabled className="flex items-center gap-2 px-2 py-3 rounded-lg">
+                  <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                  <div className="text-left">
+                    <div className="font-medium text-sm">Connection Unavailable</div>
+                    <div className="text-xs text-muted-foreground">Start a new chat to select a connection</div>
+                  </div>
+                </StyledDropdownMenuItem>
+              ) : customModel ? (
+                /* Custom model override — show as static item */
                 <StyledDropdownMenuItem
                   disabled
                   className="flex items-center justify-between px-2 py-2 rounded-lg"
@@ -1562,35 +1655,101 @@ export function FreeFormInput({
                   </div>
                   <Check className="h-4 w-4 text-foreground shrink-0 ml-3" />
                 </StyledDropdownMenuItem>
+              ) : connectionDefaultModel ? (
+                /* Compat provider with single model — locked to connection default */
+                <StyledDropdownMenuItem
+                  disabled
+                  className="flex items-center justify-between px-2 py-2 rounded-lg"
+                >
+                  <div className="text-left">
+                    <div className="font-medium text-sm">{getModelShortName(connectionDefaultModel)}</div>
+                    <div className="text-xs text-muted-foreground">Connection default</div>
+                  </div>
+                  <Check className="h-4 w-4 text-foreground shrink-0 ml-3" />
+                </StyledDropdownMenuItem>
+              ) : isEmptySession && llmConnections.length > 1 ? (
+                /* Mode 2: Hierarchical — provider groups → connections → models */
+                connectionsByProvider.map(([providerLabel, providerConns]) => (
+                  <React.Fragment key={providerLabel}>
+                    {/* Provider group header */}
+                    <div className="px-2 py-1 text-[11px] font-medium text-muted-foreground uppercase tracking-wider select-none">
+                      {providerLabel}
+                    </div>
+                    {providerConns.map((conn) => {
+                      const isEffective = conn.slug === effectiveConnectionSlug
+                      const connModels = conn.models?.length
+                        ? conn.models
+                        : (isAnthropicProviderType(conn.providerType) ? MODELS : OPENAI_MODELS)
+                      return (
+                        <DropdownMenuSub key={conn.slug}>
+                          <StyledDropdownMenuSubTrigger className="flex items-center gap-2 px-2 py-2 rounded-lg">
+                            <ConnectionIcon connection={conn} size={16} />
+                            <div className="text-left flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate">{conn.name}</div>
+                            </div>
+                            {isEffective && <Check className="h-3.5 w-3.5 shrink-0 opacity-50" />}
+                          </StyledDropdownMenuSubTrigger>
+                          <StyledDropdownMenuSubContent className="min-w-[220px]">
+                            {connModels.map((model) => {
+                              const modelId = typeof model === 'string' ? model : model.id
+                              const modelName = typeof model === 'string' ? getModelShortName(model) : model.name
+                              const modelDesc = typeof model === 'string' ? '' : model.description
+                              const isSelected = isEffective && currentModel === modelId
+                              return (
+                                <StyledDropdownMenuItem
+                                  key={modelId}
+                                  onSelect={() => {
+                                    if (!isEffective) onConnectionChange?.(conn.slug)
+                                    onModelChange(modelId)
+                                  }}
+                                  className="flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer"
+                                >
+                                  <div className="text-left">
+                                    <div className="font-medium text-sm">{modelName}</div>
+                                    {modelDesc && <div className="text-xs text-muted-foreground">{modelDesc}</div>}
+                                  </div>
+                                  {isSelected && <Check className="h-4 w-4 text-foreground shrink-0 ml-3" />}
+                                </StyledDropdownMenuItem>
+                              )
+                            })}
+                          </StyledDropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )
+                    })}
+                  </React.Fragment>
+                ))
               ) : (
-                /* Standard Anthropic model options */
-                MODELS.map((model) => {
-                  const isSelected = currentModel === model.id
-                  const descriptions: Record<string, string> = {
-                    'claude-opus-4-6': 'Most capable for complex work',
-                    'claude-sonnet-4-6': 'Best for everyday tasks',
-                    'claude-haiku-4-5-20251001': 'Fastest for quick answers',
-                  }
-                  return (
-                    <StyledDropdownMenuItem
-                      key={model.id}
-                      onSelect={() => onModelChange(model.id)}
-                      className="flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer"
-                    >
-                      <div className="text-left">
-                        <div className="font-medium text-sm">{model.name}</div>
-                        <div className="text-xs text-muted-foreground">{descriptions[model.id] || model.description}</div>
-                      </div>
-                      {isSelected && (
-                        <Check className="h-4 w-4 text-foreground shrink-0 ml-3" />
-                      )}
-                    </StyledDropdownMenuItem>
-                  )
-                })
+                /* Mode 3: Flat model list — single connection or session has messages */
+                <>
+                  {effectiveConnectionDetails && llmConnections.length > 1 && (
+                    <div className="px-2 py-1 text-[11px] font-medium text-muted-foreground select-none">
+                      Using {effectiveConnectionDetails.name}
+                    </div>
+                  )}
+                  {availableModels.map((model) => {
+                    const modelId = typeof model === 'string' ? model : model.id
+                    const modelName = typeof model === 'string' ? getModelShortName(model) : model.name
+                    const modelDesc = typeof model === 'string' ? '' : model.description
+                    const isSelected = currentModel === modelId
+                    return (
+                      <StyledDropdownMenuItem
+                        key={modelId}
+                        onSelect={() => onModelChange(modelId)}
+                        className="flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer"
+                      >
+                        <div className="text-left">
+                          <div className="font-medium text-sm">{modelName}</div>
+                          {modelDesc && <div className="text-xs text-muted-foreground">{modelDesc}</div>}
+                        </div>
+                        {isSelected && <Check className="h-4 w-4 text-foreground shrink-0 ml-3" />}
+                      </StyledDropdownMenuItem>
+                    )
+                  })}
+                </>
               )}
 
               {/* Thinking level selector — only shown for Claude models (extended thinking is Claude-specific) */}
-              {(!customModel || isClaudeModel(customModel)) && (
+              {isEffectiveAnthropicProvider && !connectionUnavailable && (!customModel || isClaudeModel(customModel)) && (
                 <>
                   <StyledDropdownMenuSeparator className="my-1" />
 

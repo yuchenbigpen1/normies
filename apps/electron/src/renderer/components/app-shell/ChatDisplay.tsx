@@ -201,6 +201,13 @@ interface ChatDisplayProps {
   placeholder?: string | string[]
   /** Label shown as empty state in compact mode (e.g., "Permission Settings") */
   emptyStateLabel?: string
+  // Connection selection (hierarchical model picker)
+  /** Current LLM connection slug (locked after first message) */
+  currentConnection?: string
+  /** Callback when connection changes */
+  onConnectionChange?: (connectionSlug: string) => void
+  /** When true, the session's locked connection has been removed */
+  connectionUnavailable?: boolean
 }
 
 /**
@@ -444,6 +451,10 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   compactMode = false,
   placeholder,
   emptyStateLabel,
+  // Connection selection
+  currentConnection,
+  onConnectionChange,
+  connectionUnavailable = false,
 }, ref) {
   // Input is only disabled when explicitly disabled (e.g., agent needs activation)
   // User can type during streaming - submitting will stop the stream and send
@@ -1922,6 +1933,9 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
               currentTodoState={session.todoState || 'todo'}
               disableSend={disableSend}
               isEmptySession={displayMessages.length === 0}
+              currentConnection={currentConnection}
+              onConnectionChange={onConnectionChange}
+              connectionUnavailable={connectionUnavailable}
               contextStatus={{
                 isCompacting: session.currentStatus?.statusType === 'compacting',
                 inputTokens: session.tokenUsage?.inputTokens,

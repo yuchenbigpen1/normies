@@ -1,6 +1,6 @@
 {
   "name": "normies",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Claude Code for people who aren't engineers",
   "type": "module",
   "private": true,
@@ -48,7 +48,7 @@
     "release": "bun run scripts/release.ts",
     "check-version": "bun run scripts/check-version.ts",
     "oss:sync": "bun run scripts/oss-sync.ts",
-    "postinstall": "mkdir -p node_modules/@normies && ln -sf ../../packages/core node_modules/@normies/core && ln -sf ../../packages/shared node_modules/@normies/shared && ln -sf ../../packages/ui node_modules/@normies/ui && ln -sf ../../packages/mermaid node_modules/@normies/mermaid",
+    "postinstall": "mkdir -p node_modules/@normies && ln -sf ../../packages/core node_modules/@normies/core && ln -sf ../../packages/shared node_modules/@normies/shared && ln -sf ../../packages/ui node_modules/@normies/ui && ln -sf ../../packages/mermaid node_modules/@normies/mermaid && ln -sf ../../packages/codex-types node_modules/@normies/codex-types",
     "prepare": "husky"
   },
   "devDependencies": {

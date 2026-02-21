@@ -2,7 +2,13 @@
  * Tests for model detection utilities in config/models.ts
  */
 import { describe, it, expect } from 'bun:test';
-import { isClaudeModel, isOpusModel, getModelShortName } from '../src/config/models.ts';
+import {
+  isClaudeModel,
+  isOpusModel,
+  getModelShortName,
+  OPENAI_MODELS,
+  DEFAULT_CODEX_MODEL,
+} from '../src/config/models.ts';
 
 describe('isClaudeModel', () => {
   // Direct Anthropic model IDs
@@ -45,5 +51,40 @@ describe('isClaudeModel', () => {
     expect(isClaudeModel('Claude-Sonnet-4-6')).toBe(true);
     expect(isClaudeModel('CLAUDE-OPUS-4-5-20251101')).toBe(true);
     expect(isClaudeModel('Anthropic/Claude-Sonnet-4')).toBe(true);
+  });
+});
+
+// ============================================================
+// OPENAI_MODELS — should use Codex model IDs, not general-purpose
+// ============================================================
+
+describe('OPENAI_MODELS', () => {
+  it('contains Codex model IDs (not general-purpose gpt-5)', () => {
+    const ids = OPENAI_MODELS.map(m => m.id);
+    expect(ids).toContain('gpt-5.3-codex');
+    expect(ids).toContain('gpt-5.2-codex');
+    expect(ids).toContain('gpt-5-codex-mini');
+    // Should NOT contain old general-purpose models
+    expect(ids).not.toContain('gpt-5');
+    expect(ids).not.toContain('gpt-5-mini');
+  });
+
+  it('has correct display names', () => {
+    const codex53 = OPENAI_MODELS.find(m => m.id === 'gpt-5.3-codex');
+    expect(codex53).toBeDefined();
+    expect(codex53!.name).toBe('GPT-5.3 Codex');
+    expect(codex53!.shortName).toBe('Codex 5.3');
+  });
+
+  it('has 192k context windows', () => {
+    for (const model of OPENAI_MODELS) {
+      expect(model.contextWindow).toBe(192000);
+    }
+  });
+});
+
+describe('DEFAULT_CODEX_MODEL', () => {
+  it('is gpt-5.3-codex', () => {
+    expect(DEFAULT_CODEX_MODEL).toBe('gpt-5.3-codex');
   });
 });

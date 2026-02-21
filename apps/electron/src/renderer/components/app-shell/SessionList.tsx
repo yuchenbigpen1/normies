@@ -1781,7 +1781,7 @@ export function SessionList({
                     flatLabels={flatLabels}
                     labels={labels}
                     onLabelsChange={onLabelsChange}
-                    subtitle={item.completionSummary || item.taskDescription || item.preview}
+                    subtitle={item.completionSummary || (item.taskDescription ? `${item.taskDescription}${item.taskTimeEstimate ? ` · ${item.taskTimeEstimate}` : ''}` : item.preview)}
                     isProjectView={isProjectView}
                   />
                 )

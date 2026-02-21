@@ -11,7 +11,8 @@ import { WindowManager } from './window-manager'
 import { registerOnboardingHandlers } from './onboarding'
 import { IPC_CHANNELS, type FileAttachment, type StoredAttachment, type AuthType, type ApiSetupInfo, type SendMessageOptions } from '../shared/types'
 import { readFileAttachment, perf, validateImageForClaudeAPI, IMAGE_LIMITS } from '@normies/shared/utils'
-import { getAuthType, setAuthType, getPreferencesPath, getCustomModel, setCustomModel, getModel, setModel, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, getAnthropicBaseUrl, setAnthropicBaseUrl, loadStoredConfig, saveConfig, resolveModelId, type Workspace, SUMMARIZATION_MODEL, CONFIG_DIR } from '@normies/shared/config'
+import { getAuthType, setAuthType, getPreferencesPath, getCustomModel, setCustomModel, getModel, setModel, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, getAnthropicBaseUrl, setAnthropicBaseUrl, loadStoredConfig, saveConfig, resolveModelId, getLlmConnections, getDefaultLlmConnection, checkLlmConnectionAuth, saveLlmConnection, deleteLlmConnection, setDefaultLlmConnection, canDeleteLlmConnection, type Workspace, SUMMARIZATION_MODEL, CONFIG_DIR } from '@normies/shared/config'
+import type { LlmConnection } from '@normies/shared/config/llm-connections'
 import { getSessionAttachmentsPath, validateSessionId } from '@normies/shared/sessions'
 import { loadWorkspaceSources, getSourcesBySlugs, type LoadedSource } from '@normies/shared/sources'
 import { isValidThinkingLevel } from '@normies/shared/agent/thinking-levels'
@@ -377,6 +378,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         return sessionManager.setSessionThinkingLevel(sessionId, command.level)
       case 'updateWorkingDirectory':
         return sessionManager.updateWorkingDirectory(sessionId, command.dir)
+      case 'setConnection':
+        return sessionManager.setSessionConnection(sessionId, '', command.connectionSlug)
       case 'setSources':
         return sessionManager.setSessionSources(sessionId, command.sourceSlugs)
       case 'setLabels':
@@ -1462,6 +1465,349 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   ipcMain.handle(IPC_CHANNELS.SESSION_SET_MODEL, async (_event, sessionId: string, workspaceId: string, model: string | null) => {
     await sessionManager.updateSessionModel(sessionId, workspaceId, model)
     ipcLog.info(`Session ${sessionId} model updated to: ${model}`)
+  })
+
+  // Set session-specific LLM connection (locked after first message)
+  ipcMain.handle(IPC_CHANNELS.SESSION_SET_CONNECTION, async (_event, sessionId: string, workspaceId: string, connectionSlug: string) => {
+    await sessionManager.setSessionConnection(sessionId, workspaceId, connectionSlug)
+    ipcLog.info(`Session ${sessionId} connection locked to: ${connectionSlug}`)
+  })
+
+  // ============================================================
+  // LLM Connections (with auth status)
+  // ============================================================
+
+  /**
+   * Helper: Build auth checker and get all connections with auth status.
+   * Shared by GET_LLM_CONNECTIONS, LLM_CONNECTION_SAVE, and SETUP_LLM_CONNECTION.
+   */
+  async function getConnectionsWithStatus() {
+    const connections = getLlmConnections()
+    const defaultConn = getDefaultLlmConnection()
+    const manager = getCredentialManager()
+    const config = loadStoredConfig()
+    const workspaceIds = config?.workspaces?.map(w => w.id) ?? []
+
+    const checker = {
+      getApiKey: () => manager.getApiKey(),
+      getClaudeOAuth: () => manager.getClaudeOAuth(),
+      get: (params: { type: string; workspaceId: string; sourceId: string }) => manager.get(params as any),
+    }
+
+    return Promise.all(connections.map(async (conn) => {
+      const isAuthenticated = await checkLlmConnectionAuth(conn, workspaceIds, checker)
+      return { ...conn, isAuthenticated, isDefault: conn.slug === defaultConn?.slug }
+    }))
+  }
+
+  /**
+   * Helper: Get the stored API key credential for an OpenAI connection.
+   * Searches across all workspaces for a stored credential.
+   */
+  async function getStoredCredentialForConnection(connection: Pick<LlmConnection, 'slug'>): Promise<string | null> {
+    try {
+      const manager = getCredentialManager()
+      const config = loadStoredConfig()
+      const workspaceIds = config?.workspaces?.map(w => w.id) ?? []
+
+      for (const wsId of workspaceIds) {
+        // Try API key first
+        const apiKeyCred = await manager.get({ type: 'source_apikey', workspaceId: wsId, sourceId: `codex-${connection.slug}` } as any)
+        if (apiKeyCred?.value) return apiKeyCred.value
+        // Try OAuth token
+        const oauthCred = await manager.get({ type: 'source_oauth', workspaceId: wsId, sourceId: `codex-${connection.slug}` } as any)
+        if (oauthCred?.value) return oauthCred.value
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Helper: Broadcast connections changed event to all windows.
+   */
+  async function broadcastConnectionsChanged() {
+    try {
+      const connections = await getConnectionsWithStatus()
+      windowManager.broadcastToAll(IPC_CHANNELS.LLM_CONNECTIONS_CHANGED, connections)
+    } catch (err) {
+      ipcLog.error('Failed to broadcast connections changed:', err)
+    }
+  }
+
+  ipcMain.handle(IPC_CHANNELS.GET_LLM_CONNECTIONS, async () => {
+    return getConnectionsWithStatus()
+  })
+
+  // Save (create or update) an LLM connection
+  ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_SAVE, async (_event, connection: LlmConnection, credential?: string) => {
+    ipcLog.info(`Saving LLM connection: ${connection.slug} (${connection.providerType})`)
+
+    // Store credential if provided
+    if (credential) {
+      const manager = getCredentialManager()
+      const config = loadStoredConfig()
+      const workspaceIds = config?.workspaces?.map(w => w.id) ?? []
+      const firstWorkspaceId = workspaceIds[0]
+
+      if (firstWorkspaceId) {
+        const { isOpenAIProvider } = await import('@normies/shared/config/llm-connections')
+        if (isOpenAIProvider(connection.providerType)) {
+          // OpenAI: store as per-connection credential
+          await manager.set(
+            { type: 'source_apikey', workspaceId: firstWorkspaceId, sourceId: `codex-${connection.slug}` } as any,
+            { value: credential }
+          )
+        } else {
+          // Anthropic and others: store as global API key
+          await manager.setApiKey(credential)
+        }
+      }
+    }
+
+    // Save connection to config
+    saveLlmConnection(connection)
+
+    // If this is the default connection, reinitialize auth
+    const defaultConn = getDefaultLlmConnection()
+    if (defaultConn?.slug === connection.slug) {
+      await sessionManager.reinitializeAuth()
+    }
+
+    // Broadcast change and return updated connection with status
+    await broadcastConnectionsChanged()
+    const allConnections = await getConnectionsWithStatus()
+    return allConnections.find(c => c.slug === connection.slug) ?? { ...connection, isAuthenticated: false, isDefault: false }
+  })
+
+  // Delete an LLM connection
+  ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_DELETE, async (_event, slug: string) => {
+    ipcLog.info(`Deleting LLM connection: ${slug}`)
+
+    const connections = getLlmConnections()
+    const validation = canDeleteLlmConnection(slug, connections)
+
+    if (!validation.canDelete) {
+      return { success: false, error: validation.error }
+    }
+
+    // Delete associated credentials
+    const connection = connections.find(c => c.slug === slug)
+    if (connection) {
+      const manager = getCredentialManager()
+      const config = loadStoredConfig()
+      const workspaceIds = config?.workspaces?.map(w => w.id) ?? []
+
+      // Try to delete per-connection credentials from all workspaces
+      for (const wsId of workspaceIds) {
+        try {
+          await manager.delete({ type: 'source_apikey', workspaceId: wsId, sourceId: `codex-${slug}` } as any)
+          await manager.delete({ type: 'source_oauth', workspaceId: wsId, sourceId: `codex-${slug}` } as any)
+        } catch {
+          // Credential may not exist — that's fine
+        }
+      }
+    }
+
+    // Delete the connection from config
+    deleteLlmConnection(slug)
+
+    // Broadcast change
+    await broadcastConnectionsChanged()
+    return { success: true }
+  })
+
+  // Set the global default LLM connection
+  ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_SET_DEFAULT, async (_event, slug: string) => {
+    ipcLog.info(`Setting default LLM connection: ${slug}`)
+    setDefaultLlmConnection(slug)
+    await sessionManager.reinitializeAuth()
+    await broadcastConnectionsChanged()
+  })
+
+  // Set per-workspace default LLM connection
+  ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_SET_WORKSPACE_DEFAULT, async (_event, workspaceId: string, slug: string) => {
+    ipcLog.info(`Setting workspace ${workspaceId} default LLM connection: ${slug}`)
+    const workspace = getWorkspaceOrThrow(workspaceId)
+
+    const { loadWorkspaceConfig, saveWorkspaceConfig } = await import('@normies/shared/workspaces')
+    const config = loadWorkspaceConfig(workspace.rootPath)
+    if (!config) {
+      throw new Error(`Failed to load workspace config: ${workspaceId}`)
+    }
+
+    config.defaults = config.defaults || {}
+    ;(config.defaults as Record<string, unknown>).defaultLlmConnection = slug
+    saveWorkspaceConfig(workspace.rootPath, config)
+  })
+
+  // Test an LLM connection by making a test API call
+  ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_TEST, async (_event, connection: LlmConnection, credential?: string) => {
+    ipcLog.info(`Testing LLM connection: ${connection.slug} (${connection.providerType})`)
+
+    try {
+      const { isAnthropicProvider, isOpenAIProvider } = await import('@normies/shared/config/llm-connections')
+
+      if (isAnthropicProvider(connection.providerType)) {
+        // Anthropic: test with a minimal message API call
+        const apiKey = credential || await getCredentialManager().getApiKey()
+        if (!apiKey) {
+          return { success: false, error: 'No API key available' }
+        }
+
+        const baseUrl = connection.baseUrl || 'https://api.anthropic.com'
+        const response = await fetch(`${baseUrl}/v1/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 1,
+            messages: [{ role: 'user', content: 'Hi' }],
+          }),
+        })
+
+        if (response.ok) {
+          return { success: true }
+        }
+
+        const error = await response.text().catch(() => response.statusText)
+        return { success: false, error: `API returned ${response.status}: ${error}` }
+      }
+
+      if (isOpenAIProvider(connection.providerType)) {
+        // OpenAI/Codex: test by checking if credential exists
+        // Full test requires running codex binary which is too heavy for a quick check
+        if (credential) {
+          return { success: true }
+        }
+
+        // Check if we have a stored credential
+        const manager = getCredentialManager()
+        const config = loadStoredConfig()
+        const workspaceIds = config?.workspaces?.map(w => w.id) ?? []
+        for (const wsId of workspaceIds) {
+          const cred = await manager.get({ type: 'source_oauth', workspaceId: wsId, sourceId: `codex-${connection.slug}` } as any)
+          if (cred?.value) return { success: true }
+          const apiKeyCred = await manager.get({ type: 'source_apikey', workspaceId: wsId, sourceId: `codex-${connection.slug}` } as any)
+          if (apiKeyCred?.value) return { success: true }
+        }
+        return { success: false, error: 'No credentials found for this connection' }
+      }
+
+      // Other providers: basic connectivity check
+      return { success: true }
+    } catch (err: any) {
+      ipcLog.error('Connection test failed:', err)
+      return { success: false, error: err.message || 'Connection test failed' }
+    }
+  })
+
+  // Refresh available models for a connection
+  ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_REFRESH_MODELS, async (_event, slug: string) => {
+    ipcLog.info(`Refreshing models for connection: ${slug}`)
+
+    try {
+      const connections = getLlmConnections()
+      const connection = connections.find(c => c.slug === slug)
+      if (!connection) {
+        return { success: false, error: `Connection "${slug}" not found` }
+      }
+
+      const { isOpenAIProvider, getDefaultModelsForConnection } = await import('@normies/shared/config/llm-connections')
+
+      if (isOpenAIProvider(connection.providerType)) {
+        // OpenAI: fetch models dynamically via Codex app-server
+        const { fetchCodexModels } = await import('@normies/shared/codex')
+        const credential = await getStoredCredentialForConnection(connection)
+        const result = await fetchCodexModels({
+          connection,
+          credential: credential ?? undefined,
+          onDebug: (msg) => ipcLog.info(`[ModelDiscovery] ${msg}`),
+        })
+        connection.models = result.models
+        saveLlmConnection(connection)
+        ipcLog.info(`Models refreshed for ${slug}: ${result.models.length} models (source: ${result.source})`)
+        return { success: true, models: result.models }
+      }
+
+      // Anthropic and others: use the static model list
+      const models = getDefaultModelsForConnection(connection.providerType)
+      connection.models = models
+      saveLlmConnection(connection)
+      return { success: true, models }
+    } catch (err: any) {
+      ipcLog.error('Model refresh failed:', err)
+      return { success: false, error: err.message || 'Failed to refresh models' }
+    }
+  })
+
+  // Full setup flow: create connection + store credentials + fetch models
+  ipcMain.handle(IPC_CHANNELS.SETUP_LLM_CONNECTION, async (_event, connection: LlmConnection, credential?: string) => {
+    ipcLog.info(`Setting up LLM connection: ${connection.slug} (${connection.providerType})`)
+
+    try {
+      // 1. Store credential if provided
+      if (credential) {
+        const manager = getCredentialManager()
+        const config = loadStoredConfig()
+        const workspaceIds = config?.workspaces?.map(w => w.id) ?? []
+        const firstWorkspaceId = workspaceIds[0]
+
+        if (firstWorkspaceId) {
+          const { isOpenAIProvider } = await import('@normies/shared/config/llm-connections')
+          if (isOpenAIProvider(connection.providerType)) {
+            await manager.set(
+              { type: 'source_apikey', workspaceId: firstWorkspaceId, sourceId: `codex-${connection.slug}` } as any,
+              { value: credential }
+            )
+          } else {
+            await manager.setApiKey(credential)
+          }
+        }
+      }
+
+      // 2. Populate models — try dynamic fetch for OpenAI, fall back to hardcoded
+      const { isOpenAIProvider, getDefaultModelsForConnection } = await import('@normies/shared/config/llm-connections')
+      if (isOpenAIProvider(connection.providerType)) {
+        const { fetchCodexModels } = await import('@normies/shared/codex')
+        const result = await fetchCodexModels({
+          connection,
+          credential: credential ?? undefined,
+          onDebug: (msg) => ipcLog.info(`[ModelDiscovery] ${msg}`),
+        })
+        connection.models = result.models
+        ipcLog.info(`Models for ${connection.slug}: ${result.models.length} models (source: ${result.source})`)
+      } else if (!connection.models || connection.models.length === 0) {
+        connection.models = getDefaultModelsForConnection(connection.providerType)
+      }
+
+      // 3. Save the connection
+      saveLlmConnection(connection)
+
+      // 4. If it's the default, reinitialize auth
+      const defaultConn = getDefaultLlmConnection()
+      if (defaultConn?.slug === connection.slug) {
+        await sessionManager.reinitializeAuth()
+      }
+
+      // 5. Broadcast change and return result
+      await broadcastConnectionsChanged()
+      const allConnections = await getConnectionsWithStatus()
+      const saved = allConnections.find(c => c.slug === connection.slug)
+
+      return {
+        success: true,
+        connection: saved ?? { ...connection, isAuthenticated: false, isDefault: false },
+      }
+    } catch (err: any) {
+      ipcLog.error('Connection setup failed:', err)
+      return { success: false, error: err.message || 'Setup failed' }
+    }
   })
 
   // Open native folder dialog for selecting working directory

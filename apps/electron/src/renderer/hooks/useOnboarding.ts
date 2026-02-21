@@ -73,6 +73,20 @@ function apiSetupMethodToAuthType(method: ApiSetupMethod): AuthType {
   switch (method) {
     case 'api_key': return 'api_key'
     case 'claude_oauth': return 'oauth_token'
+    case 'chatgpt_oauth': return 'api_key'  // Legacy field; actual auth via LLM connection
+    case 'openai_api_key': return 'api_key'
+  }
+}
+
+// Map ApiSetupMethod to LLM provider type for backend LLM connection creation
+function apiSetupMethodToProviderType(method: ApiSetupMethod): 'anthropic' | 'openai' {
+  switch (method) {
+    case 'api_key':
+    case 'claude_oauth':
+      return 'anthropic'
+    case 'openai_api_key':
+    case 'chatgpt_oauth':
+      return 'openai'
   }
 }
 
@@ -112,7 +126,11 @@ export function useOnboarding({
   }, [])
 
   // Save configuration
-  const handleSaveConfig = useCallback(async (credential?: string, options?: { baseUrl?: string; customModel?: string }) => {
+  const handleSaveConfig = useCallback(async (
+    credential?: string,
+    options?: { baseUrl?: string; customModel?: string },
+    chatGptTokens?: { idToken: string; accessToken: string; refreshToken?: string; expiresAt?: number },
+  ) => {
     if (!state.apiSetupMethod) {
       console.log('[Onboarding] No API setup method selected, returning early')
       return
@@ -122,13 +140,16 @@ export function useOnboarding({
 
     try {
       const authType = apiSetupMethodToAuthType(state.apiSetupMethod)
-      console.log('[Onboarding] Saving config with authType:', authType)
+      const providerType = apiSetupMethodToProviderType(state.apiSetupMethod)
+      console.log('[Onboarding] Saving config with authType:', authType, 'providerType:', providerType)
 
       const result = await window.electronAPI.saveOnboardingConfig({
         authType,
         credential,
         anthropicBaseUrl: options?.baseUrl || null,
         customModel: options?.customModel || null,
+        providerType,
+        ...(chatGptTokens ? { chatGptTokens } : {}),
       })
 
       if (result.success) {
@@ -265,12 +286,47 @@ export function useOnboarding({
   // Two-step OAuth flow state
   const [isWaitingForCode, setIsWaitingForCode] = useState(false)
 
-  // Start Claude OAuth (native browser-based OAuth with PKCE - two-step flow)
+  // Start OAuth flow — routes to ChatGPT (single-step) or Claude (two-step) depending on method
   const handleStartOAuth = useCallback(async () => {
     setState(s => ({ ...s, errorMessage: undefined }))
 
+    // ChatGPT OAuth — single-step: browser opens, callback server captures code automatically
+    if (state.apiSetupMethod === 'chatgpt_oauth') {
+      setState(s => ({ ...s, credentialStatus: 'validating' }))
+      try {
+        const result = await window.electronAPI.startChatGptOAuth()
+        if (result.success && result.apiKey) {
+          // API key exchange succeeded — store as API key credential (most reliable path)
+          await handleSaveConfig(result.apiKey, undefined, undefined)
+          setState(s => ({ ...s, credentialStatus: 'success', step: 'complete' }))
+        } else if (result.success && result.idToken && result.accessToken) {
+          // Fallback: API key exchange failed, use raw tokens (binary will retry exchange)
+          await handleSaveConfig(undefined, undefined, {
+            idToken: result.idToken,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+            expiresAt: result.expiresAt,
+          })
+          setState(s => ({ ...s, credentialStatus: 'success', step: 'complete' }))
+        } else {
+          setState(s => ({
+            ...s,
+            credentialStatus: 'error',
+            errorMessage: result.error || 'Authentication failed',
+          }))
+        }
+      } catch (error) {
+        setState(s => ({
+          ...s,
+          credentialStatus: 'error',
+          errorMessage: error instanceof Error ? error.message : 'Authentication failed',
+        }))
+      }
+      return
+    }
+
+    // Claude OAuth — two-step: browser opens, user pastes code
     try {
-      // Start OAuth flow - this opens the browser
       const result = await window.electronAPI.startClaudeOAuth()
 
       if (result.success) {
@@ -290,7 +346,7 @@ export function useOnboarding({
         errorMessage: error instanceof Error ? error.message : 'OAuth failed',
       }))
     }
-  }, [])
+  }, [state.apiSetupMethod, handleSaveConfig])
 
   // Submit authorization code (second step of OAuth flow)
   const handleSubmitAuthCode = useCallback(async (code: string) => {

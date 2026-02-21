@@ -77,6 +77,7 @@ export function readSessionJsonl(sessionFile: string): StoredSession | null {
       sharedUrl: header.sharedUrl,
       sharedId: header.sharedId,
       model: header.model,
+      connectionSlug: header.connectionSlug,
       thinkingLevel: header.thinkingLevel,
       pendingPlanExecution: header.pendingPlanExecution,
       messages,
@@ -160,6 +161,7 @@ export function createSessionHeader(session: StoredSession): SessionHeader {
     sharedUrl: session.sharedUrl,
     sharedId: session.sharedId,
     model: session.model,
+    connectionSlug: session.connectionSlug,
     thinkingLevel: session.thinkingLevel,
     pendingPlanExecution: session.pendingPlanExecution,
     // Pre-computed fields

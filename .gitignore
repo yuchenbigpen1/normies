@@ -76,6 +76,9 @@ packages/shared/shared
 packages/ui/ui
 packages/mermaid/mermaid
 
+# Vendor binaries (downloaded via scripts/download-codex.sh, not committed to git)
+vendor/codex/
+
 # Internal planning/spec docs (keep local, don't publish)
 DOMAIN_CHANGES.md
 IMPLEMENTATION_SPEC.md

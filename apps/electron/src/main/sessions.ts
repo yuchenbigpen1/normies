@@ -1,9 +1,14 @@
 import { app } from 'electron'
 import * as Sentry from '@sentry/electron/main'
 import { join } from 'path'
-import { existsSync } from 'fs'
-import { rm, readFile } from 'fs/promises'
-import { CraftAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest, type QuestionRequest } from '@normies/shared/agent'
+import { existsSync, mkdirSync, watch, type FSWatcher } from 'fs'
+import { rm, readFile, unlink, writeFile } from 'fs/promises'
+import { CraftAgent, BaseAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest, type QuestionRequest } from '@normies/shared/agent'
+import { ClaudeAgent } from '@normies/shared/agent/claude-agent'
+import { CodexAgent } from '@normies/shared/agent/codex-agent'
+import { resolveSessionConnection, providerTypeToAgentProvider } from '@normies/shared/agent/backend/factory'
+import { setupCodexSessionConfig } from '@normies/shared/codex/session-config'
+import { dispatchCodexIpcRequest } from '@normies/shared/codex/ipc-dispatch'
 import { sessionLog, isDebugMode, getLogFilePath } from './logger'
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { WindowManager } from './window-manager'
@@ -163,7 +168,7 @@ interface McpTokenRefreshResult {
  * @param tokenRefreshManager - TokenRefreshManager instance for this session
  */
 async function refreshMcpOAuthTokensIfNeeded(
-  agent: CraftAgent,
+  agent: BaseAgent,
   sources: LoadedSource[],
   sessionPath: string,
   tokenRefreshManager: TokenRefreshManager
@@ -322,7 +327,9 @@ function resolveToolDisplayMeta(
 interface ManagedSession {
   id: string
   workspace: Workspace
-  agent: CraftAgent | null  // Lazy-loaded - null until first message
+  agent: BaseAgent | null  // Lazy-loaded - null until first message
+  /** LLM connection slug locked for this session (undefined = use global default) */
+  connectionSlug?: string
   messages: Message[]
   isProcessing: boolean
   lastMessageAt: number
@@ -452,6 +459,8 @@ interface ManagedSession {
   planPath?: string
   // System prompt preset (persisted for tool registration)
   systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
+  // File watcher for Codex session IPC directory (cleaned up on dispose)
+  ipcWatcher?: FSWatcher
 }
 
 // Convert runtime Message to StoredMessage for persistence
@@ -975,6 +984,7 @@ export class SessionManager {
             workingDirectory: meta.workingDirectory ?? wsDefaultWorkingDir,
             sdkCwd: meta.sdkCwd,
             model: meta.model,
+            connectionSlug: meta.connectionSlug,
             thinkingLevel: meta.thinkingLevel,
             lastMessageRole: meta.lastMessageRole,
             messageQueue: [],
@@ -1086,6 +1096,8 @@ export class SessionManager {
         systemPromptPreset: managed.systemPromptPreset,
         // Model (persisted for session-specific model override)
         model: managed.model,
+        // LLM connection slug (locked after first message)
+        connectionSlug: managed.connectionSlug,
         // Shared viewer state
         sharedUrl: managed.sharedUrl,
         sharedId: managed.sharedId,
@@ -1111,6 +1123,28 @@ export class SessionManager {
   // ============================================
   // Unified Auth Request Helpers
   // ============================================
+
+  /**
+   * Handle a bidirectional IPC request from the Codex standalone MCP server.
+   * Dispatches based on request type and returns a response object.
+   * Handlers for specific request types will be added in subsequent tasks.
+   */
+  private async handleCodexIpcRequest(
+    managed: ManagedSession,
+    request: { type: string; requestId: string; sessionId: string; [key: string]: unknown },
+  ): Promise<{ success: boolean; data?: unknown; error?: string }> {
+    return dispatchCodexIpcRequest(
+      {
+        sessionId: managed.id,
+        onCreateProjectSessions: managed.agent?.onCreateProjectSessions ?? undefined,
+        onAuthRequest: managed.agent?.onAuthRequest ?? undefined,
+        setCompletionSummary: async (summary: string) => {
+          await this.setCompletionSummary(managed.id, summary)
+        },
+      },
+      request,
+    )
+  }
 
   /**
    * Get human-readable description for auth request
@@ -1444,6 +1478,8 @@ export class SessionManager {
         diagramPath: m.diagramPath,
         // System prompt preset (needed by renderer for task-session plan approval flow)
         systemPromptPreset: m.systemPromptPreset,
+        // LLM connection slug (for model picker in renderer)
+        connectionSlug: m.connectionSlug,
       }))
       .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
   }
@@ -1479,6 +1515,7 @@ export class SessionManager {
       hasUnread: m.hasUnread,  // Explicit unread flag for NEW badge state machine
       workingDirectory: m.workingDirectory,
       model: m.model,
+      connectionSlug: m.connectionSlug,
       sessionFolderPath: getSessionStoragePath(m.workspace.rootPath, m.id),
       enabledSourceSlugs: m.enabledSourceSlugs,
       labels: m.labels,
@@ -1822,68 +1859,110 @@ Remember: You're providing a second opinion. Help the user understand, question,
   /**
    * Get or create agent for a session (lazy loading)
    */
-  private async getOrCreateAgent(managed: ManagedSession): Promise<CraftAgent> {
+  private async getOrCreateAgent(managed: ManagedSession): Promise<BaseAgent> {
     if (!managed.agent) {
       const end = perf.start('agent.create', { sessionId: managed.id })
       const config = loadStoredConfig()
-      managed.agent = new CraftAgent({
-        workspace: managed.workspace,
-        // Session model takes priority, fallback to global config, then resolve with customModel override
-        model: resolveModelId(managed.model || config?.model || DEFAULT_MODEL),
-        // Initialize thinking level at construction to avoid race conditions
-        thinkingLevel: managed.thinkingLevel,
-        isHeadless: !AGENT_FLAGS.defaultModesEnabled,
-        // System prompt preset for mini agents (focused prompts for quick edits)
-        systemPromptPreset: managed.systemPromptPreset,
-        // Always pass session object - id is required for plan mode callbacks
-        // sdkSessionId is optional and used for conversation resumption
-        session: {
-          id: managed.id,
-          workspaceRootPath: managed.workspace.rootPath,
-          sdkSessionId: managed.sdkSessionId,
-          createdAt: managed.lastMessageAt,
-          lastUsedAt: managed.lastMessageAt,
-          workingDirectory: managed.workingDirectory,
-          sdkCwd: managed.sdkCwd,
-          model: managed.model,
-        },
-        // Critical: Immediately persist SDK session ID when captured to prevent loss on crash.
-        // Without this, the ID is only saved via debounced persistSession() which may not
-        // complete before app crash/quit, causing session resumption to fail.
-        onSdkSessionIdUpdate: (sdkSessionId: string) => {
-          managed.sdkSessionId = sdkSessionId
-          sessionLog.info(`SDK session ID captured for ${managed.id}: ${sdkSessionId}`)
-          // Persist immediately and flush - critical for resumption reliability
-          this.persistSession(managed)
-          sessionPersistenceQueue.flush(managed.id)
-        },
-        // Called when SDK session ID is cleared after failed resume (empty response recovery)
-        onSdkSessionIdCleared: () => {
-          managed.sdkSessionId = undefined
-          sessionLog.info(`SDK session ID cleared for ${managed.id} (resume recovery)`)
-          // Persist immediately to prevent repeated resume attempts
-          this.persistSession(managed)
-          sessionPersistenceQueue.flush(managed.id)
-        },
-        // Called to get recent messages for recovery context when resume fails.
-        // Returns last 6 messages (3 exchanges) of user/assistant content.
-        getRecoveryMessages: () => {
-          const relevantMessages = managed.messages
-            .filter(m => m.role === 'user' || m.role === 'assistant')
-            .filter(m => !m.isIntermediate)  // Skip intermediate assistant messages
-            .slice(-6);  // Last 6 messages (3 exchanges)
 
-          return relevantMessages.map(m => ({
-            type: m.role as 'user' | 'assistant',
-            content: m.content,
-          }));
-        },
-        // Debug mode - enables log file path injection into system prompt
-        debugMode: isDebugMode ? {
-          enabled: true,
-          logFilePath: getLogFilePath(),
-        } : undefined,
-      })
+      // Shared session ID callback — used by both ClaudeAgent (SDK session) and CodexAgent (thread ID)
+      const onSdkSessionIdUpdate = (sdkSessionId: string) => {
+        managed.sdkSessionId = sdkSessionId
+        sessionLog.info(`SDK session ID captured for ${managed.id}: ${sdkSessionId}`)
+        this.persistSession(managed)
+        sessionPersistenceQueue.flush(managed.id)
+      }
+
+      // Determine which backend to use based on the configured LLM connection
+      const connection = resolveSessionConnection(managed.connectionSlug)
+      const agentProvider = connection ? providerTypeToAgentProvider(connection.providerType) : 'anthropic'
+
+      if (agentProvider === 'openai') {
+        // Set up per-session CODEX_HOME directory for MCP source config
+        const sessionPath = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+        const codexHome = join(sessionPath, '.codex-home')
+        if (!existsSync(codexHome)) {
+          mkdirSync(codexHome, { recursive: true })
+        }
+
+        managed.agent = new CodexAgent({
+          workspace: managed.workspace,
+          model: managed.model || connection?.defaultModel,
+          thinkingLevel: managed.thinkingLevel,
+          isHeadless: !AGENT_FLAGS.defaultModesEnabled,
+          systemPromptPreset: managed.systemPromptPreset,
+          session: {
+            id: managed.id,
+            workspaceRootPath: managed.workspace.rootPath,
+            sdkSessionId: managed.sdkSessionId,
+            createdAt: managed.lastMessageAt,
+            lastUsedAt: managed.lastMessageAt,
+            workingDirectory: managed.workingDirectory,
+            sdkCwd: managed.sdkCwd,
+            model: managed.model,
+          },
+          connectionSlug: connection?.slug,
+          codexHome,
+          authType: connection?.authType as 'oauth' | 'api_key' | 'api_key_with_endpoint' | undefined,
+          onSdkSessionIdUpdate,
+          debugMode: isDebugMode ? {
+            enabled: true,
+            logFilePath: getLogFilePath(),
+          } : undefined,
+        })
+      } else {
+        managed.agent = new CraftAgent({
+          workspace: managed.workspace,
+          // Session model takes priority, fallback to global config, then resolve with customModel override
+          model: resolveModelId(managed.model || config?.model || DEFAULT_MODEL),
+          // Initialize thinking level at construction to avoid race conditions
+          thinkingLevel: managed.thinkingLevel,
+          isHeadless: !AGENT_FLAGS.defaultModesEnabled,
+          // System prompt preset for mini agents (focused prompts for quick edits)
+          systemPromptPreset: managed.systemPromptPreset,
+          // Always pass session object - id is required for plan mode callbacks
+          // sdkSessionId is optional and used for conversation resumption
+          session: {
+            id: managed.id,
+            workspaceRootPath: managed.workspace.rootPath,
+            sdkSessionId: managed.sdkSessionId,
+            createdAt: managed.lastMessageAt,
+            lastUsedAt: managed.lastMessageAt,
+            workingDirectory: managed.workingDirectory,
+            sdkCwd: managed.sdkCwd,
+            model: managed.model,
+          },
+          // Critical: Immediately persist SDK session ID when captured to prevent loss on crash.
+          // Without this, the ID is only saved via debounced persistSession() which may not
+          // complete before app crash/quit, causing session resumption to fail.
+          onSdkSessionIdUpdate,
+          // Called when SDK session ID is cleared after failed resume (empty response recovery)
+          onSdkSessionIdCleared: () => {
+            managed.sdkSessionId = undefined
+            sessionLog.info(`SDK session ID cleared for ${managed.id} (resume recovery)`)
+            // Persist immediately to prevent repeated resume attempts
+            this.persistSession(managed)
+            sessionPersistenceQueue.flush(managed.id)
+          },
+          // Called to get recent messages for recovery context when resume fails.
+          // Returns last 6 messages (3 exchanges) of user/assistant content.
+          getRecoveryMessages: () => {
+            const relevantMessages = managed.messages
+              .filter(m => m.role === 'user' || m.role === 'assistant')
+              .filter(m => !m.isIntermediate)  // Skip intermediate assistant messages
+              .slice(-6);  // Last 6 messages (3 exchanges)
+
+            return relevantMessages.map(m => ({
+              type: m.role as 'user' | 'assistant',
+              content: m.content,
+            }));
+          },
+          // Debug mode - enables log file path injection into system prompt
+          debugMode: isDebugMode ? {
+            enabled: true,
+            logFilePath: getLogFilePath(),
+          } : undefined,
+        })
+      }
       sessionLog.info(`Created agent for session ${managed.id}${managed.sdkSessionId ? ' (resuming)' : ''}`)
 
       // Set up permission handler to forward requests to renderer
@@ -1963,6 +2042,81 @@ Remember: You're providing a second opinion. Help the user understand, question,
         } catch (error) {
           sessionLog.error(`Failed to read plan file:`, error)
         }
+      }
+
+      // For Codex sessions: watch the IPC directory for signals from the standalone MCP server.
+      // The standalone session-mcp-server.ts writes JSON signal files to .codex-home/ipc/
+      // when Codex uses tools like SubmitPlan or ask_user_question.
+      if (managed.agent instanceof CodexAgent) {
+        const ipcDir = join(getSessionStoragePath(managed.workspace.rootPath, managed.id), '.codex-home', 'ipc')
+        if (!existsSync(ipcDir)) {
+          mkdirSync(ipcDir, { recursive: true })
+        }
+
+        managed.ipcWatcher = watch(ipcDir, async (eventType, filename) => {
+          if (eventType !== 'rename' || !filename || !filename.endsWith('.json')) return
+
+          // Handle bidirectional request files (.request.json)
+          if (filename.endsWith('.request.json')) {
+            const requestPath = join(ipcDir, filename)
+            if (!existsSync(requestPath)) return
+
+            try {
+              const raw = await readFile(requestPath, 'utf-8')
+              const request = JSON.parse(raw)
+              const responsePath = requestPath.replace('.request.json', '.response.json')
+
+              sessionLog.info(`[Codex IPC] Request: ${request.type} for session ${managed.id}`)
+
+              // Dispatch to handler and write response
+              const response = await this.handleCodexIpcRequest(managed, request)
+              await writeFile(responsePath, JSON.stringify(response, null, 2), 'utf-8')
+            } catch (error) {
+              sessionLog.error(`[Codex IPC] Failed to process request ${filename}:`, error)
+            }
+            return
+          }
+
+          // Skip response files (handled by the MCP server polling)
+          if (filename.includes('.response.')) return
+
+          // Handle legacy fire-and-forget signal files (e.g., submit-plan.json, ask-question.json)
+          const signalPath = join(ipcDir, filename)
+          if (!existsSync(signalPath)) return  // File was deleted (cleanup), not created
+
+          try {
+            const raw = await readFile(signalPath, 'utf-8')
+            const signal = JSON.parse(raw)
+            sessionLog.info(`[Codex IPC] Received signal: ${signal.type} for session ${managed.id}`)
+
+            if (signal.type === 'submit-plan' && signal.planPath) {
+              // Trigger the same onPlanSubmitted logic
+              if (managed.agent?.onPlanSubmitted) {
+                await managed.agent.onPlanSubmitted(signal.planPath)
+              }
+            } else if (signal.type === 'ask-question' && signal.questions) {
+              // Trigger the same onQuestionRequest logic
+              if (managed.agent?.onQuestionRequest) {
+                managed.agent.onQuestionRequest({
+                  requestId: signal.requestId || `codex-q-${Date.now()}`,
+                  sessionId: managed.id,
+                  questions: signal.questions,
+                })
+              }
+            } else if (signal.type === 'set-completion-summary' && signal.summary) {
+              // Fire-and-forget completion summary (also handled via request path)
+              sessionLog.info(`[Codex IPC] Completion summary signal for session ${managed.id}`)
+              await this.setCompletionSummary(managed.id, signal.summary)
+            }
+
+            // Clean up the signal file after processing
+            await unlink(signalPath).catch(() => {})
+          } catch (error) {
+            sessionLog.error(`[Codex IPC] Failed to process signal ${filename}:`, error)
+          }
+        })
+
+        sessionLog.info(`[Codex IPC] Watching ${ipcDir} for session ${managed.id}`)
       }
 
       // Wire up onAuthRequest to add auth message to conversation and pause execution
@@ -2830,6 +2984,24 @@ Remember: You're providing a second opinion. Help the user understand, question,
   }
 
   /**
+   * Lock a session to a specific LLM connection.
+   * Should only be called before the first message is sent.
+   * The agent is not recreated — it will be created with the correct connection
+   * on the next getOrCreateAgent() call.
+   */
+  async setSessionConnection(sessionId: string, workspaceId: string, connectionSlug: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (managed) {
+      managed.connectionSlug = connectionSlug
+      // Persist to disk
+      await updateSessionMetadata(managed.workspace.rootPath, sessionId, { connectionSlug })
+      // Notify renderer of the connection change
+      this.sendEvent({ type: 'session_connection_changed', sessionId, connectionSlug }, managed.workspace.id)
+      sessionLog.info(`Session ${sessionId} connection locked to: ${connectionSlug}`)
+    }
+  }
+
+  /**
    * Update the content of a specific message in a session
    * Used by preview window to save edited content back to the original message
    */
@@ -2884,6 +3056,12 @@ Remember: You're providing a second opinion. Help the user understand, question,
 
     // Clean up session-scoped tool callbacks to prevent memory accumulation
     unregisterSessionScopedToolCallbacks(sessionId)
+
+    // Close Codex IPC file watcher if present
+    if (managed.ipcWatcher) {
+      managed.ipcWatcher.close()
+      managed.ipcWatcher = undefined
+    }
 
     // Dispose agent to clean up ConfigWatchers, event listeners, MCP connections
     if (managed.agent) {
@@ -3087,12 +3265,18 @@ Remember: You're providing a second opinion. Help the user understand, question,
     sendSpan.mark('sources.loaded')
 
     // Apply source servers if any are enabled
+    // Hoist built configs for Codex config.toml generation (needs mcpServers after this block)
+    let builtMcpServers: Record<string, McpServerConfig> = {}
+    let builtSources: LoadedSource[] = []
+
     if (managed.enabledSourceSlugs?.length) {
       // Always build server configs fresh (no caching - single source of truth)
       const sources = getSourcesBySlugs(workspaceRootPath, managed.enabledSourceSlugs)
+      builtSources = sources
       // Pass session path so large API responses can be saved to session folder
       const sessionPath = getSessionStoragePath(workspaceRootPath, sessionId)
       const { mcpServers, apiServers, errors } = await buildServersFromSources(sources, sessionPath)
+      builtMcpServers = mcpServers
       if (errors.length > 0) {
         sessionLog.warn(`Source build errors:`, errors)
       }
@@ -3136,6 +3320,44 @@ Remember: You're providing a second opinion. Help the user understand, question,
       }
     }
 
+    // For Codex agents: write config.toml with MCP server configs before chat()
+    // This must happen after buildServersFromSources (which injects credentials)
+    // but before ensureClient() starts the Codex binary (which reads CODEX_HOME)
+    if (agent instanceof CodexAgent) {
+      const sessionPath = getSessionStoragePath(workspaceRootPath, sessionId)
+
+      // Resolve path to the standalone session MCP server for Codex
+      // Uses the same basePath/monorepoRoot pattern as initialize() for interceptor
+      const serverRelativePath = join('packages', 'shared', 'src', 'codex', 'session-mcp-server.ts')
+      const serverBasePath = app.isPackaged ? app.getAppPath() : process.cwd()
+      let sessionServerPath = join(serverBasePath, serverRelativePath)
+      if (!existsSync(sessionServerPath) && !app.isPackaged) {
+        const monorepoRoot = join(serverBasePath, '..', '..')
+        sessionServerPath = join(monorepoRoot, serverRelativePath)
+      }
+
+      // Pass Anthropic API key for the call_llm tool in the session MCP server.
+      // This is already set in process.env by reinitializeAuth() before we get here.
+      const anthropicApiKey = process.env.ANTHROPIC_API_KEY
+
+      const { configResult } = setupCodexSessionConfig({
+        sessionPath,
+        sources: builtSources,
+        mcpServerConfigs: builtMcpServers,
+        sessionId,
+        workspaceRootPath,
+        plansFolderPath: join(sessionPath, 'plans'),
+        sessionServerPath,
+        nodePath: 'bun',
+        anthropicApiKey,
+      })
+      if (configResult.warnings.length > 0) {
+        sessionLog.warn(`Codex config warnings for session ${sessionId}:`, configResult.warnings)
+      }
+      sessionLog.info(`Wrote Codex config.toml for session ${sessionId} (${configResult.mcpSources.length} MCP sources)`)
+      sendSpan.mark('codex.config.written')
+    }
+
     try {
       sessionLog.info('Starting chat for session:', sessionId)
       sessionLog.info('Workspace:', JSON.stringify(managed.workspace, null, 2))
@@ -3172,6 +3394,8 @@ Remember: You're providing a second opinion. Help the user understand, question,
             sessionLog.info(`tool_start: ${event.toolName} (${event.toolUseId})`)
           } else if (event.type === 'tool_result') {
             sessionLog.info(`tool_result: ${event.toolUseId} isError=${event.isError}`)
+          } else if (event.type === 'error') {
+            sessionLog.info('Got event: error —', (event as any).message)
           } else {
             sessionLog.info('Got event:', event.type)
           }
@@ -4417,6 +4641,15 @@ To view this task's output:
 
     // Clear pending credential resolvers (they won't be resolved, but prevents memory leak)
     this.pendingCredentialResolvers.clear()
+
+    // Close Codex IPC file watchers for all sessions
+    for (const [sessionId, managed] of this.sessions) {
+      if (managed.ipcWatcher) {
+        managed.ipcWatcher.close()
+        managed.ipcWatcher = undefined
+        sessionLog.info(`Closed IPC watcher for session ${sessionId}`)
+      }
+    }
 
     // Clean up session-scoped tool callbacks for all sessions
     for (const sessionId of this.sessions.keys()) {

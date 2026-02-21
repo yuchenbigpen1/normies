@@ -1,15 +1,16 @@
+import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Check, CreditCard, Key } from "lucide-react"
+import { Check, CreditCard, Key, Cpu } from "lucide-react"
 import { StepFormLayout, BackButton, ContinueButton } from "./primitives"
 
-export type ApiSetupMethod = 'api_key' | 'claude_oauth'
+export type ApiSetupMethod = 'api_key' | 'claude_oauth' | 'chatgpt_oauth' | 'openai_api_key'
 
 interface ApiSetupOption {
   id: ApiSetupMethod
   name: string
   description: string
   icon: React.ReactNode
-  recommended?: boolean
+  providerGroup: 'anthropic' | 'openai'
 }
 
 const API_SETUP_OPTIONS: ApiSetupOption[] = [
@@ -18,15 +19,32 @@ const API_SETUP_OPTIONS: ApiSetupOption[] = [
     name: 'Claude Pro/Max',
     description: 'Use your Claude subscription for unlimited access.',
     icon: <CreditCard className="size-4" />,
-    recommended: true,
+    providerGroup: 'anthropic',
   },
   {
     id: 'api_key',
-    name: 'API Key',
-    description: 'Anthropic, OpenRouter, Ollama, or compatible APIs.',
+    name: 'Anthropic API Key',
+    description: 'Pay-as-you-go via Anthropic, OpenRouter, Ollama, or compatible APIs.',
     icon: <Key className="size-4" />,
+    providerGroup: 'anthropic',
+  },
+  {
+    id: 'chatgpt_oauth',
+    name: 'Codex · ChatGPT Plus/Pro',
+    description: 'Use your ChatGPT Plus or Pro subscription with Codex.',
+    icon: <Cpu className="size-4" />,
+    providerGroup: 'openai',
+  },
+  {
+    id: 'openai_api_key',
+    name: 'Codex · OpenAI API Key',
+    description: 'Pay-as-you-go via the OpenAI Platform API.',
+    icon: <Key className="size-4" />,
+    providerGroup: 'openai',
   },
 ]
+
+type ProviderTab = 'anthropic' | 'openai'
 
 interface APISetupStepProps {
   selectedMethod: ApiSetupMethod | null
@@ -38,16 +56,23 @@ interface APISetupStepProps {
 /**
  * APISetupStep - Choose how to connect your AI agents
  *
- * Two options:
- * - Claude Pro/Max (recommended) - Uses Claude subscription
- * - API Key - Pay-as-you-go via Anthropic
+ * Two tabs: Claude (Anthropic) and Codex (OpenAI).
+ * Each tab shows the relevant connection options.
  */
 export function APISetupStep({
   selectedMethod,
   onSelect,
   onContinue,
-  onBack
+  onBack,
 }: APISetupStepProps) {
+  // Default tab to the provider of the currently selected method
+  const defaultTab = selectedMethod
+    ? (API_SETUP_OPTIONS.find(o => o.id === selectedMethod)?.providerGroup ?? 'anthropic')
+    : 'anthropic'
+  const [activeTab, setActiveTab] = useState<ProviderTab>(defaultTab)
+
+  const visibleOptions = API_SETUP_OPTIONS.filter(o => o.providerGroup === activeTab)
+
   return (
     <StepFormLayout
       title="Set Up API Connection"
@@ -59,11 +84,28 @@ export function APISetupStep({
         </>
       }
     >
+      {/* Provider tabs */}
+      <div className="flex rounded-xl bg-foreground/[0.03] p-1 mb-4">
+        {(['anthropic', 'openai'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              "flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-all",
+              activeTab === tab
+                ? "bg-background shadow-minimal text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {tab === 'anthropic' ? 'Claude' : 'Codex'}
+          </button>
+        ))}
+      </div>
+
       {/* Options */}
       <div className="space-y-3">
-        {API_SETUP_OPTIONS.map((option) => {
+        {visibleOptions.map((option) => {
           const isSelected = option.id === selectedMethod
-
           return (
             <button
               key={option.id}
@@ -72,45 +114,27 @@ export function APISetupStep({
                 "flex w-full items-start gap-4 rounded-xl p-4 text-left transition-all",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 "hover:bg-foreground/[0.02] shadow-minimal",
-                isSelected
-                  ? "bg-background"
-                  : "bg-foreground-2"
+                isSelected ? "bg-background" : "bg-foreground-2"
               )}
             >
-              {/* Icon */}
-              <div
-                className={cn(
-                  "flex size-10 shrink-0 items-center justify-center rounded-lg",
-                  isSelected ? "bg-foreground/10 text-foreground" : "bg-muted text-muted-foreground"
-                )}
-              >
+              <div className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-lg",
+                isSelected ? "bg-foreground/10 text-foreground" : "bg-muted text-muted-foreground"
+              )}>
                 {option.icon}
               </div>
 
-              {/* Content */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{option.name}</span>
-                  {option.recommended && (
-                    <span className="rounded-[4px] bg-background shadow-minimal px-2 py-0.5 text-[11px] font-medium text-foreground/70">
-                      Recommended
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {option.description}
-                </p>
+                <span className="font-medium text-sm">{option.name}</span>
+                <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
               </div>
 
-              {/* Check */}
-              <div
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                  isSelected
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-muted-foreground/20"
-                )}
-              >
+              <div className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                isSelected
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-muted-foreground/20"
+              )}>
                 {isSelected && <Check className="size-3" strokeWidth={3} />}
               </div>
             </button>

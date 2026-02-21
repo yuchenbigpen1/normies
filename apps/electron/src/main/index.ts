@@ -75,6 +75,7 @@ import { initializeDocs } from '@normies/shared/docs'
 import { ensureDefaultPermissions } from '@normies/shared/agent/permissions-config'
 import { ensureToolIcons } from '@normies/shared/config'
 import { setBundledAssetsRoot } from '@normies/shared/utils'
+import { setVendorRoot } from '@normies/shared/codex'
 import { handleDeepLink } from './deep-link'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
 import log, { isDebugMode, mainLog, getLogFilePath } from './logger'
@@ -213,6 +214,10 @@ app.whenReady().then(async () => {
   // Register bundled assets root so all seeding functions can find their files
   // (docs, permissions, themes, tool-icons resolve via getBundledAssetsDir)
   setBundledAssetsRoot(__dirname)
+
+  // Register vendor root so the Codex binary resolver can find bundled binaries
+  // (vendor/codex/{platform}-{arch}/codex relative to __dirname or project root)
+  setVendorRoot(__dirname)
 
   // Initialize bundled docs
   initializeDocs()

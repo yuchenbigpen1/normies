@@ -7,11 +7,13 @@ import { ipcMain } from 'electron'
 import { mainLog } from './logger'
 import { getAuthState, getSetupNeeds } from '@normies/shared/auth'
 import { getCredentialManager } from '@normies/shared/credentials'
-import { saveConfig, loadStoredConfig, generateWorkspaceId, type AuthType, type StoredConfig } from '@normies/shared/config'
+import { saveConfig, loadStoredConfig, generateWorkspaceId, saveLlmConnection, setDefaultLlmConnection, type AuthType, type StoredConfig } from '@normies/shared/config'
+import type { LlmConnection } from '@normies/shared/config/llm-connections'
 import { getDefaultWorkspacesDir, generateUniqueWorkspacePath } from '@normies/shared/workspaces'
 import { CraftOAuth } from '@normies/shared/auth'
 import { validateMcpConnection } from '@normies/shared/mcp'
 import { startClaudeOAuth, exchangeClaudeCode, hasValidOAuthState, clearOAuthState } from '@normies/shared/auth'
+import { startChatGptOAuth, exchangeChatGptCode, exchangeIdTokenForApiKey, cancelChatGptOAuth } from '@normies/shared/auth'
 import { getCredentialManager as getCredentialManagerFn } from '@normies/shared/credentials'
 import {
   IPC_CHANNELS,
@@ -84,9 +86,14 @@ export function registerOnboardingHandlers(sessionManager: SessionManager): void
     mcpCredentials?: { accessToken: string; clientId?: string }
     anthropicBaseUrl?: string | null
     customModel?: string | null
+    /** LLM provider type — 'openai' for OpenAI/Codex paths, 'anthropic' for Claude paths */
+    providerType?: 'anthropic' | 'openai'
+    /** ChatGPT OAuth tokens — when present, creates a Codex LLM connection and stores tokens */
+    chatGptTokens?: { idToken: string; accessToken: string; refreshToken?: string; expiresAt?: number }
   }): Promise<OnboardingSaveResult> => {
     mainLog.info('[Onboarding:Main] ONBOARDING_SAVE_CONFIG received', {
       authType: config.authType,
+      providerType: config.providerType,
       hasWorkspace: !!config.workspace,
       workspaceName: config.workspace?.name,
       mcpUrl: config.workspace?.mcpUrl,
@@ -101,10 +108,11 @@ export function registerOnboardingHandlers(sessionManager: SessionManager): void
       const manager = getCredentialManager()
 
       // 1. Save billing credential if provided (only when authType is specified)
+      // Skip for OpenAI providers — their API key is stored in step 6b as a per-connection credential
       if (config.credential && config.authType) {
-        mainLog.info('[Onboarding:Main] Saving credential for authType:', config.authType)
-        if (config.authType === 'api_key') {
-          mainLog.info('[Onboarding:Main] Calling manager.setApiKey...')
+        mainLog.info('[Onboarding:Main] Saving credential for authType:', config.authType, 'providerType:', config.providerType)
+        if (config.authType === 'api_key' && config.providerType !== 'openai') {
+          mainLog.info('[Onboarding:Main] Calling manager.setApiKey (Anthropic)...')
           await manager.setApiKey(config.credential)
           mainLog.info('[Onboarding:Main] API key saved successfully')
         } else if (config.authType === 'oauth_token') {
@@ -219,12 +227,111 @@ export function registerOnboardingHandlers(sessionManager: SessionManager): void
         }
       }
 
-      // 5. Save config
+      // 4c. Fall back to active workspace if no new workspace was created.
+      // This ensures ChatGPT OAuth and OpenAI API key flows can store
+      // per-workspace credentials even when the user already has a workspace.
+      if (!workspaceId) {
+        workspaceId = newConfig.activeWorkspaceId ?? newConfig.workspaces[0]?.id
+      }
+
+      // 5. Save config (must happen before saveLlmConnection which reads from disk)
       mainLog.info('[Onboarding:Main] Saving config to disk...')
       saveConfig(newConfig)
       mainLog.info('[Onboarding:Main] Config saved successfully')
 
-      // 6. Reinitialize SessionManager auth to pick up new credentials
+      // 5a. Ensure an Anthropic LlmConnection exists when Anthropic credentials are saved.
+      // The legacy path (steps 1/3) stores credentials globally but never created an LlmConnection,
+      // which means the settings page and model picker don't see the Anthropic provider.
+      if (config.providerType !== 'openai' && config.authType) {
+        const isOAuth = config.authType === 'oauth_token'
+        const ANTHROPIC_SLUG = isOAuth ? 'anthropic-oauth' : 'anthropic-api'
+        const existingConnections = newConfig.llmConnections ?? []
+        const alreadyExists = existingConnections.some(c => c.slug === ANTHROPIC_SLUG)
+
+        if (!alreadyExists) {
+          mainLog.info(`[Onboarding:Main] Creating Anthropic LlmConnection: ${ANTHROPIC_SLUG}`)
+          const anthropicConnection: LlmConnection = {
+            slug: ANTHROPIC_SLUG,
+            name: isOAuth ? 'Claude (Subscription)' : 'Claude (API Key)',
+            providerType: 'anthropic',
+            authType: isOAuth ? 'oauth' : 'api_key',
+            baseUrl: config.anthropicBaseUrl || undefined,
+            createdAt: Date.now(),
+          }
+          saveLlmConnection(anthropicConnection)
+
+          // Set as default only if no default exists yet
+          const currentDefault = existingConnections.find(c =>
+            c.slug === (newConfig as any).defaultLlmConnection
+          )
+          if (!currentDefault) {
+            setDefaultLlmConnection(ANTHROPIC_SLUG)
+            mainLog.info(`[Onboarding:Main] Set ${ANTHROPIC_SLUG} as default LLM connection`)
+          }
+        }
+      }
+
+      // 6. If ChatGPT tokens provided, create Codex LLM connection + store tokens
+      // (done after saveConfig so saveLlmConnection sees the workspace in the stored config)
+      if (config.chatGptTokens && workspaceId) {
+        const CONNECTION_SLUG = 'codex-chatgpt'
+        mainLog.info('[Onboarding:Main] Storing ChatGPT tokens and creating Codex LLM connection...')
+
+        // Store tokens in credential manager under the key the CodexAgent expects:
+        // { type: 'source_oauth', workspaceId, sourceId: 'codex-' + _credentialSlug }
+        // _credentialSlug = connectionSlug = CONNECTION_SLUG, so sourceId = 'codex-codex-chatgpt'
+        await manager.set(
+          { type: 'source_oauth', workspaceId, sourceId: `codex-${CONNECTION_SLUG}` },
+          {
+            value: JSON.stringify({
+              idToken: config.chatGptTokens.idToken,
+              accessToken: config.chatGptTokens.accessToken,
+            }),
+            refreshToken: config.chatGptTokens.refreshToken,
+            expiresAt: config.chatGptTokens.expiresAt,
+          }
+        )
+        mainLog.info('[Onboarding:Main] ChatGPT tokens stored')
+
+        // Create Codex LLM connection (providerType=openai, authType=oauth)
+        const codexConnection: LlmConnection = {
+          slug: CONNECTION_SLUG,
+          name: 'Codex (ChatGPT)',
+          providerType: 'openai',
+          authType: 'oauth',
+          createdAt: Date.now(),
+        }
+        saveLlmConnection(codexConnection)
+        setDefaultLlmConnection(CONNECTION_SLUG)
+        mainLog.info('[Onboarding:Main] Codex LLM connection created and set as default')
+      }
+
+      // 6b. If OpenAI API Key was provided, create Codex LLM connection + store the key correctly
+      if (config.providerType === 'openai' && config.credential && config.authType === 'api_key' && workspaceId) {
+        const CONNECTION_SLUG = 'codex-api'
+        mainLog.info('[Onboarding:Main] Creating Codex API key LLM connection...')
+
+        // Store the API key under the per-connection credential key
+        // Format: { type: 'source_apikey', workspaceId, sourceId: 'codex-' + connectionSlug }
+        // This matches what CodexAgent.tryInjectStoredApiKey() reads from
+        await manager.set(
+          { type: 'source_apikey', workspaceId, sourceId: `codex-${CONNECTION_SLUG}` },
+          { value: config.credential }
+        )
+
+        const codexConnection: LlmConnection = {
+          slug: CONNECTION_SLUG,
+          name: 'Codex (API Key)',
+          providerType: 'openai',
+          authType: 'api_key',
+          createdAt: Date.now(),
+        }
+        saveLlmConnection(codexConnection)
+        setDefaultLlmConnection(CONNECTION_SLUG)
+        mainLog.info('[Onboarding:Main] Codex API key LLM connection created and set as default')
+      }
+
+      // 7. Reinitialize SessionManager auth to pick up new credentials
       try {
         mainLog.info('[Onboarding:Main] Reinitializing SessionManager auth...')
         await sessionManager.reinitializeAuth()
@@ -306,6 +413,68 @@ export function registerOnboardingHandlers(sessionManager: SessionManager): void
   // Clear OAuth state (for cancel/reset)
   ipcMain.handle(IPC_CHANNELS.ONBOARDING_CLEAR_CLAUDE_OAUTH_STATE, async () => {
     clearOAuthState()
+    return { success: true }
+  })
+
+  // Start ChatGPT OAuth flow (single-step — browser opens, callback server captures code automatically)
+  ipcMain.handle(IPC_CHANNELS.CHATGPT_START_OAUTH, async () => {
+    try {
+      mainLog.info('[Onboarding] Starting ChatGPT OAuth flow...')
+
+      // Step 1: Open browser + wait for callback code
+      const authorizationCode = await startChatGptOAuth((status) => {
+        mainLog.info('[Onboarding] ChatGPT OAuth status:', status)
+      })
+      mainLog.info('[Onboarding] ChatGPT authorization code received')
+
+      // Step 2: Exchange code for tokens (idToken + accessToken)
+      const tokens = await exchangeChatGptCode(authorizationCode, (status) => {
+        mainLog.info('[Onboarding] ChatGPT token exchange:', status)
+      })
+      mainLog.info('[Onboarding] ChatGPT tokens received, exchanging idToken for API key...')
+
+      // Step 3: Exchange idToken for an OpenAI API key via token-exchange grant.
+      // This converts the ChatGPT subscription login into a usable API key.
+      // If this fails, the tokens alone won't work — the binary will also fail.
+      try {
+        const apiKey = await exchangeIdTokenForApiKey(tokens.idToken)
+        mainLog.info('[Onboarding] Got OpenAI API key from idToken exchange')
+
+        // Return the API key so the renderer can store it as an api_key connection
+        // (more reliable than passing raw tokens that the binary must exchange again)
+        return {
+          success: true,
+          apiKey,
+          // Also return tokens for refresh capability
+          idToken: tokens.idToken,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresAt: tokens.expiresAt,
+        }
+      } catch (exchangeError) {
+        const exchangeMsg = exchangeError instanceof Error ? exchangeError.message : 'Unknown error'
+        mainLog.warn('[Onboarding] idToken→API key exchange failed:', exchangeMsg)
+        mainLog.info('[Onboarding] Falling back to raw token mode (binary will retry exchange)')
+
+        // Fall back to returning raw tokens — the binary will attempt the exchange itself
+        return {
+          success: true,
+          idToken: tokens.idToken,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresAt: tokens.expiresAt,
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      mainLog.error('[Onboarding] ChatGPT OAuth failed:', message)
+      return { success: false, error: message }
+    }
+  })
+
+  // Cancel ChatGPT OAuth flow
+  ipcMain.handle(IPC_CHANNELS.CHATGPT_CANCEL_OAUTH, async () => {
+    cancelChatGptOAuth()
     return { success: true }
   })
 }

@@ -16,6 +16,7 @@ import type { StoredAttachment, StoredMessage } from '@normies/core/types';
 import type { Plan } from '../agent/plan-types.ts';
 import type { PermissionMode } from '../agent/mode-manager.ts';
 import { BUNDLED_CONFIG_DEFAULTS, type ConfigDefaults } from './config-defaults-schema.ts';
+import type { LlmConnection } from './llm-connections.ts';
 
 // Re-export CONFIG_DIR for convenience (centralized in paths.ts)
 export { CONFIG_DIR } from './paths.ts';
@@ -52,6 +53,9 @@ export interface StoredConfig {
   spellCheck?: boolean;  // Enable spell check in input (default: false)
   // Analytics
   analyticsEnabled?: boolean;  // Anonymous usage analytics (default: true)
+  // Multi-provider LLM connections
+  llmConnections?: LlmConnection[];
+  defaultLlmConnection?: string;  // slug of the default connection
 }
 
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
@@ -1193,6 +1197,91 @@ export function resolveModelId(defaultModelId: string): string {
   const customModel = getCustomModel();
   if (customModel) return customModel;
   return defaultModelId;
+}
+
+// ============================================
+// LLM Connections
+// ============================================
+
+/**
+ * Load all LLM connections from config.
+ * Returns empty array if no connections are stored.
+ */
+export function getLlmConnections(): LlmConnection[] {
+  const config = loadStoredConfig();
+  return config?.llmConnections ?? [];
+}
+
+/**
+ * Add or update an LLM connection in config.
+ * If a connection with the same slug already exists, it is replaced.
+ */
+export function saveLlmConnection(connection: LlmConnection): void {
+  const config = loadStoredConfig();
+  if (!config) return;
+
+  const connections = config.llmConnections ?? [];
+  const existingIndex = connections.findIndex(c => c.slug === connection.slug);
+
+  if (existingIndex >= 0) {
+    connections[existingIndex] = connection;
+  } else {
+    connections.push(connection);
+  }
+
+  config.llmConnections = connections;
+
+  // If this is the first connection, set it as default
+  if (connections.length === 1 && !config.defaultLlmConnection) {
+    config.defaultLlmConnection = connection.slug;
+  }
+
+  saveConfig(config);
+}
+
+/**
+ * Remove an LLM connection by slug.
+ * If the removed connection was the default, clears the default.
+ */
+export function deleteLlmConnection(slug: string): void {
+  const config = loadStoredConfig();
+  if (!config) return;
+
+  config.llmConnections = (config.llmConnections ?? []).filter(c => c.slug !== slug);
+
+  if (config.defaultLlmConnection === slug) {
+    config.defaultLlmConnection = config.llmConnections[0]?.slug;
+  }
+
+  saveConfig(config);
+}
+
+/**
+ * Get the active default LLM connection.
+ * Returns null if no connections exist or no default is set.
+ */
+export function getDefaultLlmConnection(): LlmConnection | null {
+  const config = loadStoredConfig();
+  if (!config) return null;
+
+  const connections = config.llmConnections ?? [];
+  if (connections.length === 0) return null;
+
+  if (config.defaultLlmConnection) {
+    return connections.find(c => c.slug === config.defaultLlmConnection) ?? connections[0] ?? null;
+  }
+
+  return connections[0] ?? null;
+}
+
+/**
+ * Set the default LLM connection by slug.
+ */
+export function setDefaultLlmConnection(slug: string): void {
+  const config = loadStoredConfig();
+  if (!config) return;
+  config.defaultLlmConnection = slug;
+  saveConfig(config);
 }
 
 // ============================================

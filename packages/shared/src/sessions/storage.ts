@@ -444,6 +444,7 @@ function headerToMetadata(header: SessionHeader, workspaceRootPath: string): Ses
       workingDirectory: workingDir,
       sdkCwd,
       model: header.model,
+      connectionSlug: header.connectionSlug,
       thinkingLevel: header.thinkingLevel,
       // Shared viewer state - must be included for persistence across app restarts
       sharedUrl: header.sharedUrl,
@@ -583,6 +584,7 @@ export async function updateSessionMetadata(
     | 'sharedUrl'
     | 'sharedId'
     | 'model'
+    | 'connectionSlug'
   >>
 ): Promise<void> {
   const session = loadSession(workspaceRootPath, sessionId);
@@ -602,6 +604,7 @@ export async function updateSessionMetadata(
   if ('sharedUrl' in updates) session.sharedUrl = updates.sharedUrl;
   if ('sharedId' in updates) session.sharedId = updates.sharedId;
   if (updates.model !== undefined) session.model = updates.model;
+  if (updates.connectionSlug !== undefined) session.connectionSlug = updates.connectionSlug;
 
   await saveSession(session);
 }

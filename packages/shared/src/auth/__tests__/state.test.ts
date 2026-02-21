@@ -7,12 +7,18 @@
  * - Migration detection for legacy CLI tokens
  */
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
-import {
-  getSetupNeeds,
-  performTokenRefresh,
-  _resetRefreshMutex,
-  type TokenResult,
-} from '../state.ts';
+
+// Mock getLlmConnections to return empty by default (isolates legacy billing tests)
+const mockGetLlmConnections = mock(() => [] as import('../../config/llm-connections.ts').LlmConnection[]);
+
+mock.module('../../config/storage.ts', () => ({
+  getLlmConnections: mockGetLlmConnections,
+  loadStoredConfig: mock(() => null),
+  getActiveWorkspace: mock(() => null),
+}));
+
+const { getSetupNeeds, performTokenRefresh, _resetRefreshMutex } = await import('../state.ts');
+import type { TokenResult } from '../state.ts';
 import type { AuthState, MigrationInfo } from '../types.ts';
 
 // ============================================

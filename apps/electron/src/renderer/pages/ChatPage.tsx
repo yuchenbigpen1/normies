@@ -23,6 +23,7 @@ import { routes } from '@/lib/navigate'
 import { ensureSessionMessagesLoadedAtom, loadedSessionsAtom, sessionMetaMapAtom } from '@/atoms/sessions'
 import { getSessionTitle } from '@/utils/session'
 import { getDocsHomeUrl } from '@normies/shared/docs/doc-links'
+import { isSessionConnectionUnavailable } from '@config/llm-connections'
 
 export interface ChatPageProps {
   sessionId: string
@@ -71,6 +72,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     isSidebarVisible,
     isSessionListVisible,
     onToggleSidebar,
+    llmConnections,
   } = useAppShellContext()
 
   // Use the unified session options hook for clean access
@@ -177,8 +179,20 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     }
   }, [sessionId, activeWorkspaceId])
 
+  // Session connection change handler — locks connection before first message
+  const handleConnectionChange = React.useCallback((connectionSlug: string) => {
+    if (activeWorkspaceId) {
+      window.electronAPI.setSessionConnection(sessionId, activeWorkspaceId, connectionSlug)
+    }
+  }, [sessionId, activeWorkspaceId])
+
   // Effective model for this session (session-specific or global fallback)
   const effectiveModel = session?.model || currentModel
+
+  // Connection slug locked to this session (undefined = use default)
+  const currentConnection = session?.connectionSlug
+  // Check if the session's locked connection has been deleted
+  const connectionUnavailable = isSessionConnectionUnavailable(currentConnection, llmConnections)
 
   // Working directory for this session
   const workingDirectory = session?.workingDirectory
@@ -490,6 +504,9 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
                 onOpenUrl={handleOpenUrl}
                 currentModel={effectiveModel}
                 onModelChange={handleModelChange}
+                currentConnection={currentConnection}
+                onConnectionChange={handleConnectionChange}
+                connectionUnavailable={connectionUnavailable}
                 textareaRef={textareaRef}
                 pendingPermission={undefined}
                 onRespondToPermission={onRespondToPermission}
@@ -563,6 +580,9 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
             onOpenUrl={handleOpenUrl}
             currentModel={effectiveModel}
             onModelChange={handleModelChange}
+            currentConnection={currentConnection}
+            onConnectionChange={handleConnectionChange}
+            connectionUnavailable={connectionUnavailable}
             textareaRef={textareaRef}
             pendingPermission={pendingPermission}
             onRespondToPermission={onRespondToPermission}

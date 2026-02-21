@@ -43,6 +43,10 @@ export interface AppShellContextType {
   currentModel: string
   /** When set, a custom model overrides the Anthropic model selector (e.g. OpenRouter) */
   customModel: string | null
+  /** All configured LLM connections with auth status */
+  llmConnections: import('../../shared/types').LlmConnectionWithStatus[]
+  /** Refresh LLM connections from config (call after onboarding or settings change) */
+  refreshLlmConnections: () => Promise<void>
   pendingPermissions: Map<string, PermissionRequest[]>
   pendingCredentials: Map<string, CredentialRequest[]>
   pendingQuestions: Map<string, QuestionRequest[]>

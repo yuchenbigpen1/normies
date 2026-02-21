@@ -22,6 +22,19 @@ export const MODELS: ModelDefinition[] = [
   { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', shortName: 'Haiku', description: 'Fast & efficient', contextWindow: 200000 },
 ];
 
+/** Anthropic/Claude models — aliased from MODELS for multi-provider support */
+export const ANTHROPIC_MODELS: ModelDefinition[] = MODELS;
+
+/** Default model for Codex sessions */
+export const DEFAULT_CODEX_MODEL = 'gpt-5.3-codex';
+
+/** OpenAI/Codex models — used as fallback when dynamic model listing is unavailable */
+export const OPENAI_MODELS: ModelDefinition[] = [
+  { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', shortName: 'Codex 5.3', description: 'Most capable coding model', contextWindow: 192000 },
+  { id: 'gpt-5.2-codex', name: 'GPT-5.2 Codex', shortName: 'Codex 5.2', description: 'Coding with context compaction', contextWindow: 192000 },
+  { id: 'gpt-5-codex-mini', name: 'GPT-5 Codex Mini', shortName: 'Codex Mini', description: 'Fast & cost-effective', contextWindow: 192000 },
+];
+
 // ============================================
 // PURPOSE-SPECIFIC DEFAULTS
 // ============================================
@@ -33,12 +46,37 @@ export const DEFAULT_MODEL = 'claude-opus-4-6';
 export const SUMMARIZATION_MODEL = 'claude-haiku-4-5-20251001';
 
 // ============================================
+// ALL MODELS (combined registry for lookups)
+// ============================================
+
+/** All known models across all providers — used by helper functions for lookups */
+export const ALL_MODELS: ModelDefinition[] = [...MODELS, ...OPENAI_MODELS];
+
+// ============================================
 // HELPER FUNCTIONS
 // ============================================
 
+/**
+ * Find a model definition by ID across all providers.
+ * Also handles provider-prefixed IDs (e.g. "openai/gpt-5.3-codex").
+ */
+function findModelById(modelId: string): ModelDefinition | undefined {
+  // Direct match first
+  const direct = ALL_MODELS.find(m => m.id === modelId);
+  if (direct) return direct;
+
+  // Try stripping provider prefix (e.g. "openai/gpt-5.3-codex" → "gpt-5.3-codex")
+  if (modelId.includes('/')) {
+    const bare = modelId.split('/').pop()!;
+    return ALL_MODELS.find(m => m.id === bare);
+  }
+
+  return undefined;
+}
+
 /** Get display name for a model ID (full name with version) */
 export function getModelDisplayName(modelId: string): string {
-  const model = MODELS.find(m => m.id === modelId);
+  const model = findModelById(modelId);
   if (model) return model.name;
   // Fallback: strip prefix and date suffix
   return modelId.replace('claude-', '').replace(/-\d{8}$/, '');
@@ -46,9 +84,9 @@ export function getModelDisplayName(modelId: string): string {
 
 /** Get short display name for a model ID (without version number) */
 export function getModelShortName(modelId: string): string {
-  const model = MODELS.find(m => m.id === modelId);
+  const model = findModelById(modelId);
   if (model) return model.shortName;
-  // For provider-prefixed IDs (e.g. "openai/gpt-5"), show just the model part
+  // For provider-prefixed IDs (e.g. "openai/gpt-5.3-codex"), show just the model part
   if (modelId.includes('/')) {
     return modelId.split('/').pop() || modelId;
   }
@@ -58,7 +96,7 @@ export function getModelShortName(modelId: string): string {
 
 /** Get known context window size for a model ID (fallback when SDK hasn't reported usage yet) */
 export function getModelContextWindow(modelId: string): number | undefined {
-  return MODELS.find(m => m.id === modelId)?.contextWindow;
+  return findModelById(modelId)?.contextWindow;
 }
 
 /** Check if model is an Opus model (for cache TTL decisions) */

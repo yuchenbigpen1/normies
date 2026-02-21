@@ -277,6 +277,15 @@ export interface SessionModelChangedEvent {
 }
 
 /**
+ * Session connection changed event
+ */
+export interface SessionConnectionChangedEvent {
+  type: 'session_connection_changed'
+  sessionId: string
+  connectionSlug: string
+}
+
+/**
  * Credential request event - prompts user for credentials
  */
 export interface CredentialRequestEvent {
@@ -437,6 +446,7 @@ export type AgentEvent =
   | WorkingDirectoryChangedEvent
   | PermissionModeChangedEvent
   | SessionModelChangedEvent
+  | SessionConnectionChangedEvent
   | TaskBackgroundedEvent
   | ShellBackgroundedEvent
   | TaskProgressEvent

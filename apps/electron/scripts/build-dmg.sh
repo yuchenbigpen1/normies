@@ -121,6 +121,14 @@ unzip -o "$TEMP_DIR/${BUN_DOWNLOAD}.zip" -d "$TEMP_DIR"
 cp "$TEMP_DIR/${BUN_DOWNLOAD}/bun" "$ELECTRON_DIR/vendor/bun/"
 chmod +x "$ELECTRON_DIR/vendor/bun/bun"
 
+# 3.5. Copy Codex binary for darwin-${ARCH}
+echo "Copying Codex binary for darwin-${ARCH}..."
+CODEX_SOURCE="$ROOT_DIR/vendor/codex/darwin-${ARCH}"
+require_path "$CODEX_SOURCE/codex" "Codex binary for darwin-${ARCH}" "Run './scripts/download-codex.sh' from the repository root first."
+mkdir -p "$ELECTRON_DIR/vendor/codex/darwin-${ARCH}"
+cp "$CODEX_SOURCE/codex" "$ELECTRON_DIR/vendor/codex/darwin-${ARCH}/"
+chmod +x "$ELECTRON_DIR/vendor/codex/darwin-${ARCH}/codex"
+
 # 4. Copy SDK from root node_modules (monorepo hoisting)
 # Note: The SDK is hoisted to root node_modules by the package manager.
 # We copy it here because electron-builder only sees apps/electron/.
