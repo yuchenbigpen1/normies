@@ -181,8 +181,8 @@ if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PA
     export NOTARIZE=true
 fi
 
-# Run electron-builder
-npx electron-builder $BUILDER_ARGS
+# Run electron-builder (force arm64 so dmg-builder selects the arm64 dmgbuild bundle)
+arch -arm64 npx electron-builder $BUILDER_ARGS
 
 # 8. Verify the DMG was built
 # electron-builder.yml uses artifactName to output: Normies-${arch}.dmg
