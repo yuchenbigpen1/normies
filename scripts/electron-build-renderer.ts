@@ -16,7 +16,7 @@ if (existsSync(rendererDir)) {
 }
 
 const proc = spawn({
-  cmd: ["bun", "run", "vite", "build", "--config", "apps/electron/vite.config.ts"],
+  cmd: ["bun", "--bun", "run", "vite", "build", "--config", "apps/electron/vite.config.ts"],
   cwd: ROOT_DIR,
   stdout: "inherit",
   stderr: "inherit",
