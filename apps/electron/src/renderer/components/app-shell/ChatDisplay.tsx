@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "motion/react"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { trackEvent } from "@/lib/posthog"
 import { Markdown, CollapsibleMarkdownProvider, StreamingMarkdown, type RenderMode } from "@/components/markdown"
 import { AnimatedCollapsibleContent } from "@/components/ui/collapsible"
 import {
@@ -1721,6 +1722,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                           // Detect task sessions by projectId + taskIndex (reliable even for sessions
                           // created before systemPromptPreset was persisted to JSONL)
                           const isTaskSession = session.projectId != null && session.taskIndex != null
+                          trackEvent('plan_accepted', { is_task_session: isTaskSession })
                           if (isTaskSession) {
                             // Normies: Task session follow-up — execute plan directly in same session.
                             // Permission is already allow-all from initial task execution.
@@ -1745,6 +1747,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                           }
                         }}
                         onAcceptPlanWithCompact={hasTurnsAfter || (session?.projectId != null && session?.taskIndex != null) ? undefined : () => {
+                          trackEvent('plan_accepted', { is_task_session: false, with_compact: true })
                           // Find the most recent plan message to get its path
                           // After compaction, Claude needs to know which plan file to read
                           const planMessage = session?.messages.findLast(m => m.role === 'plan')
