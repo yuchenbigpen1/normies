@@ -5,9 +5,6 @@
  * These are separated so they can be unit tested without triggering
  * the CLI entry point's process.exit() behavior.
  */
-import { loadPreferences, updatePreferences } from '../config/preferences.ts';
-import type { UserPreferences } from '../config/preferences.ts';
-
 // ============================================================
 // Types
 // ============================================================
@@ -147,96 +144,3 @@ The completion summaries from all sibling tasks will be included in your first m
   }
 }
 
-// ============================================================
-// Preferences handler
-// ============================================================
-
-/**
- * Map flat tool input fields to UserPreferences and persist.
- * Mirrors the logic from claude-agent.ts handleUpdatePreferences
- * so both Claude SDK and Codex paths behave identically.
- */
-export function handleUpdatePreferences(input: Record<string, unknown>): string {
-  const updates: Partial<UserPreferences> = {}
-
-  if (input.name && typeof input.name === 'string') {
-    updates.name = input.name
-  }
-  if (input.timezone && typeof input.timezone === 'string') {
-    updates.timezone = input.timezone
-  }
-  if (input.language && typeof input.language === 'string') {
-    updates.language = input.language
-  }
-
-  // Handle location fields
-  if (input.city || input.region || input.country) {
-    updates.location = {}
-    if (input.city && typeof input.city === 'string') {
-      updates.location.city = input.city
-    }
-    if (input.region && typeof input.region === 'string') {
-      updates.location.region = input.region
-    }
-    if (input.country && typeof input.country === 'string') {
-      updates.location.country = input.country
-    }
-  }
-
-  // Handle simple string/enum fields
-  if (input.company && typeof input.company === 'string') {
-    updates.company = input.company
-  }
-  if (input.role && typeof input.role === 'string') {
-    updates.role = input.role
-  }
-  if (input.industry && typeof input.industry === 'string') {
-    updates.industry = input.industry
-  }
-  if (input.technicalLevel && typeof input.technicalLevel === 'string') {
-    updates.technicalLevel = input.technicalLevel as UserPreferences['technicalLevel']
-  }
-
-  // Handle tools (append to existing, no duplicates)
-  if (input.tools && typeof input.tools === 'string') {
-    const current = loadPreferences()
-    const existingTools = current.tools || []
-    const newTool = input.tools
-    if (!existingTools.some(t => t.toLowerCase() === newTool.toLowerCase())) {
-      updates.tools = [...existingTools, newTool]
-    }
-  }
-
-  // Handle goals (append to existing, no duplicates)
-  if (input.goals && typeof input.goals === 'string') {
-    const current = loadPreferences()
-    const existingGoals = current.goals || []
-    const newGoal = input.goals
-    if (!existingGoals.some(g => g.toLowerCase() === newGoal.toLowerCase())) {
-      updates.goals = [...existingGoals, newGoal]
-    }
-  }
-
-  // Handle notes (append to existing)
-  if (input.notes && typeof input.notes === 'string') {
-    const current = loadPreferences()
-    const existingNotes = current.notes || ''
-    const newNote = input.notes
-    updates.notes = existingNotes
-      ? `${existingNotes}\n- ${newNote}`
-      : `- ${newNote}`
-  }
-
-  // Check if anything was actually updated
-  const fields = Object.keys(updates).filter(k => k !== 'location')
-  if (updates.location) {
-    fields.push(...Object.keys(updates.location).map(k => `location.${k}`))
-  }
-
-  if (fields.length === 0) {
-    return 'No preferences were updated (no valid fields provided)'
-  }
-
-  updatePreferences(updates)
-  return `Updated user preferences: ${fields.join(', ')}`
-}

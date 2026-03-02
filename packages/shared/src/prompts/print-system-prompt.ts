@@ -57,8 +57,7 @@ printAnnotation('Built once per session, passed to SDK, enables prompt caching')
 printAnnotation('The SDK also uses preset: "claude_code" which adds Claude Code\'s base system prompt');
 printAnnotation('');
 printAnnotation('Composed of:');
-printAnnotation('  1. User Preferences (if set) - formatPreferencesForPrompt()');
-printAnnotation('  2. Normies Environment Marker - version, platform, arch');
+printAnnotation('  1. Normies Environment Marker - version, platform, arch');
 printAnnotation('  3. Core Instructions - capabilities, sources, guidelines');
 printAnnotation('  4. Configuration Documentation Refs - permissions, skills, themes, statuses');
 printAnnotation('  5. Permission Modes Documentation - inlined in system prompt');
@@ -66,7 +65,6 @@ printAnnotation('  6. Error Handling & Tool Metadata - guidelines for tool usage
 printAnnotation('  7. Debug Mode Context (if enabled) - formatDebugModeContext()');
 
 const systemPrompt = getSystemPrompt(
-  undefined, // No pinned preferences (use current from disk)
   { enabled: false }, // Debug mode disabled for cleaner output
   '/Users/example/.craft-agent/workspaces/abc123' // Example workspace path
 );
@@ -77,7 +75,6 @@ console.log(`\n${colors.bold}Static System Prompt Length: ${systemPrompt.length.
 
 // Show with debug mode enabled
 const systemPromptWithDebug = getSystemPrompt(
-  undefined,
   { enabled: true, logFilePath: '~/Library/Logs/@normies/electron/main.log' },
   '/Users/example/.craft-agent/workspaces/abc123'
 );
@@ -201,13 +198,12 @@ ${colors.bold}SDK Configuration:${colors.reset}
   systemPrompt.append: getSystemPrompt() ${colors.dim}// Normies additions (static, cacheable)${colors.reset}
 
 ${colors.bold}Static System Prompt Components:${colors.reset}
-  1. User Preferences (if set)           ${colors.dim}// formatPreferencesForPrompt()${colors.reset}
-  2. Normies Environment Marker      ${colors.dim}// Version, platform, arch${colors.reset}
-  3. Core Instructions                   ${colors.dim}// Capabilities, sources, guidelines${colors.reset}
-  4. Configuration Documentation Refs    ${colors.dim}// Permissions, skills, themes, statuses${colors.reset}
-  5. Permission Modes Documentation      ${colors.dim}// Inlined in system prompt${colors.reset}
-  6. Error Handling & Tool Metadata      ${colors.dim}// Guidelines for tool usage${colors.reset}
-  7. Debug Mode Context (if enabled)     ${colors.dim}// formatDebugModeContext()${colors.reset}
+  1. Normies Environment Marker      ${colors.dim}// Version, platform, arch${colors.reset}
+  2. Core Instructions                   ${colors.dim}// Capabilities, sources, guidelines${colors.reset}
+  3. Configuration Documentation Refs    ${colors.dim}// Permissions, skills, themes, statuses${colors.reset}
+  4. Permission Modes Documentation      ${colors.dim}// Inlined in system prompt${colors.reset}
+  5. Error Handling & Tool Metadata      ${colors.dim}// Guidelines for tool usage${colors.reset}
+  6. Debug Mode Context (if enabled)     ${colors.dim}// formatDebugModeContext()${colors.reset}
 
 ${colors.bold}Dynamic User Message Components (per message):${colors.reset}
   1. Date/Time Context                   ${colors.dim}// getDateTimeContext()${colors.reset}
@@ -223,5 +219,4 @@ ${colors.bold}Key Files:${colors.reset}
   packages/shared/src/prompts/system.ts          ${colors.dim}// Main prompt assembly${colors.reset}
   packages/shared/src/agent/craft-agent.ts       ${colors.dim}// User message building${colors.reset}
   packages/shared/src/agent/mode-manager.ts      ${colors.dim}// Permission modes${colors.reset}
-  packages/shared/src/config/preferences.ts      ${colors.dim}// User preferences${colors.reset}
 `);

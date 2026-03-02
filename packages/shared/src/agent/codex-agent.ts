@@ -1479,7 +1479,6 @@ export class CodexAgent extends BaseAgent {
    * Built-in MCP servers that are always available (not user sources).
    */
   private static readonly BUILT_IN_MCP_SERVERS = new Set([
-    'preferences',
     'session',
     'craft-agents-docs',
     'api-bridge',
@@ -1934,7 +1933,6 @@ export class CodexAgent extends BaseAgent {
       const model = resolveCodexModelId(this._codexModel, cfg.authType);
 
       const systemPrompt = getSystemPrompt(
-        undefined,
         cfg.debugMode,
         this.config.workspace.rootPath,
         this.config.session?.workingDirectory,
@@ -2376,11 +2374,9 @@ export class CodexAgent extends BaseAgent {
         }
 
         const systemPrompt = getSystemPrompt(
-          undefined,
           cfg.debugMode,
           this.config.workspace.rootPath,
           this.config.session?.workingDirectory,
-          undefined
         );
 
         await client.threadResume({

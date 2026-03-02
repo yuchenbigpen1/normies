@@ -1,7 +1,6 @@
-import { query, createSdkMcpServer, tool, AbortError, type Query, type SDKMessage, type SDKUserMessage, type SDKAssistantMessageError, type Options } from '@anthropic-ai/claude-agent-sdk';
+import { query, createSdkMcpServer, AbortError, type Query, type SDKMessage, type SDKUserMessage, type SDKAssistantMessageError, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { getDefaultOptions, resetClaudeConfigCheck } from './options.ts';
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources';
-import { z } from 'zod';
 import { getSystemPrompt, getDateTimeContext, getWorkingDirectoryContext } from '../prompts/system.ts';
 import { parseError, type AgentError } from './errors.ts';
 import { runErrorDiagnostics } from './diagnostics.ts';
@@ -10,7 +9,6 @@ import { isLocalMcpEnabled } from '../workspaces/storage.ts';
 import { loadPlanFromPath } from '../sessions/storage.ts';
 import { DEFAULT_MODEL, isClaudeModel } from '../config/models.ts';
 import { getCredentialManager } from '../credentials/index.ts';
-import { updatePreferences, loadPreferences, formatPreferencesForPrompt, type UserPreferences } from '../config/preferences.ts';
 import type { FileAttachment } from '../utils/files.ts';
 import { debug } from '../utils/debug.ts';
 import {
@@ -88,143 +86,6 @@ const DANGEROUS_COMMANDS = new Set([
   'git push', 'git reset', 'git rebase', 'git checkout',
 ]);
 
-// Handle preferences update (extracted for use in MCP tool)
-function handleUpdatePreferences(input: Record<string, unknown>): string {
-  const updates: Partial<UserPreferences> = {};
-
-  if (input.name && typeof input.name === 'string') {
-    updates.name = input.name;
-  }
-  if (input.timezone && typeof input.timezone === 'string') {
-    updates.timezone = input.timezone;
-  }
-  if (input.language && typeof input.language === 'string') {
-    updates.language = input.language;
-  }
-
-  // Handle location fields
-  if (input.city || input.region || input.country) {
-    updates.location = {};
-    if (input.city && typeof input.city === 'string') {
-      updates.location.city = input.city;
-    }
-    if (input.region && typeof input.region === 'string') {
-      updates.location.region = input.region;
-    }
-    if (input.country && typeof input.country === 'string') {
-      updates.location.country = input.country;
-    }
-  }
-
-  // Handle simple string/enum fields
-  if (input.company && typeof input.company === 'string') {
-    updates.company = input.company;
-  }
-  if (input.role && typeof input.role === 'string') {
-    updates.role = input.role;
-  }
-  if (input.industry && typeof input.industry === 'string') {
-    updates.industry = input.industry;
-  }
-  if (input.technicalLevel && typeof input.technicalLevel === 'string') {
-    updates.technicalLevel = input.technicalLevel as UserPreferences['technicalLevel'];
-  }
-
-  // Handle tools (append to existing, no duplicates)
-  if (input.tools && typeof input.tools === 'string') {
-    const current = loadPreferences();
-    const existingTools = current.tools || [];
-    const newTool = input.tools;
-    if (!existingTools.some(t => t.toLowerCase() === newTool.toLowerCase())) {
-      updates.tools = [...existingTools, newTool];
-    }
-  }
-
-  // Handle goals (append to existing, no duplicates)
-  if (input.goals && typeof input.goals === 'string') {
-    const current = loadPreferences();
-    const existingGoals = current.goals || [];
-    const newGoal = input.goals;
-    if (!existingGoals.some(g => g.toLowerCase() === newGoal.toLowerCase())) {
-      updates.goals = [...existingGoals, newGoal];
-    }
-  }
-
-  // Handle notes (append to existing)
-  if (input.notes && typeof input.notes === 'string') {
-    const current = loadPreferences();
-    const existingNotes = current.notes || '';
-    const newNote = input.notes;
-    updates.notes = existingNotes
-      ? `${existingNotes}\n- ${newNote}`
-      : `- ${newNote}`;
-  }
-
-  // Check if anything was actually updated
-  const fields = Object.keys(updates).filter(k => k !== 'location');
-  if (updates.location) {
-    fields.push(...Object.keys(updates.location).map(k => `location.${k}`));
-  }
-
-  if (fields.length === 0) {
-    return 'No preferences were updated (no valid fields provided)';
-  }
-
-  updatePreferences(updates);
-  return `Updated user preferences: ${fields.join(', ')}`;
-}
-
-
-// Base tool: update_user_preferences (always available)
-const updateUserPreferencesTool = tool(
-  'update_user_preferences',
-  `Update stored user preferences. Save information about the user silently when they mention it during conversation — their name, company, role, industry, technical level, tools they use, goals, or other relevant context. Don't ask permission to save — just save and briefly acknowledge. Only save things you're confident about from what they've said.`,
-  {
-    name: z.string().optional().describe("The user's preferred name or how they'd like to be addressed"),
-    timezone: z.string().optional().describe("The user's timezone in IANA format (e.g., 'America/New_York', 'Europe/London')"),
-    city: z.string().optional().describe("The user's city"),
-    region: z.string().optional().describe("The user's state/region/province"),
-    country: z.string().optional().describe("The user's country"),
-    language: z.string().optional().describe("The user's preferred language for responses"),
-    company: z.string().optional().describe("The user's company or organization"),
-    role: z.string().optional().describe("The user's role or what they do (e.g., 'marketing manager', 'founder', 'operations lead')"),
-    industry: z.string().optional().describe("The user's industry or domain (e.g., 'e-commerce', 'healthcare', 'real estate')"),
-    technicalLevel: z.enum(['non-technical', 'somewhat-technical', 'technical']).optional().describe("The user's technical comfort level"),
-    tools: z.string().optional().describe("A tool or platform the user already uses (e.g., 'Notion', 'Stripe', 'Shopify'). Appends to existing list."),
-    goals: z.string().optional().describe("A goal or challenge the user is working toward. Appends to existing list."),
-    notes: z.string().optional().describe('Additional notes about the user that would be helpful to remember (preferences, context, etc.). This appends to existing notes.'),
-  },
-  async (args) => {
-    try {
-      const result = handleUpdatePreferences(args);
-      return {
-        content: [{ type: 'text', text: result }],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        content: [{ type: 'text', text: `Failed to update preferences: ${message}` }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// Cached MCP server for preferences
-let cachedPrefToolsServer: ReturnType<typeof createSdkMcpServer> | null = null;
-
-// Preferences MCP server - user preferences tool
-function getPreferencesServer(_unused?: boolean): ReturnType<typeof createSdkMcpServer> {
-  if (!cachedPrefToolsServer) {
-    cachedPrefToolsServer = createSdkMcpServer({
-      name: 'preferences',
-      version: '1.0.0',
-      tools: [updateUserPreferencesTool],
-    });
-  }
-  return cachedPrefToolsServer;
-}
-
 // Re-export SdkMcpServerConfig from backend/types for backwards compat
 export type { SdkMcpServerConfig } from './backend/types.ts';
 import type { SdkMcpServerConfig } from './backend/types.ts';
@@ -282,10 +143,6 @@ export class ClaudeAgent extends BaseAgent {
   private thinkingLevel: ThinkingLevel = 'think';
   // Ultrathink override - when true, boosts to max thinking for one message (resets after query)
   private ultrathinkOverride: boolean = false;
-  // Pinned system prompt components (captured on first chat, used for consistency after compaction)
-  private pinnedPreferencesPrompt: string | null = null;
-  // Track if preference drift notification has been shown this session
-  private preferencesDriftNotified: boolean = false;
   // Captured stderr from SDK subprocess (for error diagnostics when process exits with code 1)
   private lastStderrOutput: string[] = [];
   // Last assistant message usage (for accurate context window display)
@@ -530,28 +387,6 @@ export class ClaudeAgent extends BaseAgent {
     try {
       const sessionId = this.config.session?.id || `temp-${Date.now()}`;
 
-      // Pin system prompt components on first chat() call for consistency after compaction
-      // The SDK's resume mechanism expects system prompt consistency within a session
-      const currentPreferencesPrompt = formatPreferencesForPrompt();
-
-      if (this.pinnedPreferencesPrompt === null) {
-        // First chat in this session - pin current values
-        this.pinnedPreferencesPrompt = currentPreferencesPrompt;
-        debug('[chat] Pinned system prompt components for session consistency');
-      } else {
-        // Detect drift: warn user if context has changed since session started
-        const preferencesDrifted = currentPreferencesPrompt !== this.pinnedPreferencesPrompt;
-
-        if (preferencesDrifted && !this.preferencesDriftNotified) {
-          yield {
-            type: 'info',
-            message: `Note: Your preferences changed since this session started. Start a new session to apply changes.`,
-          };
-          this.preferencesDriftNotified = true;
-          debug(`[chat] Detected drift in: preferences`);
-        }
-      }
-
       // Check if we have binary attachments that need the AsyncIterable interface
       const hasBinaryAttachments = attachments?.some(a => a.type === 'image' || a.type === 'pdf');
 
@@ -589,7 +424,6 @@ export class ClaudeAgent extends BaseAgent {
             },
           }
         : {
-            preferences: getPreferencesServer(false),
             // Session-scoped tools (SubmitPlan, source_test, etc.)
             session: getSessionScopedTools(sessionId, this.workspaceRootPath, this.config.systemPromptPreset),
             // Normies documentation - always available for searching setup guides
@@ -658,9 +492,7 @@ export class ClaudeAgent extends BaseAgent {
             this.lastStderrOutput.shift();
           }
         },
-        // Beta features (only when using direct Anthropic API, not OpenRouter/etc.)
-        // - advanced-tool-use-2025-11-20: Enhanced tool use capabilities
-        ...(useAnthropicBetas ? { betas: ['advanced-tool-use-2025-11-20'] as any } : {}),
+        // Beta features: none currently — advanced-tool-use not available via SDK
         // Extended thinking: tokens based on effective thinking level (session level + ultrathink override)
         // Non-Claude models don't support extended thinking, so pass 0 to disable
         // Mini agents also disable thinking for efficiency (quick config edits don't need deep reasoning)
@@ -669,13 +501,12 @@ export class ClaudeAgent extends BaseAgent {
         // - Mini agents: Use custom (lean) system prompt without Claude Code preset
         // - Normal agents: Append to Claude Code's system prompt (recommended by docs)
         systemPrompt: this.config.systemPromptPreset === 'mini'
-          ? getSystemPrompt(undefined, undefined, this.workspaceRootPath, undefined, 'mini')
+          ? getSystemPrompt(undefined, this.workspaceRootPath, undefined, 'mini')
           : {
               type: 'preset' as const,
               preset: 'claude_code' as const,
               // Working directory included for monorepo context file discovery
               append: getSystemPrompt(
-                this.pinnedPreferencesPrompt ?? undefined,
                 this.config.debugMode,
                 this.workspaceRootPath,
                 this.config.session?.workingDirectory,
@@ -1259,10 +1090,48 @@ export class ClaudeAgent extends BaseAgent {
               return { continue: true };
             }],
           }],
-          // NOTE: PostToolUse hook was removed because updatedMCPToolOutput is not a valid SDK output field.
-          // For API tools (api_*), summarization happens in api-tools.ts.
-          // For external MCP servers (stdio/HTTP), we cannot modify their output - they're responsible
-          // for their own size management via pagination or filtering.
+          // PostToolUse hook: Context health monitoring for task execution sessions.
+          // Injects a warning via additionalContext when context window usage exceeds thresholds,
+          // prompting the agent to wrap up and call setCompletionSummary before running out of context.
+          PostToolUse: [{
+            hooks: [async (input) => {
+              if (input.hook_event_name !== 'PostToolUse') return { continue: true };
+
+              // Only monitor task-execution sessions (executors, verifiers)
+              if (this.systemPromptPreset !== 'task-execution') return { continue: true };
+
+              const contextWindow = this.cachedContextWindow;
+              const lastUsage = this.lastAssistantUsage;
+              if (!contextWindow || !lastUsage) return { continue: true };
+
+              const currentTokens = lastUsage.input_tokens + lastUsage.cache_read_input_tokens + lastUsage.cache_creation_input_tokens;
+              const usageRatio = currentTokens / contextWindow;
+
+              // Warning at 70%: nudge to wrap up
+              if (usageRatio >= 0.7 && usageRatio < 0.85) {
+                return {
+                  continue: true,
+                  hookSpecificOutput: {
+                    hookEventName: 'PostToolUse' as const,
+                    additionalContext: `⚠️ CONTEXT HEALTH: You've used ${Math.round(usageRatio * 100)}% of your context window. Start wrapping up — write your completion summary and call setCompletionSummary soon.`,
+                  },
+                };
+              }
+
+              // Critical at 85%: urgent wrap-up
+              if (usageRatio >= 0.85) {
+                return {
+                  continue: true,
+                  hookSpecificOutput: {
+                    hookEventName: 'PostToolUse' as const,
+                    additionalContext: `🚨 CONTEXT CRITICAL: ${Math.round(usageRatio * 100)}% of context used. STOP what you're doing and call setCompletionSummary NOW with what you've accomplished so far. You will run out of context soon.`,
+                  },
+                };
+              }
+
+              return { continue: true };
+            }],
+          }],
 
           // ═══════════════════════════════════════════════════════════════════════════
           // SUBAGENT HOOKS: Logging only - parent tracking uses SDK's parent_tool_use_id
@@ -1477,9 +1346,7 @@ export class ClaudeAgent extends BaseAgent {
           this.sessionId = null;
           // Notify that we're clearing the session ID (for persistence)
           this.config.onSdkSessionIdCleared?.();
-          // Clear pinned state for fresh start
-          this.pinnedPreferencesPrompt = null;
-          this.preferencesDriftNotified = false;
+
 
           // Build recovery context from previous messages to inject into retry
           const recoveryContext = this.buildRecoveryContext();
@@ -1657,9 +1524,6 @@ export class ClaudeAgent extends BaseAgent {
             console.error('[CraftAgent] SDK session expired server-side, clearing and retrying fresh');
             debug('[CraftAgent] SDK session expired server-side, clearing and retrying fresh');
             this.sessionId = null;
-            // Clear pinned state so retry captures fresh values
-            this.pinnedPreferencesPrompt = null;
-            this.preferencesDriftNotified = false;
             // Use 'info' instead of 'status' to show message without spinner
             yield { type: 'info', message: 'Session expired, restoring context...' };
             // Recursively call with isRetry=true (yield* delegates all events)
@@ -1729,9 +1593,6 @@ export class ClaudeAgent extends BaseAgent {
         if (wasResuming && !_isRetry) {
           debug('[SESSION_DEBUG] >>> TAKING PATH: wasResuming fallback retry');
           this.sessionId = null;
-          // Clear pinned state so retry captures fresh values
-          this.pinnedPreferencesPrompt = null;
-          this.preferencesDriftNotified = false;
 
           // Provide context-aware message (conservative: only match explicit session/resume terms)
           const isSessionError =
@@ -2824,9 +2685,6 @@ Please continue the conversation naturally from where we left off.
   clearHistory(): void {
     // Clear session to start fresh conversation
     this.sessionId = null;
-    // Clear pinned state so next chat() will capture fresh values
-    this.pinnedPreferencesPrompt = null;
-    this.preferencesDriftNotified = false;
   }
 
   /**
@@ -2976,10 +2834,6 @@ Please continue the conversation naturally from where we left off.
     // Clear security whitelists
     this.alwaysAllowedCommands.clear();
     this.alwaysAllowedDomains.clear();
-
-    // Clear pinned system prompt state
-    this.pinnedPreferencesPrompt = null;
-    this.preferencesDriftNotified = false;
 
     // Clear session
     this.sessionId = null;

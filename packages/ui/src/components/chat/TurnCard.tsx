@@ -252,10 +252,8 @@ export interface TurnCardProps {
   animateResponse?: boolean
   /** Hide footers for compact embedding (EditPopover) */
   compactMode?: boolean
-  /** Callback to open thread overlay for this turn's response (Normies) */
-  onOpenThread?: (messageText: string) => void
-  /** Whether an existing thread/second opinion exists for this turn (Normies) */
-  hasExistingThread?: boolean
+  /** Callback to trigger an automated critic review of the conversation (Normies) */
+  onReview?: () => void
 }
 
 // ============================================================================
@@ -1211,10 +1209,8 @@ export interface ResponseCardProps {
   acceptPlanHint?: string
   /** Hide footer for compact embedding (EditPopover) */
   compactMode?: boolean
-  /** Callback to open thread/sanity check overlay */
-  onOpenThread?: (text: string) => void
-  /** Whether a thread already exists for this message */
-  hasExistingThread?: boolean
+  /** Callback to trigger automated critic review */
+  onReview?: () => void
 }
 
 const MAX_HEIGHT = 540
@@ -1250,8 +1246,7 @@ export function ResponseCard({
   acceptPlanLabel,
   acceptPlanHint,
   compactMode = false,
-  onOpenThread,
-  hasExistingThread,
+  onReview,
 }: ResponseCardProps) {
   // Accept Plan button loading state — shows spinner on click, disabled until hidden
   const [isAccepting, setIsAccepting] = useState(false)
@@ -1404,20 +1399,20 @@ export function ResponseCard({
             )}>
               {/* Left side - Sanity Check, Copy, and View as Markdown */}
               <div className="flex items-center gap-3">
-                {/* Sanity Check button — opens thread overlay */}
-                {onOpenThread && !isStreaming && (
+                {/* Review button — triggers automated critic review */}
+                {onReview && !isStreaming && (
                   <button
                     type="button"
-                    onClick={() => onOpenThread(text)}
+                    onClick={() => onReview()}
                     className={cn(
                       "h-[26px] px-2.5 rounded-[6px] inline-flex items-center gap-1.5 select-none glass-btn",
-                      hasExistingThread ? "text-foreground/80" : "text-foreground/60 hover:text-foreground/80",
+                      "text-foreground/60 hover:text-foreground/80",
                       "transition-all duration-150 ease-out",
                       "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     )}
                   >
-                    <MessageCircle className={cn(SIZE_CONFIG.iconSize, hasExistingThread && "fill-current")} />
-                    <span>Sanity Check</span>
+                    <MessageCircle className={SIZE_CONFIG.iconSize} />
+                    <span>Review</span>
                   </button>
                 )}
                 <button
@@ -1675,8 +1670,7 @@ export const TurnCard = React.memo(function TurnCard({
   displayMode = 'detailed',
   animateResponse = false,
   compactMode = false,
-  onOpenThread,
-  hasExistingThread,
+  onReview,
 }: TurnCardProps) {
   // Derive the turn phase from props using the state machine.
   // This provides a single source of truth for lifecycle state,
@@ -2021,8 +2015,7 @@ export const TurnCard = React.memo(function TurnCard({
                 onAcceptWithCompact={onAcceptPlanWithCompact}
                 isLastResponse={isLastResponse}
                 compactMode={compactMode}
-                onOpenThread={onOpenThread ? (text) => onOpenThread(text) : undefined}
-                hasExistingThread={hasExistingThread}
+                onReview={onReview}
               />
             </motion.div>
           )}
@@ -2043,8 +2036,7 @@ export const TurnCard = React.memo(function TurnCard({
             onAcceptWithCompact={onAcceptPlanWithCompact}
             isLastResponse={isLastResponse}
             compactMode={compactMode}
-            onOpenThread={onOpenThread ? (text) => onOpenThread(text) : undefined}
-            hasExistingThread={hasExistingThread}
+            onReview={onReview}
           />
         </div>
       )}
@@ -2072,9 +2064,6 @@ export const TurnCard = React.memo(function TurnCard({
 
   // Re-render if activities changed (important for playground/testing scenarios)
   if (prev.activities !== next.activities) return false
-
-  // Re-render if thread indicator changed
-  if (prev.hasExistingThread !== next.hasExistingThread) return false
 
   // For complete, non-streaming turns: skip re-render if same turn
   // These are static and safe to cache

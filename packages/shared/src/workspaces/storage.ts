@@ -90,6 +90,14 @@ export function getWorkspaceSkillsPath(rootPath: string): string {
   return join(rootPath, 'skills');
 }
 
+/**
+ * Get the agents directory path for a workspace
+ * @param rootPath - Absolute path to workspace root folder
+ */
+export function getWorkspaceAgentsPath(rootPath: string): string {
+  return join(rootPath, 'agents');
+}
+
 // ============================================================
 // Config Operations
 // ============================================================
@@ -308,14 +316,26 @@ export function createWorkspaceAtPath(
   mkdirSync(getWorkspaceSourcesPath(rootPath), { recursive: true });
   mkdirSync(getWorkspaceSessionsPath(rootPath), { recursive: true });
   mkdirSync(getWorkspaceSkillsPath(rootPath), { recursive: true });
+  mkdirSync(getWorkspaceAgentsPath(rootPath), { recursive: true });
 
-  // Copy default skills from bundled template (prompt-improver, etc.)
+  // Copy defaults from bundled template
   const templateDir = getBundledAssetsDir('workspace-template');
+
+  // Copy default skills (brainstorming, writing-plans, prompt-improver, etc.)
   const templateSkillsDir = templateDir ? join(templateDir, 'skills') : undefined;
   if (templateSkillsDir && existsSync(templateSkillsDir)) {
     cpSync(templateSkillsDir, getWorkspaceSkillsPath(rootPath), {
       recursive: true,
       force: false, // Don't overwrite if user already has custom versions
+    });
+  }
+
+  // Copy default agents (executor, verifier, integration-checker, spot-checker)
+  const templateAgentsDir = templateDir ? join(templateDir, 'agents') : undefined;
+  if (templateAgentsDir && existsSync(templateAgentsDir)) {
+    cpSync(templateAgentsDir, getWorkspaceAgentsPath(rootPath), {
+      recursive: true,
+      force: false,
     });
   }
 

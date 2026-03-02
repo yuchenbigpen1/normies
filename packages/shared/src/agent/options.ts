@@ -210,6 +210,9 @@ export function getDefaultOptions(): Partial<Options> {
                 ... optionsEnv,
                 // Propagate debug mode from argv flag OR existing env var
                 CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
+                // Enable Tool Search: MCP tools are deferred (not loaded into prompt) and
+                // discovered on-demand via ToolSearch tool. Saves ~85% of tool definition tokens.
+                ENABLE_TOOL_SEARCH: 'true',
             }
         };
     }
@@ -230,6 +233,9 @@ export function getDefaultOptions(): Partial<Options> {
                 ... optionsEnv,
                 // Propagate debug mode from argv flag OR existing env var
                 CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
+                // Enable Tool Search: MCP tools are deferred (not loaded into prompt) and
+                // discovered on-demand via ToolSearch tool. Saves ~85% of tool definition tokens.
+                ENABLE_TOOL_SEARCH: 'true',
             }
         }
     }
@@ -240,6 +246,9 @@ export function getDefaultOptions(): Partial<Options> {
             ... optionsEnv,
             // Propagate debug mode from argv flag OR existing env var
             CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',
+            // Enable Tool Search: MCP tools are deferred (not loaded into prompt) and
+            // discovered on-demand via ToolSearch tool. Saves ~85% of tool definition tokens.
+            ENABLE_TOOL_SEARCH: 'true',
         }
     };
 }

@@ -29,7 +29,6 @@ import {
   validateSource,
   validateAllSources,
   validateStatuses,
-  validatePreferences,
   validateAll,
   validateSkill,
   validateAllSkills,
@@ -62,6 +61,7 @@ import { DOC_REFS } from '../docs/index.ts';
 import { renderMermaid } from '@normies/mermaid';
 import { createLLMTool } from './llm-tool.ts';
 import { createCreateProjectTasksTool } from './tools/create-project-tasks.ts';
+import { createSelfReviewTool } from './tools/self-review.ts';
 import { isGoogleOAuthConfigured } from '../auth/google-oauth.ts';
 
 // ============================================================
@@ -274,6 +274,11 @@ export interface SessionScopedToolCallbacks {
    * Main process shows MCQ UI and pauses agent until user responds.
    */
   onQuestionRequest?: (request: QuestionRequest) => void;
+  /**
+   * Called when self_review tool is invoked.
+   * Returns the formatted conversation transcript for the current session.
+   */
+  onGetConversation?: () => Promise<string>;
 }
 
 /**
@@ -559,7 +564,6 @@ Returns structured validation results with errors, warnings, and suggestions.
 - \`config\`: Validates ~/.craft-agent/config.json (workspaces, model, settings)
 - \`sources\`: Validates all sources in ~/.craft-agent/workspaces/{workspace}/sources/*/config.json
 - \`statuses\`: Validates ~/.craft-agent/workspaces/{workspace}/statuses/config.json (workflow states)
-- \`preferences\`: Validates ~/.craft-agent/preferences.json (user preferences)
 - \`permissions\`: Validates permissions.json files (workspace, source, and app-level default)
 - \`tool-icons\`: Validates ~/.craft-agent/tool-icons/tool-icons.json (CLI tool icon mappings)
 - \`all\`: Validates all configuration files
@@ -573,7 +577,7 @@ Returns structured validation results with errors, warnings, and suggestions.
 3. If errors found, fix them and re-validate
 4. Once valid, changes take effect on next reload`,
     {
-      target: z.enum(['config', 'sources', 'statuses', 'preferences', 'permissions', 'tool-icons', 'all']).describe(
+      target: z.enum(['config', 'sources', 'statuses', 'permissions', 'tool-icons', 'all']).describe(
         'Which config file(s) to validate'
       ),
       sourceSlug: z.string().optional().describe(
@@ -599,9 +603,6 @@ Returns structured validation results with errors, warnings, and suggestions.
             break;
           case 'statuses':
             result = validateStatuses(workspaceRootPath);
-            break;
-          case 'preferences':
-            result = validatePreferences();
             break;
           case 'permissions':
             if (args.sourceSlug) {
@@ -2371,6 +2372,11 @@ export function getSessionScopedTools(sessionId: string, workspaceRootPath: stri
         createCredentialPromptTool(sessionId, workspaceRootPath),
         // LLM tool - invoke secondary Claude calls for subtasks
         createLLMTool({ sessionId }),
+        // Self-review tool - independent critic review of the conversation
+        // Excluded from mini and task-execution sessions
+        ...(systemPromptPreset === 'mini' || systemPromptPreset === 'task-execution' ? [] : [
+          createSelfReviewTool(sessionId, () => getSessionScopedToolCallbacks(sessionId)),
+        ]),
         // Normies: CreateProjectTasks tool - creates task sessions from approved plans
         // Excluded from task-execution sessions so follow-up feedback uses plan-in-place flow
         ...(systemPromptPreset === 'task-execution' ? [] : [

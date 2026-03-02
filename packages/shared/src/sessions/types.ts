@@ -50,6 +50,19 @@ export interface SessionTokenUsage {
 export type { StoredMessage } from '@normies/core/types';
 
 /**
+ * A project step — user-visible grouping of tasks.
+ * Each step maps to a wave number. Tasks in the same wave form one step.
+ */
+export interface ProjectStep {
+  /** Step number (1-based, equals wave number) */
+  stepNumber: number;
+  /** Plain language step name — what the user sees (e.g., "Login system works") */
+  name: string;
+  /** Optional description — the outcome, not implementation details */
+  description?: string;
+}
+
+/**
  * Session configuration (persisted metadata)
  */
 export interface SessionConfig {
@@ -126,6 +139,8 @@ export interface SessionConfig {
   taskTimeEstimate?: string;
   // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
   taskType?: 'task' | 'handoff';
+  // Wave number for parallel execution grouping (Normies)
+  wave?: number;
   // Thread linking (Normies)
   threadParentSessionId?: string;
   threadMessageId?: string;
@@ -135,8 +150,12 @@ export interface SessionConfig {
   planPath?: string;
   // Architecture diagram (Normies)
   diagramPath?: string;
+  // Project state file path (Normies) — shared state file read by executors for cross-task context
+  projectStatePath?: string;
+  // Project steps (Normies) — user-visible step definitions, stored on parent session only
+  projectSteps?: ProjectStep[];
   // System prompt preset (Normies) — persisted so renderer can detect task sessions
-  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread';
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution';
 }
 
 /**
@@ -237,6 +256,8 @@ export interface SessionHeader {
   taskTimeEstimate?: string;
   // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
   taskType?: 'task' | 'handoff';
+  // Wave number for parallel execution grouping (Normies)
+  wave?: number;
   // Thread linking (Normies)
   threadParentSessionId?: string;
   threadMessageId?: string;
@@ -246,8 +267,12 @@ export interface SessionHeader {
   planPath?: string;
   // Architecture diagram (Normies)
   diagramPath?: string;
+  // Project state file path (Normies) — shared state file read by executors for cross-task context
+  projectStatePath?: string;
+  // Project steps (Normies) — user-visible step definitions, stored on parent session only
+  projectSteps?: ProjectStep[];
   // System prompt preset (Normies) — persisted so renderer can detect task sessions
-  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread';
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution';
 }
 
 /**
@@ -321,6 +346,8 @@ export interface SessionMetadata {
   taskTimeEstimate?: string;
   // Task type (Normies) — 'task' for regular tasks, 'handoff' for the auto-appended handoff task
   taskType?: 'task' | 'handoff';
+  // Wave number for parallel execution grouping (Normies)
+  wave?: number;
   // Thread linking (Normies)
   threadParentSessionId?: string;
   threadMessageId?: string;
@@ -330,6 +357,10 @@ export interface SessionMetadata {
   planPath?: string;
   // Architecture diagram (Normies)
   diagramPath?: string;
+  // Project state file path (Normies) — shared state file read by executors for cross-task context
+  projectStatePath?: string;
+  // Project steps (Normies) — user-visible step definitions, stored on parent session only
+  projectSteps?: ProjectStep[];
   // System prompt preset (Normies) — persisted so renderer can detect task sessions
-  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread';
+  systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution';
 }

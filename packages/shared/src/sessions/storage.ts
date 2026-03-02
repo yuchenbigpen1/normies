@@ -186,6 +186,7 @@ export async function createSession(
     taskFiles?: string[];
     taskTimeEstimate?: string;
     taskType?: SessionConfig['taskType'];
+    wave?: number;
     // Plan reference (Normies)
     planPath?: string;
     // Architecture diagram (Normies)
@@ -233,6 +234,7 @@ export async function createSession(
     taskFiles: options?.taskFiles,
     taskTimeEstimate: options?.taskTimeEstimate,
     taskType: options?.taskType,
+    wave: options?.wave,
     // Thread linking (Normies)
     threadParentSessionId: options?.threadParentSessionId,
     threadMessageId: options?.threadMessageId,
@@ -467,6 +469,8 @@ function headerToMetadata(header: SessionHeader, workspaceRootPath: string): Ses
       taskDescription: header.taskDescription,
       taskTechnicalDetail: header.taskTechnicalDetail,
       taskFiles: header.taskFiles,
+      taskType: header.taskType,
+      wave: header.wave,
       // Thread linking (Normies)
       threadParentSessionId: header.threadParentSessionId,
       threadMessageId: header.threadMessageId,

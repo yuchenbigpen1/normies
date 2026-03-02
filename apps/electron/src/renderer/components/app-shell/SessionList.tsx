@@ -51,6 +51,7 @@ import { useFocusZone, useRovingTabIndex } from "@/hooks/keyboard"
 import { useNavigation, useNavigationState, routes, isChatsNavigation, type ChatFilter } from "@/contexts/NavigationContext"
 import { useFocusContext } from "@/context/FocusContext"
 import { getSessionTitle } from "@/utils/session"
+import { groupTasksByWave, getWaveStatus, getStepLabel, type ProjectStep } from "@/utils/wave-utils"
 import type { SessionMeta } from "@/atoms/sessions"
 import type { ViewConfig } from "@normies/shared/views"
 import { PERMISSION_MODE_CONFIG, type PermissionMode } from "@normies/shared/agent/modes"
@@ -495,7 +496,7 @@ function SessionItem({
             </div>
             {/* Task subtitle — completionSummary or preview in project view, hidden for completed tasks and archive view */}
             {subtitle && !isClosedState && !isArchiveView && (
-              <div className={cn("text-xs min-w-0 pr-6", isProjectView ? "text-foreground/70 line-clamp-3" : "text-muted-foreground line-clamp-3")}>
+              <div className={cn("text-xs min-w-0 pr-6 whitespace-pre-line", isProjectView ? "text-foreground/70 line-clamp-3" : "text-muted-foreground line-clamp-3")}>
                 {subtitle}
               </div>
             )}
@@ -858,6 +859,10 @@ interface SessionListProps {
   labelFilterMap?: Map<string, FilterMode>
   /** Project name (passed from AppShell for project header) */
   projectName?: string
+  /** Project steps (passed from AppShell for step labels in wave headers) */
+  projectSteps?: ProjectStep[]
+  /** Called to stop all in-progress project tasks */
+  onStopAllTasks?: (sessionIds: string[]) => void
 }
 
 // Re-export TodoStateId for use by parent components
@@ -900,6 +905,8 @@ export function SessionList({
   statusFilter,
   labelFilterMap,
   projectName,
+  projectSteps,
+  onStopAllTasks,
 }: SessionListProps) {
   const [session] = useSession()
   const { navigate } = useNavigation()
@@ -1156,6 +1163,13 @@ export function SessionList({
     const inProgress = tasks.filter(t => t.todoState === 'in-progress').length
     return { total, done, inProgress }
   }, [isProjectView, searchFilteredItems])
+
+  // Wave groups for project view (groups tasks by wave number)
+  // Returns empty if no tasks have wave assignments (backwards compat → flat list)
+  const waveGroups = useMemo(() => {
+    if (!isProjectView) return []
+    return groupTasksByWave(paginatedItems)
+  }, [isProjectView, paginatedItems])
 
   // Archive view sections: split into "Chats" (no projectId) and "Projects" (has projectId, no taskIndex)
   const archiveSections = useMemo(() => {
@@ -1719,28 +1733,51 @@ export function SessionList({
                         <div className={cn("text-[21px] font-semibold font-sans truncate", isComplete && "opacity-50")}>{projectName}</div>
                       )}
                     </div>
-                    {/* Pie progress ring — right of project name */}
-                    <svg width="28" height="28" viewBox="0 0 28 28" className="shrink-0">
-                      {/* Outline ring */}
-                      <circle
-                        cx="14" cy="14" r="12"
-                        fill="none"
-                        stroke={isComplete ? progressColor : ringBgColor}
-                        strokeWidth="2"
-                      />
-                      {/* Filled pie wedge */}
-                      {progress > 0 && (
-                        <path
-                          d={piePath}
-                          fill={progressColor}
-                          className="transition-all duration-500"
+                    {/* Progress indicator — spinner (clickable to stop) when running, pie ring otherwise */}
+                    {projectProgress.inProgress > 0 ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-foreground/5 transition-colors"
+                            style={{ color: progressColor }}
+                            onClick={() => {
+                              if (!onStopAllTasks) return
+                              const inProgressIds = searchFilteredItems
+                                .filter(t => t.todoState === 'in-progress')
+                                .map(t => t.id)
+                              onStopAllTasks(inProgressIds)
+                            }}
+                          >
+                            <Spinner className="text-[16px]" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" sideOffset={4}>
+                          {`${projectProgress.done}/${projectProgress.total} done · Click to stop`}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <svg width="28" height="28" viewBox="0 0 28 28" className="shrink-0">
+                        {/* Outline ring */}
+                        <circle
+                          cx="14" cy="14" r="12"
+                          fill="none"
+                          stroke={isComplete ? progressColor : ringBgColor}
+                          strokeWidth="2"
                         />
-                      )}
-                      {/* Checkmark when complete */}
-                      {isComplete && (
-                        <path d="M9.5 14.5l3 3 6-6.5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      )}
-                    </svg>
+                        {/* Filled pie wedge */}
+                        {progress > 0 && (
+                          <path
+                            d={piePath}
+                            fill={progressColor}
+                            className="transition-all duration-500"
+                          />
+                        )}
+                        {/* Checkmark when complete */}
+                        {isComplete && (
+                          <path d="M9.5 14.5l3 3 6-6.5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+                      </svg>
+                    )}
                   </div>
                 )
               })()}
@@ -1749,43 +1786,127 @@ export function SessionList({
                 <div className="h-px bg-foreground/15" />
               </div>
 
-              {/* Task list - flat, ordered by taskIndex */}
-              {paginatedItems.map((item, index) => {
-                const flatIndex = sessionIndexMap.get(item.id) ?? 0
-                const itemProps = getItemProps(item, flatIndex)
-                return (
-                  <SessionItem
-                    key={item.id}
-                    item={item}
-                    index={flatIndex}
-                    itemProps={itemProps}
-                    isSelected={session.selected === item.id}
-                    isLast={flatIndex === flatItems.length - 1}
-                    isFirstInGroup={index === 0}
-                    onKeyDown={handleKeyDown}
-                    onRenameClick={handleRenameClick}
-                    onTodoStateChange={onTodoStateChange}
-                    onFlag={onFlag ? handleFlagWithToast : undefined}
-                    onUnflag={onUnflag ? handleUnflagWithToast : undefined}
-                    onArchive={onArchive ? handleArchiveWithToast : undefined}
-                    onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
-                    onMarkUnread={onMarkUnread}
-                    onDelete={handleDeleteWithToast}
-                    onSelect={() => {
-                      navigate(routes.view.project(currentFilter.projectId, item.id))
-                      onSessionSelect?.(item)
-                    }}
-                    onOpenInNewWindow={() => onOpenInNewWindow?.(item)}
-                    permissionMode={sessionOptions?.get(item.id)?.permissionMode}
-                    todoStates={todoStates}
-                    flatLabels={flatLabels}
-                    labels={labels}
-                    onLabelsChange={onLabelsChange}
-                    subtitle={item.completionSummary || (item.taskDescription ? `${item.taskDescription}${item.taskTimeEstimate ? ` · ${item.taskTimeEstimate}` : ''}` : item.preview)}
-                    isProjectView={isProjectView}
-                  />
-                )
-              })}
+              {/* Task list — step-grouped when waves exist, flat fallback otherwise */}
+              {waveGroups.length > 0 ? (
+                /* Step-grouped rendering */
+                waveGroups.map((group) => {
+                  const waveStatus = getWaveStatus(group, waveGroups)
+                  const isStepComplete = waveStatus.kind === 'complete'
+
+                  // Step status label
+                  const statusLabel = (() => {
+                    switch (waveStatus.kind) {
+                      case 'complete': return 'Complete'
+                      case 'in-progress': return `${waveStatus.running} of ${waveStatus.total} running`
+                      case 'ready': return 'Ready to start'
+                      case 'waiting': {
+                        const waitLabel = getStepLabel(waveStatus.waitingForWave, projectSteps)
+                        return `Waiting for ${waitLabel}`
+                      }
+                    }
+                  })()
+
+                  // Step header label — uses step name if available
+                  const stepLabel = group.wave != null
+                    ? getStepLabel(group.wave, projectSteps)
+                    : 'Other tasks'
+
+                  return (
+                    <div key={`step-${group.wave ?? 'ungrouped'}`}>
+                      {/* Step header */}
+                      <div className={cn("px-4 pt-3 pb-1 flex items-center justify-between", isStepComplete && "opacity-50")}>
+                        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                          {stepLabel}
+                        </span>
+                        <span className={cn(
+                          "text-[10px] font-medium tracking-wide uppercase",
+                          waveStatus.kind === 'complete' ? "text-success/70" :
+                          waveStatus.kind === 'in-progress' ? "text-foreground/50" :
+                          waveStatus.kind === 'ready' ? "text-foreground/40" :
+                          "text-muted-foreground/50"
+                        )}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                      {/* Tasks in this wave */}
+                      {group.tasks.map((item, index) => {
+                        const flatIndex = sessionIndexMap.get(item.id) ?? 0
+                        const itemProps = getItemProps(item as SessionMeta, flatIndex)
+                        return (
+                          <SessionItem
+                            key={item.id}
+                            item={item as SessionMeta}
+                            index={flatIndex}
+                            itemProps={itemProps}
+                            isSelected={session.selected === item.id}
+                            isLast={flatIndex === flatItems.length - 1}
+                            isFirstInGroup={index === 0}
+                            onKeyDown={handleKeyDown}
+                            onRenameClick={handleRenameClick}
+                            onTodoStateChange={onTodoStateChange}
+                            onFlag={onFlag ? handleFlagWithToast : undefined}
+                            onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                            onArchive={onArchive ? handleArchiveWithToast : undefined}
+                            onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
+                            onMarkUnread={onMarkUnread}
+                            onDelete={handleDeleteWithToast}
+                            onSelect={() => {
+                              navigate(routes.view.project(currentFilter.projectId, item.id))
+                              onSessionSelect?.(item as SessionMeta)
+                            }}
+                            onOpenInNewWindow={() => onOpenInNewWindow?.(item as SessionMeta)}
+                            permissionMode={sessionOptions?.get(item.id)?.permissionMode}
+                            todoStates={todoStates}
+                            flatLabels={flatLabels}
+                            labels={labels}
+                            onLabelsChange={onLabelsChange}
+                            subtitle={item.completionSummary || (item.taskDescription ? `${item.taskDescription}${item.taskTimeEstimate ? ` · ${item.taskTimeEstimate}` : ''}` : (item as SessionMeta).preview)}
+                            isProjectView={isProjectView}
+                          />
+                        )
+                      })}
+                    </div>
+                  )
+                })
+              ) : (
+                /* Flat fallback — no waves assigned (backwards compat) */
+                paginatedItems.map((item, index) => {
+                  const flatIndex = sessionIndexMap.get(item.id) ?? 0
+                  const itemProps = getItemProps(item, flatIndex)
+                  return (
+                    <SessionItem
+                      key={item.id}
+                      item={item}
+                      index={flatIndex}
+                      itemProps={itemProps}
+                      isSelected={session.selected === item.id}
+                      isLast={flatIndex === flatItems.length - 1}
+                      isFirstInGroup={index === 0}
+                      onKeyDown={handleKeyDown}
+                      onRenameClick={handleRenameClick}
+                      onTodoStateChange={onTodoStateChange}
+                      onFlag={onFlag ? handleFlagWithToast : undefined}
+                      onUnflag={onUnflag ? handleUnflagWithToast : undefined}
+                      onArchive={onArchive ? handleArchiveWithToast : undefined}
+                      onUnarchive={onUnarchive ? handleUnarchiveWithToast : undefined}
+                      onMarkUnread={onMarkUnread}
+                      onDelete={handleDeleteWithToast}
+                      onSelect={() => {
+                        navigate(routes.view.project(currentFilter.projectId, item.id))
+                        onSessionSelect?.(item)
+                      }}
+                      onOpenInNewWindow={() => onOpenInNewWindow?.(item)}
+                      permissionMode={sessionOptions?.get(item.id)?.permissionMode}
+                      todoStates={todoStates}
+                      flatLabels={flatLabels}
+                      labels={labels}
+                      onLabelsChange={onLabelsChange}
+                      subtitle={item.completionSummary || (item.taskDescription ? `${item.taskDescription}${item.taskTimeEstimate ? ` · ${item.taskTimeEstimate}` : ''}` : item.preview)}
+                      isProjectView={isProjectView}
+                    />
+                  )
+                })
+              )}
 
             </>
           ) : (

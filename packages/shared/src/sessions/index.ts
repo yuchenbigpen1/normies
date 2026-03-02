@@ -17,6 +17,7 @@ export type {
   StoredSession,
   SessionMetadata,
   SessionHeader,
+  ProjectStep,
 } from './types.ts';
 
 // Storage functions
@@ -96,5 +97,25 @@ export {
   validateSessionId,
   sanitizeSessionId,
 } from './validation.ts';
+
+// Auto-start orchestration (Normies task execution)
+export {
+  getAutoStartableTasks,
+  buildTaskExecutionContext,
+  isWaveComplete,
+  spotCheckWave,
+  generateProjectState,
+  updateProjectState,
+  deriveStepsFromTasks,
+  buildVerifierPrompt,
+  buildIntegrationCheckerPrompt,
+  type TaskInfo,
+  type TaskExecutionMeta,
+  type SiblingTaskInfo,
+  type SpotCheckTaskInfo,
+  type SpotCheckResult,
+  type ProjectStateTaskInfo,
+  type VerificationTaskInfo,
+} from './auto-start.ts';
 
 

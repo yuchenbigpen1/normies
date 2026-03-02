@@ -9,17 +9,12 @@ const RULE_SNIPPET = 'focus on what the user sees';
 
 describe('Communication Rules — no implementation detail dumps', () => {
   it('is present in the explore preset', () => {
-    const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'explore');
+    const prompt = getSystemPrompt(undefined, undefined, undefined,'explore');
     expect(prompt).toContain(RULE_SNIPPET);
   });
 
   it('is present in the task-execution preset', () => {
-    const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'task-execution');
-    expect(prompt).toContain(RULE_SNIPPET);
-  });
-
-  it('is present in the thread preset', () => {
-    const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'thread');
+    const prompt = getSystemPrompt(undefined, undefined, undefined,'task-execution');
     expect(prompt).toContain(RULE_SNIPPET);
   });
 
@@ -34,7 +29,7 @@ const TONE_SNIPPET = 'Hype people up';
 
 describe('Tone & Personality — character brief', () => {
   it('has the new heading in the explore preset', () => {
-    const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'explore');
+    const prompt = getSystemPrompt(undefined, undefined, undefined,'explore');
     expect(prompt).toContain(TONE_HEADING);
   });
 

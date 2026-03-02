@@ -8,7 +8,7 @@ import { getSystemPrompt } from '../system.ts';
 // ---------- Explore mode ----------
 
 describe('MCQ guardrails — Explore mode', () => {
-  const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'explore');
+  const prompt = getSystemPrompt(undefined, undefined, undefined,'explore');
 
   it('includes the Multiple Choice Questions section heading', () => {
     expect(prompt).toContain('## Multiple Choice Questions');
@@ -59,7 +59,7 @@ describe('MCQ guardrails — Default preset', () => {
 // ---------- Task-execution mode (lighter guidance) ----------
 
 describe('MCQ guardrails — Task-execution mode', () => {
-  const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'task-execution');
+  const prompt = getSystemPrompt(undefined, undefined, undefined,'task-execution');
 
   it('includes ask_user_question reference', () => {
     expect(prompt).toContain('ask_user_question');
@@ -77,16 +77,11 @@ describe('MCQ guardrails — Task-execution mode', () => {
   });
 });
 
-// ---------- Thread/mini should NOT have MCQ ----------
+// ---------- Mini should NOT have MCQ ----------
 
-describe('MCQ guardrails — excluded from thread and mini', () => {
-  it('is NOT in the thread preset', () => {
-    const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'thread');
-    expect(prompt).not.toContain('ask_user_question');
-  });
-
+describe('MCQ guardrails — excluded from mini', () => {
   it('is NOT in the mini preset', () => {
-    const prompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'mini');
+    const prompt = getSystemPrompt(undefined, undefined, undefined,'mini');
     expect(prompt).not.toContain('ask_user_question');
   });
 });

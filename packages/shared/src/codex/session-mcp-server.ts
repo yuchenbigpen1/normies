@@ -20,7 +20,7 @@ import { z } from 'zod';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { writeIpcRequest } from './ipc-request.ts';
-import { parseArgs, validateProjectTasks, buildHandoffTask, handleUpdatePreferences, type FullTask } from './session-mcp-helpers.ts';
+import { parseArgs, validateProjectTasks, buildHandoffTask, type FullTask } from './session-mcp-helpers.ts';
 
 // ============================================================
 // CLI argument parsing
@@ -205,9 +205,9 @@ Keep questions short and concrete. Max 3 questions, each with 2-4 options.`,
 server.tool(
   'config_validate',
   `Validate Normies configuration files.
-Targets: config, sources, statuses, preferences, permissions, tool-icons, all`,
+Targets: config, sources, statuses, permissions, tool-icons, all`,
   {
-    target: z.enum(['config', 'sources', 'statuses', 'preferences', 'permissions', 'tool-icons', 'all'])
+    target: z.enum(['config', 'sources', 'statuses', 'permissions', 'tool-icons', 'all'])
       .describe('What to validate'),
     sourceSlug: z.string().optional().describe('Specific source slug (for sources/permissions targets)'),
   },
@@ -230,9 +230,6 @@ Targets: config, sources, statuses, preferences, permissions, tool-icons, all`,
           break;
         case 'statuses':
           result = validators.validateStatuses(workspaceRoot);
-          break;
-        case 'preferences':
-          result = validators.validatePreferences();
           break;
         case 'permissions':
           if (args.sourceSlug) {
@@ -840,46 +837,6 @@ Pass content directly via the prompt. Attachments not supported in standalone mo
         content: [{
           type: 'text' as const,
           text: `LLM call failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        }],
-        isError: true,
-      };
-    }
-  }
-);
-
-// ============================================================
-// Tool 10: update_user_preferences (local — no IPC needed)
-// ============================================================
-
-server.tool(
-  'update_user_preferences',
-  `Update stored user preferences. Save information about the user silently when they mention it during conversation — their name, company, role, industry, technical level, tools they use, goals, or other relevant context. Don't ask permission to save — just save and briefly acknowledge. Only save things you're confident about from what they've said.`,
-  {
-    name: z.string().optional().describe("The user's preferred name or how they'd like to be addressed"),
-    timezone: z.string().optional().describe("The user's timezone in IANA format (e.g., 'America/New_York', 'Europe/London')"),
-    city: z.string().optional().describe("The user's city"),
-    region: z.string().optional().describe("The user's state/region/province"),
-    country: z.string().optional().describe("The user's country"),
-    language: z.string().optional().describe("The user's preferred language for responses"),
-    company: z.string().optional().describe("The user's company or organization"),
-    role: z.string().optional().describe("The user's role or what they do (e.g., 'marketing manager', 'founder', 'operations lead')"),
-    industry: z.string().optional().describe("The user's industry or domain (e.g., 'e-commerce', 'healthcare', 'real estate')"),
-    technicalLevel: z.enum(['non-technical', 'somewhat-technical', 'technical']).optional().describe("The user's technical comfort level"),
-    tools: z.string().optional().describe("A tool or platform the user already uses (e.g., 'Notion', 'Stripe', 'Shopify'). Appends to existing list."),
-    goals: z.string().optional().describe("A goal or challenge the user is working toward. Appends to existing list."),
-    notes: z.string().optional().describe('Additional notes about the user that would be helpful to remember (preferences, context, etc.). This appends to existing notes.'),
-  },
-  async (args) => {
-    try {
-      const result = handleUpdatePreferences(args);
-      return {
-        content: [{ type: 'text' as const, text: result }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: 'text' as const,
-          text: `Failed to update preferences: ${error instanceof Error ? error.message : 'Unknown error'}`,
         }],
         isError: true,
       };

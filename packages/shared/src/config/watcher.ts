@@ -6,7 +6,6 @@
  *
  * Watched paths:
  * - ~/.craft-agent/config.json - Main app configuration
- * - ~/.craft-agent/preferences.json - User preferences
  * - ~/.craft-agent/theme.json - App-level theme overrides
  * - ~/.craft-agent/themes/*.json - Preset theme files (app-level)
  * - ~/.craft-agent/workspaces/{slug}/ - Workspace directory (recursive)
@@ -25,7 +24,6 @@ import { perf } from '../utils/perf.ts';
 import { loadStoredConfig, type StoredConfig } from './storage.ts';
 import {
   validateConfig,
-  validatePreferences,
   validateSource,
   type ValidationResult,
 } from './validators.ts';
@@ -56,7 +54,6 @@ import type { ThemeOverrides, PresetTheme } from './theme.ts';
 // ============================================================
 
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
-const PREFERENCES_FILE = join(CONFIG_DIR, 'preferences.json');
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 100;
@@ -66,29 +63,11 @@ const DEBOUNCE_MS = 100;
 // ============================================================
 
 /**
- * User preferences structure (mirrors UserPreferencesSchema)
- */
-export interface UserPreferences {
-  name?: string;
-  timezone?: string;
-  location?: {
-    city?: string;
-    region?: string;
-    country?: string;
-  };
-  language?: string;
-  notes?: string;
-  updatedAt?: number;
-}
-
-/**
  * Callbacks for config changes
  */
 export interface ConfigWatcherCallbacks {
   /** Called when config.json changes */
   onConfigChange?: (config: StoredConfig) => void;
-  /** Called when preferences.json changes */
-  onPreferencesChange?: (prefs: UserPreferences) => void;
 
   // Source callbacks
   /** Called when a specific source config changes (null if deleted) */
@@ -139,27 +118,6 @@ export interface ConfigWatcherCallbacks {
   onValidationError?: (file: string, result: ValidationResult) => void;
   /** Called when an error occurs reading/parsing a file */
   onError?: (file: string, error: Error) => void;
-}
-
-// ============================================================
-// Preferences Loading
-// ============================================================
-
-/**
- * Load preferences from file
- */
-export function loadPreferences(): UserPreferences | null {
-  if (!existsSync(PREFERENCES_FILE)) {
-    return null;
-  }
-
-  try {
-    const content = readFileSync(PREFERENCES_FILE, 'utf-8');
-    return JSON.parse(content) as UserPreferences;
-  } catch (error) {
-    debug('[ConfigWatcher] Error loading preferences', error);
-    return null;
-  }
 }
 
 // ============================================================
@@ -290,7 +248,7 @@ export class ConfigWatcher {
   }
 
   /**
-   * Watch global config files (config.json, preferences.json)
+   * Watch global config files (config.json, theme.json)
    */
   private watchGlobalConfigs(): void {
     // Ensure config directory exists
@@ -299,14 +257,12 @@ export class ConfigWatcher {
     }
 
     try {
-      // Watch the config directory for changes to config.json, preferences.json, and theme.json
+      // Watch the config directory for changes to config.json and theme.json
       const watcher = watch(CONFIG_DIR, (eventType, filename) => {
         if (!filename) return;
 
         if (filename === 'config.json') {
           this.debounce('config.json', () => this.handleConfigChange());
-        } else if (filename === 'preferences.json') {
-          this.debounce('preferences.json', () => this.handlePreferencesChange());
         } else if (filename === 'theme.json') {
           this.debounce('app-theme', () => this.handleAppThemeChange());
         }
@@ -774,25 +730,6 @@ export class ConfigWatcher {
       this.callbacks.onConfigChange?.(config);
     } else {
       this.callbacks.onError?.('config.json', new Error('Failed to load config'));
-    }
-  }
-
-  /**
-   * Handle preferences.json change
-   */
-  private handlePreferencesChange(): void {
-    debug('[ConfigWatcher] preferences.json changed');
-
-    const validation = validatePreferences();
-    if (!validation.valid) {
-      debug('[ConfigWatcher] Preferences validation failed:', validation.errors);
-      this.callbacks.onValidationError?.('preferences.json', validation);
-      return;
-    }
-
-    const prefs = loadPreferences();
-    if (prefs) {
-      this.callbacks.onPreferencesChange?.(prefs);
     }
   }
 

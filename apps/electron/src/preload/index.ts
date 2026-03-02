@@ -20,10 +20,6 @@ const api: ElectronAPI = {
   respondToQuestion: (sessionId: string, requestId: string, response: import('../shared/types').QuestionResponse) =>
     ipcRenderer.invoke(IPC_CHANNELS.RESPOND_TO_QUESTION, sessionId, requestId, response),
 
-  // Thread session creation (Normies) — creates hidden session with parent context
-  createThreadSession: (workspaceId: string, parentSessionId: string, messageId: string, model?: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.CREATE_THREAD_SESSION, workspaceId, parentSessionId, messageId, model),
-
   // Consolidated session command handler
   sessionCommand: (sessionId: string, command: import('../shared/types').SessionCommand) =>
     ipcRenderer.invoke(IPC_CHANNELS.SESSION_COMMAND, sessionId, command),

@@ -16,7 +16,47 @@ import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { debug } from '../../utils/debug.ts';
+import { deriveStepsFromTasks } from '../../sessions/auto-start.ts';
 import type { SessionScopedToolCallbacks } from '../session-scoped-tools.ts';
+
+/**
+ * Compute wave numbers from a dependency graph.
+ *
+ * - Wave 1: tasks with no dependencies
+ * - Wave 2: tasks whose deps are all in wave 1
+ * - Wave N: max(wave of all deps) + 1
+ *
+ * @param tasks - Array of objects with taskIndex and dependencies
+ * @returns Map from taskIndex to wave number
+ */
+export function computeWaves(
+  tasks: Array<{ taskIndex: number; dependencies: number[] | undefined | null }>,
+): Map<number, number> {
+  const waves = new Map<number, number>();
+
+  // Tasks with no deps → wave 1
+  for (const task of tasks) {
+    if (!task.dependencies || task.dependencies.length === 0) {
+      waves.set(task.taskIndex, 1);
+    }
+  }
+
+  // Iteratively assign waves until no more changes
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const task of tasks) {
+      if (waves.has(task.taskIndex)) continue;
+      const depWaves = task.dependencies?.map((d) => waves.get(d));
+      if (depWaves?.every((w) => w !== undefined)) {
+        waves.set(task.taskIndex, Math.max(...(depWaves as number[])) + 1);
+        changed = true;
+      }
+    }
+  }
+
+  return waves;
+}
 
 /**
  * Input for a single task in the CreateProjectTasks tool.
@@ -30,6 +70,7 @@ const TaskInputSchema = z.object({
   taskIndex: z.number().describe('Zero-based task ordering index'),
   taskType: z.enum(['task', 'handoff']).optional(),
   timeEstimate: z.string().optional().describe('Conservative time estimate (e.g., "~20 min", "~1.5 hours")'),
+  wave: z.number().optional().describe('Wave number for parallel execution grouping. If omitted, computed from dependencies.'),
 });
 
 /**
@@ -50,6 +91,13 @@ export interface CreateProjectSessionsData {
     taskIndex: number;
     taskType?: 'task' | 'handoff';
     timeEstimate?: string;
+    wave?: number;
+  }>;
+  /** User-visible step definitions. If not provided, derived from task titles. */
+  steps?: Array<{
+    stepNumber: number;
+    name: string;
+    description?: string;
   }>;
 }
 
@@ -65,21 +113,27 @@ export function createCreateProjectTasksTool(
 ) {
   return tool(
     'CreateProjectTasks',
-    `Create a project with task sessions from an approved plan.
+    `Create a project with steps and task sessions from an approved plan.
 
 Call this after the user has approved your plan to create individual task sessions.
-Each task becomes a separate conversation that the user can start when ready.
+Each task becomes a separate conversation that auto-executes.
 
 **Input:**
 - \`projectName\`: Name for the project (plain language)
 - \`planPath\`: Path to the plan markdown file
 - \`diagramPath\`: Path to the Mermaid architecture diagram file
 - \`tasks\`: Array of tasks, each with title, description, technicalDetail, files, dependencies, taskIndex
+- \`steps\`: (optional) Array of step definitions — user-visible grouping of tasks. Each step maps to a wave number. If not provided, steps are auto-derived from task titles.
+
+**Steps:**
+Steps are what the user sees. Each step groups tasks from the same wave. Step names should describe the OUTCOME, not the implementation:
+- Good: "Login system works", "Dashboard shows data"
+- Bad: "Implement JWT middleware", "Build React components"
 
 **What happens:**
 1. Creates a project (group of linked sessions)
 2. Creates one session per task with status "Todo"
-3. **Automatically appends a "Review & Handoff" task** at the end that depends on all other tasks — you do NOT need to include this in your tasks array
+3. **Automatically appends a "Review & Handoff" step** at the end — you do NOT need to include this
 4. Links everything together so the user can track progress
 5. Returns the project ID and created session IDs
 
@@ -89,6 +143,11 @@ Each task becomes a separate conversation that the user can start when ready.
       planPath: z.string().describe('Absolute path to the plan markdown file'),
       diagramPath: z.string().describe('Absolute path to the Mermaid diagram file'),
       tasks: z.array(TaskInputSchema).describe('Array of tasks to create'),
+      steps: z.array(z.object({
+        stepNumber: z.number().describe('Step number (matches wave number of tasks in this step)'),
+        name: z.string().describe('Plain language step name — the outcome (e.g., "Login system works")'),
+        description: z.string().optional().describe('Plain language description of what this step achieves'),
+      })).optional().describe('User-visible step definitions. Each step groups tasks from the same wave. If omitted, steps are auto-derived from task titles.'),
     },
     async (args) => {
       debug('[CreateProjectTasks] Called with', args.tasks.length, 'tasks for project:', args.projectName);
@@ -158,11 +217,14 @@ Each task becomes a separate conversation that the user can start when ready.
       }
 
       try {
-        // Build task list with explicit taskType, then auto-append handoff task
+        // Compute waves from dependency graph (auto-compute for tasks without explicit wave)
+        const waveMap = computeWaves(args.tasks);
+
+        // Build task list with explicit taskType and wave, then auto-append handoff task
         const allTasks: Array<{
           title: string; description: string; technicalDetail: string;
           files: string[]; dependencies: number[]; taskIndex: number;
-          taskType: 'task' | 'handoff'; timeEstimate?: string;
+          taskType: 'task' | 'handoff'; timeEstimate?: string; wave?: number;
         }> = args.tasks.map(t => ({
           title: t.title,
           description: t.description,
@@ -172,11 +234,13 @@ Each task becomes a separate conversation that the user can start when ready.
           taskIndex: t.taskIndex,
           taskType: 'task' as const,
           timeEstimate: t.timeEstimate,
+          wave: t.wave ?? waveMap.get(t.taskIndex),
         }));
 
         // Auto-append handoff task that depends on all other tasks
         const maxIndex = Math.max(...allTasks.map(t => t.taskIndex));
         const handoffIndex = maxIndex + 1;
+        const maxWave = Math.max(...[...waveMap.values()], 0);
         allTasks.push({
           title: 'Review & Handoff',
           description: 'Review everything that was built and create a plain-language maintenance guide.',
@@ -192,10 +256,14 @@ The guide should cover:
 Write everything in plain language. No jargon without immediate explanation.
 The completion summaries from all sibling tasks will be included in your first message as context.`,
           files: [],
-          dependencies: allTasks.map(t => t.taskIndex),
+          dependencies: allTasks.filter(t => t.taskType === 'task').map(t => t.taskIndex),
           taskIndex: handoffIndex,
           taskType: 'handoff' as const,
+          wave: maxWave + 1,
         });
+
+        // Derive or use explicit steps
+        const steps = args.steps ?? deriveStepsFromTasks(allTasks);
 
         // Call main process to create sessions
         const taskSessionIds = await callbacks.onCreateProjectSessions({
@@ -205,6 +273,7 @@ The completion summaries from all sibling tasks will be included in your first m
           planPath: args.planPath,
           diagramPath: args.diagramPath,
           tasks: allTasks,
+          steps,
         });
 
         debug('[CreateProjectTasks] Created', taskSessionIds.length, 'task sessions');

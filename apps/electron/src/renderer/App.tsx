@@ -27,6 +27,8 @@ import { navigate, routes } from './lib/navigate'
 import { stripMarkdown } from './utils/text'
 import { initRendererPerf } from './lib/perf'
 import { trackEvent } from './lib/posthog'
+import { dispatchAnalytics } from './lib/analytics'
+import { toast } from 'sonner'
 import { DEFAULT_MODEL } from '@config/models'
 import {
   initializeSessionsAtom,
@@ -551,6 +553,9 @@ export default function App() {
       const workspaceId = windowWorkspaceId ?? ''
       const agentEvent = event as unknown as AgentEvent
 
+      // Centralized analytics dispatch — maps SessionEvents to PostHog events
+      dispatchAnalytics(event, (id) => store.get(sessionAtomFamily(id)) ?? undefined)
+
       // Dispatch window event when compaction completes
       // This allows FreeFormInput to sequence the plan execution message after compaction
       // Note: markCompactionComplete is called on the backend (sessions.ts) to ensure
@@ -576,6 +581,21 @@ export default function App() {
           })
         )
         return // Don't process further — this isn't a streaming event
+      }
+
+      // Normies: Handle wave spot-check events — show toast notifications
+      if (event.type === 'wave_spot_check_passed') {
+        toast.success(`Wave ${event.wave} verified`, {
+          description: `Starting Wave ${event.wave + 1}`,
+        })
+        return
+      }
+      if (event.type === 'wave_spot_check_failed') {
+        toast.error(`Wave ${event.wave} spot-check failed`, {
+          description: event.failures.join('\n'),
+          duration: 10000,
+        })
+        return
       }
 
       // Check if session is currently streaming (atom is source of truth)

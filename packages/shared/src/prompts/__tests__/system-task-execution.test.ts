@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'bun:test';
 import { getSystemPrompt } from '../system.ts';
 
-const taskPrompt = getSystemPrompt(undefined, undefined, undefined, undefined, 'task-execution');
+const taskPrompt = getSystemPrompt(undefined, undefined, undefined,'task-execution');
 
 describe('Task Execution — re-read plan instruction', () => {
   it('includes re-read instruction in the prompt', () => {

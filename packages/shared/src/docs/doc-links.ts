@@ -104,7 +104,7 @@ export const DOCS: Record<DocFeature, DocInfo> = {
     path: '/preferences',
     title: 'Preferences',
     summary:
-      'Personal preferences like your name, timezone, and language that help the agent personalize responses. Stored in ~/.normies/preferences.json.',
+      'Display preferences like diff viewer settings. Stored in ~/.normies/preferences.json.',
   },
 }
 

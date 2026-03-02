@@ -23,6 +23,7 @@ import {
   Inbox,
   ExternalLink,
   MessageSquare,
+  Megaphone,
   GitGraph,
   FileText,
   MessageSquareText,
@@ -1327,6 +1328,15 @@ function AppShellContent({
     if (chatFilter?.kind !== 'project') return null
     const task = workspaceSessionMetas.find(s => s.projectId === chatFilter.projectId && s.taskIndex != null)
     return task?.parentSessionId ?? null
+  }, [chatFilter, workspaceSessionMetas])
+
+  // Project steps — stored on the parent session, used for step labels in SessionList
+  const projectSteps = useMemo(() => {
+    if (chatFilter?.kind !== 'project') return undefined
+    const parent = workspaceSessionMetas.find(
+      s => s.projectId === chatFilter.projectId && s.taskIndex == null && s.projectSteps
+    )
+    return parent?.projectSteps
   }, [chatFilter, workspaceSessionMetas])
 
   // Compute session counts per label (cumulative: parent includes descendants).
@@ -2672,7 +2682,7 @@ function AppShellContent({
                           onClick={() => setFeedbackOpen(true)}
                           className="flex items-center justify-center h-8 w-8 rounded-[8px] select-none outline-none hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring shrink-0"
                         >
-                          <MessageSquare className="h-[18px] w-[18px] text-foreground/60" />
+                          <Megaphone className="h-[18px] w-[18px] text-foreground/60" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top">Give Feedback</TooltipContent>
@@ -3426,6 +3436,15 @@ function AppShellContent({
                   statusFilter={listFilter}
                   labelFilterMap={labelFilter}
                   projectName={chatFilter?.kind === 'project' ? listTitle : undefined}
+                  projectSteps={projectSteps}
+                  onStopAllTasks={(sessionIds) => {
+                    for (const id of sessionIds) {
+                      window.electronAPI.cancelProcessing(id, false).catch(err => {
+                        console.error(`[AppShell] Failed to cancel task ${id}:`, err)
+                      })
+                    }
+                    toast.info(`Stopping ${sessionIds.length} task${sessionIds.length === 1 ? '' : 's'}...`)
+                  }}
                 />
               </>
             )}

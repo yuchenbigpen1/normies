@@ -256,11 +256,6 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     return session
   })
 
-  // Create a thread session (Normies) — hidden session with context from parent conversation
-  ipcMain.handle(IPC_CHANNELS.CREATE_THREAD_SESSION, async (_event, workspaceId: string, parentSessionId: string, messageId: string, model?: string) => {
-    return sessionManager.createThreadSession(workspaceId, parentSessionId, messageId, model)
-  })
-
   // Delete a session
   ipcMain.handle(IPC_CHANNELS.DELETE_SESSION, async (_event, sessionId: string) => {
     return sessionManager.deleteSession(sessionId)

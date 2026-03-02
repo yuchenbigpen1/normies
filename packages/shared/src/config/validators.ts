@@ -6,7 +6,6 @@
  *
  * Validates:
  * - config.json: Main app configuration
- * - preferences.json: User preferences
  * - sources/{slug}/config.json: Workspace-scoped source configs
  * - permissions.json: Permission rules for Explore mode
  * - tool-icons/tool-icons.json: CLI tool icon mappings
@@ -23,7 +22,6 @@ import { EntityColorSchema } from '../colors/validate.ts';
 // ============================================================
 
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
-const PREFERENCES_FILE = join(CONFIG_DIR, 'preferences.json');
 
 // ============================================================
 // Validation Result Types
@@ -69,29 +67,6 @@ export const StoredConfigSchema = z.object({
   model: z.string().optional(),
   // Note: tokenDisplay, showCost, cumulativeUsage, defaultPermissionMode removed
   // Permission mode and cyclable modes are now per-workspace in workspace config.json
-});
-
-// --- preferences.json ---
-
-const LocationSchema = z.object({
-  city: z.string().optional(),
-  region: z.string().optional(),
-  country: z.string().optional(),
-});
-
-export const UserPreferencesSchema = z.object({
-  name: z.string().optional(),
-  timezone: z.string().optional(),  // TODO: Could validate against IANA timezone list
-  location: LocationSchema.optional(),
-  language: z.string().optional(),
-  company: z.string().optional(),
-  role: z.string().optional(),
-  industry: z.string().optional(),
-  technicalLevel: z.enum(['non-technical', 'somewhat-technical', 'technical']).optional(),
-  tools: z.array(z.string()).optional(),
-  goals: z.array(z.string()).optional(),
-  notes: z.string().optional(),
-  updatedAt: z.number().int().min(0).optional(),
 });
 
 // ============================================================
@@ -181,81 +156,6 @@ export function validateConfig(): ValidationResult {
 }
 
 /**
- * Validate preferences.json
- */
-export function validatePreferences(): ValidationResult {
-  const errors: ValidationIssue[] = [];
-  const warnings: ValidationIssue[] = [];
-
-  // Check if file exists (preferences are optional)
-  if (!existsSync(PREFERENCES_FILE)) {
-    return {
-      valid: true,
-      errors: [],
-      warnings: [{
-        file: 'preferences.json',
-        path: '',
-        message: 'Preferences file does not exist (using defaults)',
-        severity: 'warning',
-      }],
-    };
-  }
-
-  // Parse JSON
-  let content: unknown;
-  try {
-    const raw = readFileSync(PREFERENCES_FILE, 'utf-8');
-    content = JSON.parse(raw);
-  } catch (e) {
-    return {
-      valid: false,
-      errors: [{
-        file: 'preferences.json',
-        path: '',
-        message: `Invalid JSON: ${e instanceof Error ? e.message : 'Unknown error'}`,
-        severity: 'error',
-      }],
-      warnings: [],
-    };
-  }
-
-  // Validate schema
-  const result = UserPreferencesSchema.safeParse(content);
-  if (!result.success) {
-    errors.push(...zodErrorToIssues(result.error, 'preferences.json'));
-  } else {
-    const prefs = result.data;
-
-    // Warn about missing recommended fields
-    if (!prefs.name) {
-      warnings.push({
-        file: 'preferences.json',
-        path: 'name',
-        message: 'User name is not set',
-        severity: 'warning',
-        suggestion: 'Setting a name helps personalize agent responses',
-      });
-    }
-
-    if (!prefs.timezone) {
-      warnings.push({
-        file: 'preferences.json',
-        path: 'timezone',
-        message: 'Timezone is not set',
-        severity: 'warning',
-        suggestion: 'Setting timezone helps with date/time formatting',
-      });
-    }
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings,
-  };
-}
-
-/**
  * Validate all config files
  * @param workspaceId - Optional workspace ID for source validation
  * @param workspaceRoot - Optional workspace root path for skill and status validation
@@ -263,7 +163,6 @@ export function validatePreferences(): ValidationResult {
 export function validateAll(workspaceId?: string, workspaceRoot?: string): ValidationResult {
   const results: ValidationResult[] = [
     validateConfig(),
-    validatePreferences(),
     validateToolIcons(),
   ];
 

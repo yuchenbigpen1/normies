@@ -41,6 +41,18 @@ import {
   type StoredMessage,
   type SessionMetadata,
   type TodoState,
+  getAutoStartableTasks,
+  buildTaskExecutionContext,
+  isWaveComplete,
+  spotCheckWave,
+  generateProjectState,
+  updateProjectState,
+  buildVerifierPrompt,
+  buildIntegrationCheckerPrompt,
+  type TaskInfo,
+  type SpotCheckTaskInfo,
+  type ProjectStateTaskInfo,
+  type VerificationTaskInfo,
 } from '@normies/shared/sessions'
 import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@normies/shared/sources'
 import { ConfigWatcher, type ConfigWatcherCallbacks } from '@normies/shared/config'
@@ -451,12 +463,18 @@ interface ManagedSession {
   taskFiles?: string[]
   taskTimeEstimate?: string
   taskType?: 'task' | 'handoff'
+  // Wave number for parallel execution grouping (Normies)
+  wave?: number
   // Task completion (Normies)
   completionSummary?: string
   // Architecture diagram (Normies)
   diagramPath?: string
   // Plan reference (Normies)
   planPath?: string
+  // Project state file path (Normies)
+  projectStatePath?: string
+  // Project steps definitions (Normies)
+  projectSteps?: Array<{ stepNumber: number; name: string; description?: string }>
   // System prompt preset (persisted for tool registration)
   systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
   // File watcher for Codex session IPC directory (cleaned up on dispose)
@@ -1083,6 +1101,7 @@ export class SessionManager {
         taskFiles: managed.taskFiles,
         taskTimeEstimate: managed.taskTimeEstimate,
         taskType: managed.taskType,
+        wave: managed.wave,
         // Thread linking (Normies)
         threadParentSessionId: managed.threadParentSessionId,
         threadMessageId: managed.threadMessageId,
@@ -1600,6 +1619,7 @@ export class SessionManager {
       if (storedSession.taskFiles) managed.taskFiles = storedSession.taskFiles
       if (storedSession.taskTimeEstimate) managed.taskTimeEstimate = storedSession.taskTimeEstimate
       if (storedSession.taskType) managed.taskType = storedSession.taskType
+      if (storedSession.wave != null) managed.wave = storedSession.wave
       if (storedSession.planPath) managed.planPath = storedSession.planPath
       if (storedSession.diagramPath) managed.diagramPath = storedSession.diagramPath
       if (storedSession.completionSummary) managed.completionSummary = storedSession.completionSummary
@@ -1658,6 +1678,7 @@ export class SessionManager {
 
     // Use storage layer to create and persist the session
     const storedSession = await createStoredSession(workspaceRootPath, {
+      name: options?.name,
       permissionMode: defaultPermissionMode,
       workingDirectory: resolvedWorkingDir,
       model: options?.model || defaultModel,
@@ -1676,6 +1697,7 @@ export class SessionManager {
       taskFiles: options?.taskFiles,
       taskTimeEstimate: options?.taskTimeEstimate,
       taskType: options?.taskType,
+      wave: options?.wave,
       // Thread linking (Normies)
       threadParentSessionId: options?.threadParentSessionId,
       threadMessageId: options?.threadMessageId,
@@ -1706,6 +1728,7 @@ export class SessionManager {
       processingGeneration: 0,
       isFlagged: options?.isFlagged ?? false,
       isArchived: false,
+      name: options?.name,
       todoState: options?.todoState,
       labels: options?.labels,
       permissionMode: defaultPermissionMode,
@@ -1750,6 +1773,7 @@ export class SessionManager {
       id: storedSession.id,
       workspaceId: workspace.id,
       workspaceName: workspace.name,
+      name: options?.name,
       lastMessageAt: managed.lastMessageAt,
       messages: [],
       isProcessing: false,
@@ -1768,6 +1792,7 @@ export class SessionManager {
       taskIndex: options?.taskIndex,
       parentSessionId: options?.parentSessionId,
       taskDependencies: options?.taskDependencies,
+      wave: options?.wave,
       // Task metadata (Normies)
       taskDescription: options?.taskDescription,
       taskTechnicalDetail: options?.taskTechnicalDetail,
@@ -1780,80 +1805,6 @@ export class SessionManager {
       // Architecture diagram (Normies)
       diagramPath: options?.diagramPath,
     }
-  }
-
-  /**
-   * Create a thread session for the Normies thread/critique feature.
-   * Thread sessions are hidden, use a cheaper model, and get context from the parent conversation.
-   *
-   * @param workspaceId - Workspace to create the session in
-   * @param parentSessionId - The session being discussed
-   * @param messageId - The specific assistant message being discussed
-   * @returns The created session + thread context string for the first message
-   */
-  async createThreadSession(workspaceId: string, parentSessionId: string, messageId: string, model?: string): Promise<{ session: Session; threadContext: string }> {
-    // Get the parent session to extract context
-    const parentManaged = this.sessions.get(parentSessionId)
-    if (!parentManaged) {
-      throw new Error(`Parent session ${parentSessionId} not found`)
-    }
-
-    // Load parent messages if not already loaded
-    await this.ensureMessagesLoaded(parentManaged)
-
-    // Find the specific message being discussed
-    // Primary: match by message.id (unique per message)
-    // Fallback: match by turnId (correlation ID) — safety net for older clients passing turnId
-    const targetMessage = parentManaged.messages.find(m => m.id === messageId)
-      || parentManaged.messages.find(m => m.turnId === messageId)
-    const targetContent = targetMessage
-      ? (typeof targetMessage.content === 'string' ? targetMessage.content : JSON.stringify(targetMessage.content))
-      : '[Message not found]'
-
-    // Build thread context from recent parent messages (last 10 messages up to the target)
-    const targetIdx = targetMessage
-      ? parentManaged.messages.indexOf(targetMessage)
-      : -1
-    const contextMessages = targetIdx >= 0
-      ? parentManaged.messages.slice(Math.max(0, targetIdx - 9), targetIdx + 1)
-      : parentManaged.messages.slice(-10)
-
-    const conversationSummary = contextMessages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => {
-        const content = typeof m.content === 'string' ? m.content : '[complex content]'
-        const truncated = content.length > 500 ? content.slice(0, 500) + '...' : content
-        return `**${m.role === 'user' ? 'User' : 'Assistant'}**: ${truncated}`
-      })
-      .join('\n\n')
-
-    const threadContext = `## Context from Main Conversation
-
-The user is asking about this response from their main assistant:
-
----
-${targetContent.length > 2000 ? targetContent.slice(0, 2000) + '\n\n[truncated]' : targetContent}
----
-
-### Recent conversation leading up to this:
-
-${conversationSummary}
-
----
-
-Remember: You're providing a second opinion. Help the user understand, question, or formulate feedback about the above.`
-
-    // Create the thread session
-    const session = await this.createSession(workspaceId, {
-      threadParentSessionId: parentSessionId,
-      threadMessageId: messageId,
-      hidden: true,
-      systemPromptPreset: 'thread',
-      model: model || 'claude-haiku-4-5-20251001', // User-selected or default to cheaper model
-      workingDirectory: 'none', // Threads don't need a working directory
-    })
-
-    return { session, threadContext }
   }
 
   /**
@@ -2214,6 +2165,7 @@ Remember: You're providing a second opinion. Help the user understand, question,
         // Create task sessions
         for (const task of data.tasks) {
           const taskSession = await this.createSession(managed.workspace.id, {
+            name: task.title,
             model: 'claude-opus-4-6',
             projectId: data.projectId,
             taskIndex: task.taskIndex,
@@ -2222,11 +2174,17 @@ Remember: You're providing a second opinion. Help the user understand, question,
             planPath: data.planPath,
             diagramPath: data.diagramPath,
             // Task metadata for Start button execution message
-            taskDescription: task.description,
+            // Include acceptance criteria from <done> section if present
+            taskDescription: (() => {
+              const doneMatch = task.technicalDetail?.match(/<done>\s*([\s\S]*?)\s*<\/done>/)
+              const criteria = doneMatch?.[1]?.trim()
+              return criteria ? `${task.description}\n\nDone when: ${criteria}` : task.description
+            })(),
             taskTechnicalDetail: task.technicalDetail,
             taskFiles: task.files,
             taskTimeEstimate: task.timeEstimate,
             taskType: task.taskType,
+            wave: task.wave,
             // Task sessions start as Todo
             todoState: 'todo',
             // Task sessions use the task-execution system prompt
@@ -2238,23 +2196,49 @@ Remember: You're providing a second opinion. Help the user understand, question,
             // by the AllChats filter excluding sessions with projectId + taskIndex.
           })
 
-          // Set the session name to the task title
-          const taskManaged = this.sessions.get(taskSession.id)
-          if (taskManaged) {
-            taskManaged.name = task.title
-            this.persistSession(taskManaged)
-          }
-
           taskSessionIds.push(taskSession.id)
         }
+
+        // Generate project state file in the parent session's folder
+        const parentSessionPath = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+        const projectStatePath = join(parentSessionPath, 'project-state.md')
+        const stateTasks: ProjectStateTaskInfo[] = []
+        for (const [_, s] of this.sessions) {
+          if (s.projectId === data.projectId && s.taskIndex != null) {
+            stateTasks.push({
+              taskIndex: s.taskIndex,
+              name: s.name,
+              wave: s.wave,
+              todoState: s.todoState,
+              completionSummary: s.completionSummary,
+              taskType: s.taskType,
+            })
+          }
+        }
+        stateTasks.sort((a, b) => a.taskIndex - b.taskIndex)
+        const stateContent = generateProjectState(data.projectName, data.projectId, stateTasks, data.steps)
+        mkdirSync(parentSessionPath, { recursive: true })
+        await writeFile(projectStatePath, stateContent, 'utf-8')
+        sessionLog.info(`Project state file created at ${projectStatePath}`)
 
         // Update parent session with project metadata (used by Project header actions)
         managed.projectId = data.projectId
         managed.name = data.projectName
         managed.planPath = data.planPath
         managed.diagramPath = data.diagramPath
+        managed.projectStatePath = projectStatePath
+        managed.projectSteps = data.steps
         this.persistSession(managed)
         await this.flushSession(managed.id)
+
+        // Set projectStatePath on all task sessions so executors can find it
+        for (const taskSessionId of taskSessionIds) {
+          const taskManaged = this.sessions.get(taskSessionId)
+          if (taskManaged) {
+            taskManaged.projectStatePath = projectStatePath
+            this.persistSession(taskManaged)
+          }
+        }
 
         // Fire project_created event
         this.sendEvent({
@@ -2266,6 +2250,34 @@ Remember: You're providing a second opinion. Help the user understand, question,
         }, managed.workspace.id)
 
         sessionLog.info(`Project "${data.projectName}" created: ${taskSessionIds.length} task sessions`)
+
+        // Auto-start Wave 1 tasks (no dependencies) immediately
+        // Use a small delay to let the UI render the project view first
+        setTimeout(async () => {
+          try {
+            // Gather all project tasks for auto-start evaluation
+            const projectTasks: TaskInfo[] = []
+            for (const [_, s] of this.sessions) {
+              if (s.projectId === data.projectId && s.taskIndex != null) {
+                projectTasks.push({
+                  sessionId: s.id,
+                  taskIndex: s.taskIndex,
+                  todoState: s.todoState,
+                  taskDependencies: s.taskDependencies,
+                  taskType: s.taskType,
+                })
+              }
+            }
+            const toStart = getAutoStartableTasks(projectTasks, this.MAX_CONCURRENT_TASKS)
+            for (const task of toStart) {
+              sessionLog.info(`Auto-starting Wave 1 task session ${task.sessionId} (task ${task.taskIndex})`)
+              await this.autoStartTask(task.sessionId)
+            }
+          } catch (err) {
+            sessionLog.error(`Error auto-starting Wave 1 tasks for project ${data.projectId}:`, err)
+          }
+        }, 500)
+
         return taskSessionIds
       }
 
@@ -2273,6 +2285,19 @@ Remember: You're providing a second opinion. Help the user understand, question,
       managed.agent.onSetCompletionSummary = async (summary: string) => {
         sessionLog.info(`Completion summary for session ${managed.id}: ${summary.substring(0, 80)}`)
         await this.setCompletionSummary(managed.id, summary)
+      }
+
+      // Wire up onGetConversation to return conversation transcript for self_review tool
+      managed.agent.onGetConversation = async () => {
+        await this.ensureMessagesLoaded(managed)
+        return managed.messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .map(m => {
+            const content = typeof m.content === 'string' ? m.content : '[complex content]'
+            const truncated = content.length > 1000 ? content.slice(0, 1000) + '...' : content
+            return `**${m.role === 'user' ? 'User' : 'Assistant'}**: ${truncated}`
+          })
+          .join('\n\n')
       }
 
       // Wire up onSourceActivationRequest to auto-enable sources when agent tries to use them
@@ -2430,6 +2455,13 @@ Remember: You're providing a second opinion. Help the user understand, question,
       await this.flushSession(managed.id)
       // Notify all windows for this workspace
       this.sendEvent({ type: 'todo_state_changed', sessionId, todoState }, managed.workspace.id)
+
+      // Auto-start: when a task moves to 'done', check if any dependent tasks are now unblocked
+      if (todoState === 'done' && managed.projectId && managed.taskIndex != null) {
+        this.checkAndAutoStartUnblockedTasks(managed.projectId, managed.wave).catch(err => {
+          sessionLog.error(`Error auto-starting unblocked tasks for project ${managed.projectId}:`, err)
+        })
+      }
     }
   }
 
@@ -2447,6 +2479,34 @@ Remember: You're providing a second opinion. Help the user understand, question,
       managed.completionSummary = summary
       this.persistSession(managed)
       await this.flushSession(managed.id)
+
+      // Check if this is a verifier session completing
+      const verifierCtx = this.pendingVerifications.get(sessionId)
+      if (verifierCtx) {
+        this.pendingVerifications.delete(sessionId)
+        this.handleVerifierCompletion(
+          verifierCtx.projectId,
+          verifierCtx.wave,
+          summary,
+          verifierCtx.parentSessionId,
+          verifierCtx.workspaceId,
+        ).catch(err => sessionLog.error('Error handling verifier completion:', err))
+        return
+      }
+
+      // Check if this is an integration checker session completing
+      const checkerCtx = this.pendingIntegrationChecks.get(sessionId)
+      if (checkerCtx) {
+        this.pendingIntegrationChecks.delete(sessionId)
+        this.handleIntegrationCheckerCompletion(
+          checkerCtx.projectId,
+          summary,
+          checkerCtx.parentSessionId,
+          checkerCtx.workspaceId,
+        ).catch(err => sessionLog.error('Error handling integration checker completion:', err))
+        return
+      }
+
       // Emit task_completed event if this is a task session with a project
       if (managed.projectId) {
         this.sendEvent({
@@ -2457,6 +2517,457 @@ Remember: You're providing a second opinion. Help the user understand, question,
         }, managed.workspace.id)
       }
     }
+  }
+
+  // ============================================
+  // Normies: Auto-Start Orchestration
+  // ============================================
+
+  /** Maximum number of task sessions that can run simultaneously per project */
+  private readonly MAX_CONCURRENT_TASKS = 3
+
+  /** Pending step verifier sessions: verifierSessionId → context */
+  private pendingVerifications = new Map<string, { projectId: string; wave: number; parentSessionId: string; workspaceId: string }>()
+
+  /** Pending integration checker sessions: checkerSessionId → context */
+  private pendingIntegrationChecks = new Map<string, { projectId: string; parentSessionId: string; workspaceId: string }>()
+
+  /**
+   * Check if any blocked tasks in a project are now unblocked and auto-start them.
+   * Called whenever a task moves to 'done' state.
+   *
+   * When a wave just completed, runs a spot-check before advancing to the next wave.
+   * The spot-check verifies that each completed task has a completion summary and journal.md.
+   *
+   * @param projectId - The project to check
+   * @param completedWave - The wave number of the task that just completed (if known)
+   */
+  private async checkAndAutoStartUnblockedTasks(projectId: string, completedWave?: number): Promise<void> {
+    // Gather all task sessions for this project (with spot-check info)
+    const projectTasks: (TaskInfo & SpotCheckTaskInfo)[] = []
+    for (const [_, managed] of this.sessions) {
+      if (managed.projectId === projectId && managed.taskIndex != null) {
+        projectTasks.push({
+          sessionId: managed.id,
+          taskIndex: managed.taskIndex,
+          todoState: managed.todoState,
+          taskDependencies: managed.taskDependencies,
+          taskType: managed.taskType,
+          wave: managed.wave,
+          name: managed.name,
+          completionSummary: managed.completionSummary,
+          sessionFolderPath: getSessionStoragePath(managed.workspace.rootPath, managed.id),
+        })
+      }
+    }
+
+    // Spot-check: if we know which wave just completed, check if the entire wave is done
+    if (completedWave != null && isWaveComplete(projectTasks, completedWave)) {
+      const spotResult = spotCheckWave(projectTasks, completedWave, (path) => existsSync(path))
+
+      // Find the parent session (project session) for event routing
+      const parentSession = [...this.sessions.values()].find(
+        s => s.projectId === projectId && s.taskIndex == null
+      )
+      const workspaceId = parentSession?.workspace.id
+      const parentSessionId = parentSession?.id ?? ''
+
+      if (!spotResult.passed) {
+        sessionLog.warn(`Wave ${completedWave} spot-check failed for project ${projectId}:`, spotResult.failures)
+        this.sendEvent({
+          type: 'wave_spot_check_failed',
+          sessionId: parentSessionId,
+          projectId,
+          wave: completedWave,
+          failures: spotResult.failures,
+        }, workspaceId)
+        // Don't auto-start next wave tasks — user needs to address failures
+        return
+      }
+
+      sessionLog.info(`Wave ${completedWave} spot-check passed for project ${projectId}`)
+      this.sendEvent({
+        type: 'wave_spot_check_passed',
+        sessionId: parentSessionId,
+        projectId,
+        wave: completedWave,
+      }, workspaceId)
+
+      // Update project state file with current task statuses and wave completion
+      if (parentSession?.projectStatePath) {
+        try {
+          const currentState = await readFile(parentSession.projectStatePath, 'utf-8')
+          const stateTasks: ProjectStateTaskInfo[] = projectTasks.map(t => ({
+            taskIndex: t.taskIndex,
+            name: t.name,
+            wave: t.wave,
+            todoState: t.todoState,
+            completionSummary: t.completionSummary,
+            taskType: t.taskType,
+          }))
+          stateTasks.sort((a, b) => a.taskIndex - b.taskIndex)
+          const updatedState = updateProjectState(currentState, stateTasks, completedWave)
+          await writeFile(parentSession.projectStatePath, updatedState, 'utf-8')
+          sessionLog.info(`Project state file updated after wave ${completedWave}`)
+        } catch (err) {
+          sessionLog.error(`Error updating project state file:`, err)
+        }
+      }
+
+      // Launch verifier agent to independently verify the step
+      if (parentSession && workspaceId) {
+        await this.launchStepVerifier(
+          projectId,
+          completedWave,
+          projectTasks,
+          parentSession,
+          workspaceId,
+        )
+        // Don't auto-start next wave tasks yet — verifier will trigger advancement
+        return
+      }
+    }
+
+    // Spot-check passed (or no wave boundary) — find and auto-start unblocked tasks
+    const toStart = getAutoStartableTasks(projectTasks, this.MAX_CONCURRENT_TASKS)
+    for (const task of toStart) {
+      sessionLog.info(`Auto-starting unblocked task session ${task.sessionId} (task ${task.taskIndex})`)
+      await this.autoStartTask(task.sessionId)
+    }
+  }
+
+  /**
+   * Launch a verifier agent to independently verify a completed step.
+   * Creates a hidden session, sends the verifier prompt, and listens for completion.
+   * On PASS → advances to next wave. On FAIL → emits failure event to UI.
+   */
+  private async launchStepVerifier(
+    projectId: string,
+    completedWave: number,
+    projectTasks: (TaskInfo & SpotCheckTaskInfo)[],
+    parentSession: ManagedSession,
+    workspaceId: string,
+  ): Promise<void> {
+    const verificationTasks: VerificationTaskInfo[] = projectTasks.map(t => ({
+      taskIndex: t.taskIndex,
+      name: t.name,
+      wave: t.wave,
+      completionSummary: t.completionSummary,
+      taskFiles: this.sessions.get(t.sessionId)?.taskFiles,
+      sessionFolderPath: t.sessionFolderPath,
+      taskType: t.taskType,
+    }))
+
+    const prompt = buildVerifierPrompt(
+      completedWave,
+      verificationTasks,
+      parentSession.name || 'Untitled Project',
+      parentSession.workingDirectory,
+      parentSession.planPath,
+    )
+
+    try {
+      // Create hidden verifier session
+      const verifierSession = await this.createSession(workspaceId, {
+        hidden: true,
+        systemPromptPreset: 'task-execution',
+        permissionMode: 'allow-all',
+        projectId,
+        workingDirectory: parentSession.workingDirectory || 'user_default',
+      })
+
+      sessionLog.info(`Launched step ${completedWave} verifier session ${verifierSession.id} for project ${projectId}`)
+
+      // Track this verifier so setCompletionSummary can route the result
+      this.pendingVerifications.set(verifierSession.id, {
+        projectId,
+        wave: completedWave,
+        parentSessionId: parentSession.id,
+        workspaceId,
+      })
+
+      this.sendEvent({
+        type: 'step_verification_started',
+        sessionId: parentSession.id,
+        projectId,
+        wave: completedWave,
+        verifierSessionId: verifierSession.id,
+      }, workspaceId)
+
+      // Send the verifier prompt (agent is lazily created here)
+      await this.sendMessage(verifierSession.id, prompt, [], [], { silent: true })
+    } catch (err) {
+      sessionLog.error(`Error launching step verifier for wave ${completedWave}:`, err)
+      // Fallback: advance without verification
+      await this.advanceToNextWave(projectId)
+    }
+  }
+
+  /**
+   * Handle verifier completion: parse verdict and advance or fail.
+   */
+  private async handleVerifierCompletion(
+    projectId: string,
+    completedWave: number,
+    summary: string,
+    parentSessionId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const passed = summary.toUpperCase().startsWith('PASS:')
+    sessionLog.info(`Step ${completedWave} verification ${passed ? 'PASSED' : 'FAILED'} for project ${projectId}: ${summary.substring(0, 100)}`)
+
+    if (passed) {
+      this.sendEvent({
+        type: 'step_verification_passed',
+        sessionId: parentSessionId,
+        projectId,
+        wave: completedWave,
+        summary,
+      }, workspaceId)
+
+      // Advance to next wave
+      await this.advanceToNextWave(projectId)
+    } else {
+      this.sendEvent({
+        type: 'step_verification_failed',
+        sessionId: parentSessionId,
+        projectId,
+        wave: completedWave,
+        summary,
+      }, workspaceId)
+      // Don't advance — user needs to address verification failures
+    }
+  }
+
+  /**
+   * Launch an integration checker after all non-handoff tasks complete.
+   * Creates a hidden session, sends the integration check prompt, and listens for completion.
+   * On READY → starts handoff task. On NEEDS FIXES → emits failure event.
+   */
+  private async launchIntegrationChecker(
+    projectId: string,
+    projectTasks: (TaskInfo & SpotCheckTaskInfo)[],
+    parentSession: ManagedSession,
+    workspaceId: string,
+  ): Promise<void> {
+    const verificationTasks: VerificationTaskInfo[] = projectTasks.map(t => ({
+      taskIndex: t.taskIndex,
+      name: t.name,
+      wave: t.wave,
+      completionSummary: t.completionSummary,
+      taskFiles: this.sessions.get(t.sessionId)?.taskFiles,
+      sessionFolderPath: t.sessionFolderPath,
+      taskType: t.taskType,
+    }))
+
+    const prompt = buildIntegrationCheckerPrompt(
+      verificationTasks,
+      parentSession.name || 'Untitled Project',
+      parentSession.workingDirectory,
+      parentSession.planPath,
+    )
+
+    try {
+      const checkerSession = await this.createSession(workspaceId, {
+        hidden: true,
+        systemPromptPreset: 'task-execution',
+        permissionMode: 'allow-all',
+        projectId,
+        workingDirectory: parentSession.workingDirectory || 'user_default',
+      })
+
+      sessionLog.info(`Launched integration checker session ${checkerSession.id} for project ${projectId}`)
+
+      // Track this checker so setCompletionSummary can route the result
+      this.pendingIntegrationChecks.set(checkerSession.id, {
+        projectId,
+        parentSessionId: parentSession.id,
+        workspaceId,
+      })
+
+      this.sendEvent({
+        type: 'integration_check_started',
+        sessionId: parentSession.id,
+        projectId,
+        checkerSessionId: checkerSession.id,
+      }, workspaceId)
+
+      // Send the integration checker prompt (agent is lazily created here)
+      await this.sendMessage(checkerSession.id, prompt, [], [], { silent: true })
+    } catch (err) {
+      sessionLog.error(`Error launching integration checker:`, err)
+      // Fallback: start handoff without integration check
+      await this.startHandoffTasks(projectId)
+    }
+  }
+
+  /**
+   * Handle integration checker completion: parse verdict and advance or fail.
+   */
+  private async handleIntegrationCheckerCompletion(
+    projectId: string,
+    summary: string,
+    parentSessionId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const passed = summary.toUpperCase().startsWith('READY:')
+    sessionLog.info(`Integration check ${passed ? 'PASSED' : 'FAILED'} for project ${projectId}: ${summary.substring(0, 100)}`)
+
+    if (passed) {
+      this.sendEvent({
+        type: 'integration_check_passed',
+        sessionId: parentSessionId,
+        projectId,
+        summary,
+      }, workspaceId)
+
+      // Start handoff tasks directly (integration check passed)
+      await this.startHandoffTasks(projectId)
+    } else {
+      this.sendEvent({
+        type: 'integration_check_failed',
+        sessionId: parentSessionId,
+        projectId,
+        summary,
+      }, workspaceId)
+      // Don't advance — user needs to address integration issues
+    }
+  }
+
+  /**
+   * Advance to next wave: find and auto-start unblocked tasks for the project.
+   * Extracted from checkAndAutoStartUnblockedTasks for reuse by verifier/checker completion handlers.
+   *
+   * When all non-handoff tasks are done and handoff tasks remain, runs integration checker first.
+   *
+   * @param skipIntegrationCheck - Set true when called from integration checker completion (avoid loop)
+   */
+  private async advanceToNextWave(projectId: string, skipIntegrationCheck = false): Promise<void> {
+    const projectTasks: (TaskInfo & SpotCheckTaskInfo)[] = []
+    for (const [_, managed] of this.sessions) {
+      if (managed.projectId === projectId && managed.taskIndex != null) {
+        projectTasks.push({
+          sessionId: managed.id,
+          taskIndex: managed.taskIndex,
+          todoState: managed.todoState,
+          taskDependencies: managed.taskDependencies,
+          taskType: managed.taskType,
+          wave: managed.wave,
+          name: managed.name,
+          completionSummary: managed.completionSummary,
+          sessionFolderPath: getSessionStoragePath(managed.workspace.rootPath, managed.id),
+        })
+      }
+    }
+
+    // Check if all non-handoff tasks are done and there are pending handoff tasks
+    if (!skipIntegrationCheck) {
+      const nonHandoffTasks = projectTasks.filter(t => t.taskType !== 'handoff')
+      const handoffTasks = projectTasks.filter(t => t.taskType === 'handoff' && t.todoState === 'todo')
+      const allNonHandoffDone = nonHandoffTasks.length > 0 && nonHandoffTasks.every(t => t.todoState === 'done')
+
+      if (allNonHandoffDone && handoffTasks.length > 0) {
+        // All non-handoff tasks done — run integration checker before starting handoff
+        const parentSession = [...this.sessions.values()].find(
+          s => s.projectId === projectId && s.taskIndex == null
+        )
+        if (parentSession) {
+          const workspaceId = parentSession.workspace.id
+          await this.launchIntegrationChecker(projectId, projectTasks, parentSession, workspaceId)
+          return // Integration checker will start handoff on success
+        }
+      }
+    }
+
+    // Find and auto-start unblocked non-handoff tasks
+    const toStart = getAutoStartableTasks(projectTasks, this.MAX_CONCURRENT_TASKS)
+    for (const task of toStart) {
+      sessionLog.info(`Auto-starting unblocked task session ${task.sessionId} (task ${task.taskIndex})`)
+      await this.autoStartTask(task.sessionId)
+    }
+  }
+
+  /**
+   * Start handoff tasks for a project (after integration check passes).
+   * Unlike regular tasks, handoff tasks are explicitly started here.
+   */
+  private async startHandoffTasks(projectId: string): Promise<void> {
+    for (const [_, managed] of this.sessions) {
+      if (managed.projectId === projectId && managed.taskType === 'handoff' && managed.todoState === 'todo') {
+        sessionLog.info(`Auto-starting handoff task session ${managed.id}`)
+        await this.autoStartTask(managed.id)
+      }
+    }
+  }
+
+  /**
+   * Auto-start a task session: set state, switch to execute mode, and send execution context.
+   * Replicates what happens when the user clicks "Start Task" in the UI.
+   */
+  private async autoStartTask(sessionId: string): Promise<void> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) {
+      sessionLog.warn(`Cannot auto-start task: session ${sessionId} not found`)
+      return
+    }
+
+    // 1. Set todo state to in-progress
+    await this.setTodoState(sessionId, 'in-progress')
+
+    // 2. Switch permission mode to allow-all (execute mode)
+    this.setSessionPermissionMode(sessionId, 'allow-all')
+
+    // 3. Build and send the execution context message
+    const sessionFolderPath = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+
+    // For handoff tasks, gather sibling task info
+    let siblingTasks: Array<{ taskIndex: number; name?: string; completionSummary?: string; taskFiles?: string[]; sessionFolderPath?: string }> | undefined
+    if (managed.taskType === 'handoff' && managed.projectId) {
+      siblingTasks = []
+      for (const [_, sibling] of this.sessions) {
+        if (sibling.projectId === managed.projectId && sibling.taskIndex != null && sibling.taskType !== 'handoff') {
+          siblingTasks.push({
+            taskIndex: sibling.taskIndex,
+            name: sibling.name,
+            completionSummary: sibling.completionSummary,
+            taskFiles: sibling.taskFiles,
+            sessionFolderPath: getSessionStoragePath(sibling.workspace.rootPath, sibling.id),
+          })
+        }
+      }
+      siblingTasks.sort((a, b) => a.taskIndex - b.taskIndex)
+    }
+
+    // Look up step name from parent session's projectSteps
+    let stepName: string | undefined
+    let stepNumber: number | undefined
+    if (managed.wave != null && managed.parentSessionId) {
+      const parentSession = this.sessions.get(managed.parentSessionId)
+      const step = parentSession?.projectSteps?.find(s => s.stepNumber === managed.wave)
+      if (step) {
+        stepName = step.name
+        stepNumber = step.stepNumber
+      }
+    }
+
+    const executionContext = buildTaskExecutionContext({
+      taskIndex: managed.taskIndex!,
+      name: managed.name,
+      taskDescription: managed.taskDescription,
+      taskTechnicalDetail: managed.taskTechnicalDetail,
+      taskFiles: managed.taskFiles,
+      taskDependencies: managed.taskDependencies,
+      planPath: managed.planPath,
+      projectStatePath: managed.projectStatePath,
+      sessionFolderPath,
+      taskType: managed.taskType,
+      stepName,
+      stepNumber,
+      siblingTasks,
+    })
+
+    // Send as a silent message (not shown in chat UI)
+    await this.sendMessage(sessionId, executionContext, [], [], { silent: true })
   }
 
   /**
@@ -3620,12 +4131,12 @@ Remember: You're providing a second opinion. Help the user understand, question,
       await this.setTodoState(sessionId, 'done')
     }
 
-    // 4. Normies: Move task sessions to "needs-review" when agent finishes processing
-    //    Task sessions (task-execution preset with a projectId) move to 'needs-review'
-    //    so the user can verify the work before marking it as done.
-    if (reason === 'complete' && managed.systemPromptPreset === 'task-execution' && managed.projectId && managed.todoState !== 'done' && managed.todoState !== 'needs-review') {
-      sessionLog.info(`Moving task session ${sessionId} to needs-review`)
-      await this.setTodoState(sessionId, 'needs-review')
+    // 4. Normies: Auto-complete task sessions when agent finishes processing.
+    //    This triggers wave progression — once all tasks in a wave are 'done',
+    //    the next wave auto-starts via checkAndAutoStartUnblockedTasks.
+    if (reason === 'complete' && managed.systemPromptPreset === 'task-execution' && managed.projectId && managed.todoState !== 'done') {
+      sessionLog.info(`Auto-completing task session ${sessionId}`)
+      await this.setTodoState(sessionId, 'done')
     }
 
     // 4. Check queue and process or complete
@@ -4497,6 +5008,27 @@ To view this task's output:
           if (event.usage.contextWindow) {
             managed.tokenUsage.contextWindow = event.usage.contextWindow
           }
+
+          // Emit per-turn LLM metrics for analytics
+          const contextWindow = event.usage.contextWindow ?? managed.tokenUsage.contextWindow ?? 0
+          this.sendEvent({
+            type: 'llm_metrics',
+            sessionId,
+            metrics: {
+              inputTokens: event.usage.inputTokens,
+              outputTokens: event.usage.outputTokens,
+              cacheReadTokens: event.usage.cacheReadTokens ?? 0,
+              cacheCreationTokens: event.usage.cacheCreationTokens ?? 0,
+              costUsd: event.usage.costUsd ?? 0,
+              contextUtilization: contextWindow > 0 ? event.usage.inputTokens / contextWindow : 0,
+              contextWindow,
+              sessionType: managed.systemPromptPreset ?? 'default',
+              ...(managed.projectId && { projectId: managed.projectId }),
+              ...(managed.taskIndex != null && { taskIndex: managed.taskIndex }),
+              ...(managed.wave != null && { wave: managed.wave }),
+              ...(managed.hidden && { isHidden: true }),
+            },
+          }, workspaceId)
         }
         break
 

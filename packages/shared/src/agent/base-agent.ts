@@ -225,6 +225,9 @@ export abstract class BaseAgent {
   /** Called when setCompletionSummary tool is invoked (Normies task-execution sessions) */
   public onSetCompletionSummary: ((summary: string) => Promise<void>) | null = null;
 
+  /** Called when self_review tool is invoked — returns the formatted conversation transcript */
+  public onGetConversation: (() => Promise<string>) | null = null;
+
   /** Called when a source config changes (hot-reload from file watcher) */
   public onSourceChange: ((slug: string, source: LoadedSource | null) => void) | null = null;
 
@@ -284,6 +287,13 @@ export abstract class BaseAgent {
       onQuestionRequest: (request) => {
         this.onDebug?.(`[BaseAgent] onQuestionRequest received: ${request.questions.length} questions`);
         this.onQuestionRequest?.(request);
+      },
+      onGetConversation: async () => {
+        this.onDebug?.(`[BaseAgent] onGetConversation received`);
+        if (this.onGetConversation) {
+          return this.onGetConversation();
+        }
+        return '';
       },
     });
 
@@ -480,6 +490,7 @@ export abstract class BaseAgent {
     this.onQuestionRequest = null;
     this.onCreateProjectSessions = null;
     this.onSetCompletionSummary = null;
+    this.onGetConversation = null;
     this.onSourceChange = null;
     this.onSourcesListChange = null;
     this.onConfigValidationError = null;

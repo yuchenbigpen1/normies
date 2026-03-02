@@ -88,8 +88,8 @@
     "vite": "^6.2.4"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.34",
-    "@anthropic-ai/sdk": "^0.71.1",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.63",
+    "@anthropic-ai/sdk": "^0.71.2",
     "@dagrejs/dagre": "1.1.8",
     "@modelcontextprotocol/sdk": "^1.24.3",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -127,5 +127,8 @@
     "shiki": "^3.19.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-x64": "^4.58.0"
   }
 }

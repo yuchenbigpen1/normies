@@ -17,7 +17,7 @@
  *   - agent: CraftAgent SDK wrapper, plan tools
  *   - auth: OAuth, token management, auth state
  *   - clients: Craft API client
- *   - config: Storage, models, preferences
+ *   - config: Storage, models, display preferences
  *   - credentials: Encrypted credential storage
  *   - headless: Non-interactive execution mode
  *   - mcp: MCP client, connection validation

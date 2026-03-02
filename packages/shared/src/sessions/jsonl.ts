@@ -182,6 +182,7 @@ export function createSessionHeader(session: StoredSession): SessionHeader {
     taskTechnicalDetail: session.taskTechnicalDetail,
     taskFiles: session.taskFiles,
     taskType: session.taskType,
+    wave: session.wave,
     // Thread linking (Normies)
     threadParentSessionId: session.threadParentSessionId,
     threadMessageId: session.threadMessageId,

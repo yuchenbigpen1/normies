@@ -5,103 +5,65 @@ description: Use when you have a spec or requirements for a multi-step task, bef
 
 # Writing Plans
 
-## Overview
-
-Write comprehensive implementation plans assuming the implementing agent has zero context for the codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
-
-Assume they are a skilled developer, but know almost nothing about the toolset or problem domain. Assume they don't know good test design very well.
-
-When communicating plan details to your client, follow the system prompt's communication rules -- plain language summaries with technical detail available on request.
+Follow the system prompt's **Plan Creation** section. It has the full rules for:
+- What the user sees (plain language plan via SubmitPlan)
+- What the implementing agent receives (technical detail via `technicalDetail` field)
+- How to structure tasks for CreateProjectTasks
 
 **Announce at start:** "I'm creating an implementation plan for this."
 
-## Bite-Sized Task Granularity
+Before writing the plan:
+1. Check out the current project state (files, docs, recent work) so you can write accurate technical detail for the implementing agent
+2. **If no research has been done yet,** use the **research-before-planning** skill first. Plans built on unverified assumptions produce bad builds.
 
-**Each step is one action (2-5 minutes):**
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
+Keep tasks independent where possible. Only add dependencies when a task genuinely requires another task's output.
 
-## Plan Structure
+### Step Assignment
 
-**Every plan starts with a summary header, then a list of tasks.**
+Tasks are grouped into **steps** (internally called waves). Each step runs in parallel — all tasks in the same step execute simultaneously. Between steps, a verifier checks the work before advancing.
 
-Use the SubmitPlan tool to present the plan to the user. Write the plan as a markdown file, then call SubmitPlan with the file path. The plan is saved automatically by the session.
+- **Step 1:** Tasks with no dependencies (all start immediately)
+- **Step 2:** Tasks that ONLY depend on Step 1 tasks
+- **Step 3:** Tasks that depend on Step 2 (or earlier) tasks
+- And so on...
 
-```markdown
-# [Feature Name] Implementation Plan
+Algorithm:
+1. Tasks with no dependencies → Step 1
+2. For each remaining task: step = max(step of all dependencies) + 1
+3. Report step grouping in the plan summary
 
-## Summary
-[2-3 sentences: what this builds, the architectural approach, key technologies]
+When presenting the plan to the client, show which tasks run in parallel:
 
-## Steps
-1. **Task title** - Plain language summary of what this accomplishes
-2. **Task title** - Plain language summary
-3. ...
-```
+"Tasks 1, 2, and 3 have no dependencies — they'll run together in Step 1. Task 4 depends on Tasks 1 and 2, so it starts in Step 2 after the verifier confirms Step 1 is solid."
 
-## Structuring Tasks for CreateProjectTasks
+This helps the client understand the execution timeline and total project duration.
 
-After the user accepts the plan, tasks are created via CreateProjectTasks. Each task you define in the plan must map to this structure:
+### Naming Steps
 
-- **title**: Plain language name (e.g., "Add user validation middleware")
-- **description**: 1-2 sentence summary of what the task accomplishes and why
-- **technicalDetail**: The full detailed steps (see Task Technical Detail below)
-- **files**: List of file paths this task touches
-- **dependencies**: Which tasks must complete first (by title or index)
+If you provide `steps` to `CreateProjectTasks`, give each step an **outcome-focused name** that describes what the user gets, not what the code does:
+- "Login system works" not "Implement auth"
+- "Dashboard shows live data" not "Build React components"
+- "Emails send automatically" not "Configure SMTP"
 
-Keep tasks independent where possible to allow parallel execution. Only add dependencies when a task genuinely requires another task's output (e.g., "Add API route" depends on "Create database schema").
+If you omit `steps`, they're auto-derived from task titles.
 
-## Task Technical Detail
+## Using Research in Plans
 
-This is what goes in the `technicalDetail` field for each task. The implementing agent receives this as their instructions.
+If the research-before-planning skill was used, reference its findings directly in task `technicalDetail`:
 
-```markdown
-### Task N: [Component Name]
+- **Verified versions** → Specify exact versions in `<action>`: "Use Supabase v2. Auth uses the new `signIn()` method."
+- **Pitfalls found** → Add mitigations to `<action>` and checks to `<verify>`
+- **Existing solutions found** → Use them instead of building custom. Remove the task or replace with configuration.
+- **LOW confidence findings** → Flag in `<action>`: "VERIFY FIRST: [assumption]. If wrong, use [fallback]."
+- **Rate limits / constraints** → Include in `<action>` as design constraints
 
-**Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
+**Never write a plan that contradicts research findings.** If research says "library X is deprecated, use Y instead," the plan uses Y.
 
-**Step 1: Write the failing test**
+## Scope Creep Guard
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
-```
+Before finalizing the plan, review each task and ask: "Is this essential for the user's stated goal, or am I adding it because it seems nice to have?" Remove anything that doesn't directly contribute to the outcome. YAGNI ruthlessly.
 
-**Step 2: Run test to verify it fails**
+## Integration
 
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
-
-**Step 3: Write minimal implementation**
-
-```python
-def function(input):
-    return expected
-```
-
-**Step 4: Run test to verify it passes**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: PASS
-
-**Step 5: Commit**
-
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
-```
-
-## Remember
-- Exact file paths always
-- Complete code in plan (not "add validation")
-- Exact commands with expected output
-- DRY, YAGNI, TDD, frequent commits
-- The implementing agent has zero context -- spell everything out
+**Upstream:** brainstorming skill → research-before-planning skill → this skill
+**Downstream:** CreateProjectTasks → executor agent (auto-executes)

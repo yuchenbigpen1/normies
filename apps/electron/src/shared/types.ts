@@ -413,12 +413,18 @@ export interface Session {
   taskFiles?: string[]
   taskTimeEstimate?: string
   taskType?: 'task' | 'handoff'
+  // Wave number for parallel execution grouping (Normies)
+  wave?: number
   // Task completion (Normies)
   completionSummary?: string
   // Plan reference (Normies)
   planPath?: string
   // Architecture diagram (Normies)
   diagramPath?: string
+  // Project state file path (Normies) — shared state file read by executors
+  projectStatePath?: string
+  // Project steps (Normies) — user-visible step definitions, stored on parent session only
+  projectSteps?: Array<{ stepNumber: number; name: string; description?: string }>
   // System prompt preset (persisted for tool registration)
   systemPromptPreset?: 'default' | 'mini' | 'explore' | 'task-execution' | 'thread'
   /** When true, session is hidden from session list (e.g., mini edit sessions) */
@@ -432,6 +438,8 @@ export interface Session {
  * Note: Session creation itself has no options - auto-send is handled by NavigationContext
  */
 export interface CreateSessionOptions {
+  /** Session name (e.g., task title for project tasks) */
+  name?: string
   /** Initial permission mode for the session (overrides workspace default) */
   permissionMode?: PermissionMode
   /**
@@ -467,10 +475,32 @@ export interface CreateSessionOptions {
   taskFiles?: string[]
   taskTimeEstimate?: string
   taskType?: 'task' | 'handoff'
+  // Wave number for parallel execution grouping (Normies)
+  wave?: number
   // Plan reference (Normies)
   planPath?: string
   // Architecture diagram (Normies)
   diagramPath?: string
+  // Project state file path (Normies)
+  projectStatePath?: string
+}
+
+/**
+ * Per-turn LLM usage metrics (emitted with each agent turn completion)
+ */
+export interface LlmTurnMetrics {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  costUsd: number
+  contextUtilization: number  // ratio 0-1 (inputTokens / contextWindow)
+  contextWindow: number
+  sessionType: string  // 'explore' | 'task-execution' | 'mini' | 'thread' | 'default'
+  projectId?: string
+  taskIndex?: number
+  wave?: number
+  isHidden?: boolean
 }
 
 // Events sent from main to renderer
@@ -530,6 +560,16 @@ export type SessionEvent =
   | { type: 'project_created'; sessionId: string; projectId: string; projectName: string; taskSessionIds: string[] }
   | { type: 'task_started'; sessionId: string; projectId: string }
   | { type: 'task_completed'; sessionId: string; projectId: string; summary: string }
+  | { type: 'wave_spot_check_passed'; sessionId: string; projectId: string; wave: number }
+  | { type: 'wave_spot_check_failed'; sessionId: string; projectId: string; wave: number; failures: string[] }
+  | { type: 'step_verification_started'; sessionId: string; projectId: string; wave: number; verifierSessionId: string }
+  | { type: 'step_verification_passed'; sessionId: string; projectId: string; wave: number; summary: string }
+  | { type: 'step_verification_failed'; sessionId: string; projectId: string; wave: number; summary: string }
+  | { type: 'integration_check_started'; sessionId: string; projectId: string; checkerSessionId: string }
+  | { type: 'integration_check_passed'; sessionId: string; projectId: string; summary: string }
+  | { type: 'integration_check_failed'; sessionId: string; projectId: string; summary: string }
+  // LLM metrics (per-turn token usage, cost, cache performance)
+  | { type: 'llm_metrics'; sessionId: string; metrics: LlmTurnMetrics }
 
 // Options for sendMessage
 export interface SendMessageOptions {
@@ -608,9 +648,6 @@ export const IPC_CHANNELS = {
   RESPOND_TO_PERMISSION: 'sessions:respondToPermission',
   RESPOND_TO_CREDENTIAL: 'sessions:respondToCredential',
   RESPOND_TO_QUESTION: 'sessions:respondToQuestion',
-
-  // Thread session creation (Normies)
-  CREATE_THREAD_SESSION: 'sessions:createThread',
 
   // Consolidated session command
   SESSION_COMMAND: 'sessions:command',
@@ -912,9 +949,6 @@ export interface ElectronAPI {
   respondToPermission(sessionId: string, requestId: string, allowed: boolean, alwaysAllow: boolean): Promise<boolean>
   respondToCredential(sessionId: string, requestId: string, response: CredentialResponse): Promise<boolean>
   respondToQuestion(sessionId: string, requestId: string, response: QuestionResponse): Promise<boolean>
-
-  // Thread session creation (Normies) — creates hidden session with parent context
-  createThreadSession(workspaceId: string, parentSessionId: string, messageId: string, model?: string): Promise<{ session: Session; threadContext: string }>
 
   // Consolidated session command handler
   sessionCommand(sessionId: string, command: SessionCommand): Promise<void | ShareResult | RefreshTitleResult>

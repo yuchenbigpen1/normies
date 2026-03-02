@@ -82,6 +82,8 @@ export interface SessionMeta {
   taskFiles?: string[]
   taskTimeEstimate?: string
   taskType?: 'task' | 'handoff'
+  // Wave number for parallel execution grouping (Normies)
+  wave?: number
   // Thread linking (Normies)
   threadParentSessionId?: string
   threadMessageId?: string
@@ -91,6 +93,8 @@ export interface SessionMeta {
   planPath?: string
   // Architecture diagram (Normies)
   diagramPath?: string
+  // Project steps (Normies) — only on parent sessions
+  projectSteps?: Array<{ stepNumber: number; name: string; description?: string }>
 }
 
 /**
@@ -158,6 +162,8 @@ export function extractSessionMeta(session: Session): SessionMeta {
     taskFiles: session.taskFiles,
     taskTimeEstimate: session.taskTimeEstimate,
     taskType: session.taskType,
+    // Wave number for parallel execution grouping (Normies)
+    wave: session.wave,
     // Thread linking (Normies)
     threadParentSessionId: session.threadParentSessionId,
     threadMessageId: session.threadMessageId,
@@ -167,6 +173,8 @@ export function extractSessionMeta(session: Session): SessionMeta {
     planPath: session.planPath,
     // Architecture diagram (Normies)
     diagramPath: session.diagramPath,
+    // Project steps (Normies) — only on parent sessions
+    projectSteps: session.projectSteps,
   }
 }
 
