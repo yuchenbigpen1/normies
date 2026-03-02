@@ -80,10 +80,9 @@ packages/mermaid/mermaid
 vendor/codex/
 
 # Internal planning/spec docs (keep local, don't publish)
-DOMAIN_CHANGES.md
-IMPLEMENTATION_SPEC.md
-TASK_PLAN.md
-project_spec_normies.md
+docs/design/IMPLEMENTATION_SPEC.md
+docs/design/TASK_PLAN.md
+docs/design/project_spec_normies.md
 .vercel
 
 system.ts

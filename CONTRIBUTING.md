@@ -95,12 +95,16 @@ How you tested these changes
 ```
 normies/
 ├── apps/
-│   ├── electron/    # Desktop GUI (primary interface)
-│   └── tui/         # Terminal CLI (deprecated)
-└── packages/
-    ├── core/        # @normies/core - Shared types
-    ├── shared/      # @normies/shared - Business logic
-    └── ui/          # @normies/ui - React components
+│   ├── electron/    # Desktop app (macOS, Windows, Linux)
+│   └── viewer/      # Web viewer for shared sessions
+├── packages/
+│   ├── core/        # @normies/core - Shared types
+│   ├── shared/      # @normies/shared - Business logic
+│   ├── ui/          # @normies/ui - React components
+│   └── mermaid/     # @normies/mermaid - Diagram renderer
+├── superpowers/     # Skills, hooks, and agents
+├── docs/            # Documentation (Mintlify)
+└── scripts/         # Build and release scripts
 ```
 
 ## Key Areas
