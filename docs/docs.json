@@ -13,7 +13,8 @@
         "group": "Getting Started",
         "pages": [
           "index",
-          "release-checklist"
+          "architecture",
+          "design-process"
         ]
       },
       {

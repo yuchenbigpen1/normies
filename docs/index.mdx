@@ -1,26 +1,50 @@
+---
+title: Welcome to Normies
+description: Claude Code for people who aren't engineers
+---
+
 # Normies Documentation
 
-Normies helps people who aren't engineers turn ideas and problems into working solutions.
+Normies is a desktop app that turns ideas into working software — without requiring you to know how to code. You describe what you want in plain English. Normies figures out the best approach, builds it, tests it, and hands it off with a plain-language guide.
 
-This docs set is the reference for how Normies works in practice: explore, plan, execute, and review.
+## How Normies Works
 
-## Start Here
+Every project follows the same flow:
 
-1. Read [Explore Mode](./explore-mode) to understand decision flow.
-2. Read [Projects and Tasks](./projects-and-tasks) and [Task Execution System](./task-execution-system).
-3. Use [Sources](./sources), [Skills](./skills), and [Permissions](./permissions) to configure behavior.
-4. Review [Threads](./threads) and [Architecture Diagrams](./architecture-diagrams) for comprehension and quality control.
+1. **Explore** — Describe your problem. Normies asks follow-up questions until it truly understands what you need.
+2. **Recommend** — Before building anything, Normies checks if an existing tool already solves your problem. If so, it'll tell you.
+3. **Plan** — When custom work is needed, you get a visual plan with numbered tasks, time estimates, and an architecture diagram.
+4. **Build** — Each task runs in its own session with fresh context. Tests are written before code. Every task verifies its own work.
+5. **Handoff** — You get a plain-language guide explaining what was built, how to verify it, and how to change things later.
+
+## Quick Start
+
+<CardGroup cols={2}>
+  <Card title="Explore Mode" icon="compass" href="/explore-mode">
+    How the decision flow works — from understanding your problem to recommending the right approach
+  </Card>
+  <Card title="Projects & Tasks" icon="list-check" href="/projects-and-tasks">
+    How work gets organized into parallel tasks with dependency tracking
+  </Card>
+  <Card title="Sources" icon="plug" href="/sources">
+    Connect to APIs, MCP servers, Google, Slack, and your local files
+  </Card>
+  <Card title="Why This Architecture" icon="cpu" href="/architecture">
+    The engineering decisions that make AI-built software reliable
+  </Card>
+</CardGroup>
+
+## Learn More
+
+- **[Task Execution System](/task-execution-system)** — How each task gets built, tested, and verified
+- **[Threads](/threads)** — Get a second opinion on any AI response
+- **[Architecture Diagrams](/architecture-diagrams)** — Visual maps of what's being built
+- **[Skills](/skills)** — Domain expertise for Stripe, Notion, n8n, Google Workspace, and more
+- **[Permissions](/permissions)** — Control how much autonomy Normies has
+- **[Design Process](/design-process)** — Product research and decision-making behind Normies
 
 ## Local Development
 
 ```bash
-npx mintlify dev
+cd docs && npx mintlify dev
 ```
-
-## Source of Truth
-
-Design documents are in [docs/design/](./design/).
-
-## Release Sharing
-
-Before distributing builds, run the [Release Checklist](./release-checklist).
