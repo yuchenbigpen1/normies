@@ -87,9 +87,6 @@ Every task gets its own isolated session with a full 200k-token context window. 
 
 The planner defines what done looks like. The executor builds toward it. The verifier checks whether it was achieved. Three agents, three stages, none trusts the others. The planner doesn't know how it'll be built. The executor doesn't get to define "done." The verifier doesn't trust test results or completion summaries.
 
-### Graduated Permission System
-
-Three modes — **Explore** (read-only), **Ask to Edit** (approval per change), **Execute** (full autonomy). Start cautious, upgrade as trust builds. Users are never surprised by what happened while they weren't looking.
 
 ### Plain Language, Always
 
